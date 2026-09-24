@@ -1,0 +1,78 @@
+name: Build Telegram IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Telegram ${{ matrix.telegram_version }}
+    runs-on: macos-26
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        telegram_version:
+          - release-12.9.2
+
+    steps:
+      - name: Clone official Telegram source
+        run: |
+          git clone --recursive --branch "${{ matrix.telegram_version }}" --single-branch --shallow-submodules \
+            https://github.com/TelegramMessenger/Telegram-iOS.git telegram-ios
+          cd telegram-ios
+          git fetch --unshallow --tags
+          git checkout "${{ matrix.telegram_version }}"
+
+      - name: Select required Xcode
+        run: |
+          xcode_version=$(python3 -c 'import json; print(json.load(open("telegram-ios/versions.json"))["xcode"])')
+          echo "Required Xcode: $xcode_version"
+          sudo xcode-select -s "/Applications/Xcode_${xcode_version}.app/Contents/Developer"
+          xcodebuild -version
+
+      - name: Prepare canonical source directory
+        run: |
+          set -euxo pipefail
+          sudo mkdir -p /Users/Shared
+          rm -rf /Users/Shared/telegram-ios
+          cp -R "$GITHUB_WORKSPACE/telegram-ios" /Users/Shared/telegram-ios
+          git -C /Users/Shared/telegram-ios submodule update --init --recursive
+
+      - name: Build unsigned release IPA
+        run: |
+          set -euxo pipefail
+          source_dir=/Users/Shared/telegram-ios
+          bazel_user_root=/private/var/tmp/_bazel_containerhost
+          cd "$source_dir"
+          build_number_offset=$(cat build_number_offset)
+          app_version=$(python3 -c 'import json; print(json.load(open("versions.json"))["app"])')
+          commit_count=$(git rev-list --count HEAD)
+          build_number=$((commit_count + build_number_offset))
+          echo "APP_VERSION=$app_version" >> "$GITHUB_ENV"
+          echo "BUILD_NUMBER=$build_number" >> "$GITHUB_ENV"
+          python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
+          python3 -u build-system/Make/Make.py \
+            --bazelUserRoot="$bazel_user_root" \
+            build \
+            --configurationPath=build-system/appstore-configuration.json \
+            --codesigningInformationPath=build-system/fake-codesigning \
+            --configuration=release_arm64 \
+            --buildNumber="$build_number"
+          mkdir -p build/artifacts
+          find bazel-out -path '*/bin/Telegram/Telegram.ipa' -type f -exec cp '{}' build/artifacts/Telegram.ipa \;
+          test -s build/artifacts/Telegram.ipa
+          unzip -l build/artifacts/Telegram.ipa | grep -E 'Payload/Telegram\.app/'
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Telegram-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}-unsigned
+          path: /Users/Shared/telegram-ios/build/artifacts/Telegram.ipa
+          if-no-files-found: error
+          retention-days: 30
