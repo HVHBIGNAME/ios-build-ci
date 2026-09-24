@@ -11,33 +11,35 @@ permissions:
 
 jobs:
   build:
-    name: Telegram ${{ matrix.telegram_version }}
+    name: Telegram ${{ matrix.source_version }} → 12.9.4
     runs-on: macos-26
     timeout-minutes: 360
     strategy:
       fail-fast: false
       matrix:
-        telegram_version:
-          - release-12.9.2
+        include:
+          - source_version: release-12.9.2
+            app_version: "12.9.4"
+            app_build: "34639"
 
     steps:
-      - name: Clone official Telegram source
+      - name: Клонировать официальные исходники Telegram
         uses: actions/checkout@v4
         with:
           repository: TelegramMessenger/Telegram-iOS
-          ref: ${{ matrix.telegram_version }}
+          ref: ${{ matrix.source_version }}
           path: telegram-ios
           submodules: recursive
           fetch-depth: 0
 
-      - name: Select required Xcode
+      - name: Выбрать Xcode ${{ matrix.source_version }}
         run: |
           xcode_version=$(python3 -c 'import json; print(json.load(open("telegram-ios/versions.json"))["xcode"])')
-          echo "Required Xcode: $xcode_version"
+          echo "Требуется Xcode: $xcode_version"
           sudo xcode-select -s "/Applications/Xcode_${xcode_version}.app/Contents/Developer"
           xcodebuild -version
 
-      - name: Prepare canonical source directory
+      - name: Подготовить канонический каталог исходников
         run: |
           set -euxo pipefail
           sudo mkdir -p /Users/Shared
@@ -45,17 +47,29 @@ jobs:
           cp -R "$GITHUB_WORKSPACE/telegram-ios" /Users/Shared/telegram-ios
           git -C /Users/Shared/telegram-ios submodule update --init --recursive
 
-      - name: Build unsigned release IPA
+      - name: Установить версию 12.9.4
+        run: |
+          set -euxo pipefail
+          source_dir=/Users/Shared/telegram-ios
+          cd "$source_dir"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path("versions.json")
+          data = json.loads(path.read_text())
+          data["app"] = "${{ matrix.app_version }}"
+          path.write_text(json.dumps(data, indent=2) + "\n")
+          PY
+          test "$(python3 -c 'import json; print(json.load(open("versions.json"))["app"])')" = "${{ matrix.app_version }}"
+
+      - name: Собрать release IPA
         run: |
           set -euxo pipefail
           source_dir=/Users/Shared/telegram-ios
           bazel_user_root=/private/var/tmp/_bazel_containerhost
           cd "$source_dir"
-          build_number_offset=$(cat build_number_offset)
-          app_version=$(python3 -c 'import json; print(json.load(open("versions.json"))["app"])')
-          commit_count=$(git rev-list --count HEAD)
-          build_number=$((commit_count + build_number_offset))
-          echo "APP_VERSION=$app_version" >> "$GITHUB_ENV"
+          build_number="${{ matrix.app_build }}"
+          echo "APP_VERSION=${{ matrix.app_version }}" >> "$GITHUB_ENV"
           echo "BUILD_NUMBER=$build_number" >> "$GITHUB_ENV"
           python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
           python3 -u build-system/Make/Make.py \
@@ -66,11 +80,23 @@ jobs:
             --configuration=release_arm64 \
             --buildNumber="$build_number"
           mkdir -p build/artifacts
-          find bazel-out -path '*/bin/Telegram/Telegram.ipa' -type f -exec cp '{}' build/artifacts/Telegram.ipa \;
+          if [[ -f bazel-bin/Telegram/Telegram.ipa ]]; then
+            cp bazel-bin/Telegram/Telegram.ipa build/artifacts/Telegram.ipa
+          else
+            ipa_path=$(find -L bazel-out -type f -path '*/bin/Telegram/Telegram.ipa' -print -quit)
+            test -n "$ipa_path"
+            cp "$ipa_path" build/artifacts/Telegram.ipa
+          fi
           test -s build/artifacts/Telegram.ipa
-          unzip -l build/artifacts/Telegram.ipa | grep -E 'Payload/Telegram\.app/'
+          staging_dir=$(mktemp -d)
+          unzip -q build/artifacts/Telegram.ipa -d "$staging_dir"
+          app_path="$staging_dir/Payload/Telegram.app"
+          test -d "$app_path"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app_path/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app_path/Info.plist"
+          rm -rf "$staging_dir"
 
-      - name: Upload IPA
+      - name: Загрузить IPA
         uses: actions/upload-artifact@v4
         with:
           name: Telegram-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}-unsigned
