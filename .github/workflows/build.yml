@@ -22,12 +22,13 @@ jobs:
 
     steps:
       - name: Clone official Telegram source
-        run: |
-          git clone --recursive --branch "${{ matrix.telegram_version }}" --single-branch --shallow-submodules \
-            https://github.com/TelegramMessenger/Telegram-iOS.git telegram-ios
-          cd telegram-ios
-          git fetch --unshallow --tags
-          git checkout "${{ matrix.telegram_version }}"
+        uses: actions/checkout@v4
+        with:
+          repository: TelegramMessenger/Telegram-iOS
+          ref: ${{ matrix.telegram_version }}
+          path: telegram-ios
+          submodules: recursive
+          fetch-depth: 0
 
       - name: Select required Xcode
         run: |
