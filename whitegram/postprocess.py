@@ -14,6 +14,16 @@ plist_count = 0
 url_scheme_count = 0
 entitlement_count = 0
 
+def replace_prefix(value):
+    if isinstance(value, str):
+        return value.replace(old_prefix, new_prefix)
+    if isinstance(value, list):
+        return [replace_prefix(item) for item in value]
+    if isinstance(value, dict):
+        return {key: replace_prefix(item) for key, item in value.items()}
+    return value
+
+
 for path in sorted(root.rglob("Info.plist")):
     try:
         with path.open("rb") as handle:
@@ -21,18 +31,11 @@ for path in sorted(root.rglob("Info.plist")):
     except (OSError, plistlib.InvalidFileException):
         continue
 
-    changed = False
-    bundle_id = plist.get("CFBundleIdentifier")
-    if isinstance(bundle_id, str) and (bundle_id == old_prefix or bundle_id.startswith(old_prefix + ".")):
-        plist["CFBundleIdentifier"] = new_prefix + bundle_id[len(old_prefix):]
-        changed = True
-
+    updated_plist = replace_prefix(plist)
     if path.name == "Info.plist" and path.parent.name == "Telegram.app":
-        if plist.get("CFBundleDisplayName") != "WhiteGram":
-            plist["CFBundleDisplayName"] = "WhiteGram"
-            changed = True
+        updated_plist["CFBundleDisplayName"] = "WhiteGram"
 
-    url_types = plist.get("CFBundleURLTypes")
+    url_types = updated_plist.get("CFBundleURLTypes")
     if isinstance(url_types, list):
         for url_type in url_types:
             if not isinstance(url_type, dict):
@@ -42,18 +45,17 @@ for path in sorted(root.rglob("Info.plist")):
                 continue
             replaced = []
             for scheme in schemes:
-                if scheme in ("tg", "tgapp"):
-                    replaced.append("whitegram")
+                if scheme in ("tg", "tgapp", "telegram"):
+                    if "whitegram" not in replaced:
+                        replaced.append("whitegram")
                     url_scheme_count += 1
                 elif scheme not in replaced:
                     replaced.append(scheme)
-            if replaced != schemes:
-                url_type["CFBundleURLSchemes"] = replaced
-                changed = True
+            url_type["CFBundleURLSchemes"] = replaced
 
-    if changed:
+    if updated_plist != plist:
         with path.open("wb") as handle:
-            plistlib.dump(plist, handle, fmt=plistlib.FMT_BINARY, sort_keys=False)
+            plistlib.dump(updated_plist, handle, fmt=plistlib.FMT_BINARY, sort_keys=False)
         plist_count += 1
 
 for path in sorted(root.rglob("*")):
