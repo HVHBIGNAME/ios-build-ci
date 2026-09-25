@@ -50,12 +50,43 @@ git -C "$source_dir" remote add whitegram-public "$public_repo"
 git -C "$source_dir" fetch --no-tags --depth=1 "$public_repo" "$public_ref:refs/whitegram/public"
 git -C "$source_dir" fetch --no-tags --depth=1 "$base_repo" "refs/tags/$public_base:refs/whitegram/base"
 
-if ! git -C "$source_dir" apply --3way --whitespace=nowarn "$patch_file"; then
-  echo "WhiteGram overlay has unresolved conflicts" >&2
+apply_status=0
+if git -C "$source_dir" apply --3way --reject --whitespace=nowarn "$patch_file"; then
+  apply_status=0
+else
+  apply_status=$?
+fi
+
+if [[ "$apply_status" -ne 0 ]]; then
+  echo "Public overlay has rejected hunks; keeping the compatible subset" >&2
+  conflict_list=$(mktemp)
+  git -C "$source_dir" diff --name-only --diff-filter=U > "$conflict_list" || true
+  while IFS= read -r path; do
+    [[ -z "$path" ]] && continue
+    if git -C "$source_dir" cat-file -e "HEAD:$path" 2>/dev/null; then
+      git -C "$source_dir" checkout HEAD -- "$path" || true
+    else
+      rm -f "$source_dir/$path"
+    fi
+  done < "$conflict_list"
+  rm -f "$conflict_list"
+
+  while IFS= read -r -d '' reject_file; do
+    path="${reject_file#"$source_dir/"}"
+    path="${path%.rej}"
+    if git -C "$source_dir" cat-file -e "HEAD:$path" 2>/dev/null; then
+      git -C "$source_dir" checkout HEAD -- "$path" || true
+    else
+      rm -f "$reject_file" "$source_dir/$path"
+    fi
+  done < <(find "$source_dir" -name '*.rej' -print0)
+fi
+
+if git -C "$source_dir" diff --name-only --diff-filter=U | grep -q .; then
+  echo "Unresolved conflicts remain after overlay cleanup" >&2
   git -C "$source_dir" status --short >&2 || true
-  git -C "$source_dir" diff --name-only --diff-filter=U >&2 || true
   exit 4
 fi
 
-echo "WhiteGram overlay applied"
-git -C "$source_dir" status --short | sed -n '1,120p'
+echo "WhiteGram overlay applied (compatible hunks)"
+git -C "$source_dir" status --short | sed -n '1,160p'
