@@ -44,7 +44,8 @@ def nearest_build(path: Path) -> Path | None:
 
 def add_dep(build_path: Path, label: str) -> bool:
     text = build_path.read_text(encoding="utf-8", errors="replace")
-    if label in text:
+    base_label = label.rsplit(":", 1)[0]
+    if label in text or f'"{base_label}"' in text:
         return False
     match = re.search(r"deps\s*=\s*\[", text)
     if match is None:
