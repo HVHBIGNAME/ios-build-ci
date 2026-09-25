@@ -96,6 +96,7 @@ jobs:
           test -s build/artifacts/Telegram.ipa
           staging_dir=$(mktemp -d)
           unzip -q build/artifacts/Telegram.ipa -d "$staging_dir"
+          python3 "$GITHUB_WORKSPACE/whitegram/postprocess.py" "$staging_dir"
           app_path="$staging_dir/Payload/Telegram.app"
           test -d "$app_path"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app_path/Info.plist"
@@ -123,12 +124,16 @@ jobs:
                       raise SystemExit(f"unexpected {suffix} bundle id: {plist.get('CFBundleIdentifier')}")
           print("WhiteGram bundle identifiers verified")
           PY
+          cd "$staging_dir"
+          zip -qry "$source_dir/build/artifacts/WhiteGram.ipa" Payload
+          cd "$source_dir"
+          test -s build/artifacts/WhiteGram.ipa
           rm -rf "$staging_dir"
 
       - name: Загрузить IPA
         uses: actions/upload-artifact@v4
         with:
           name: WhiteGram-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}-unsigned
-          path: /Users/Shared/telegram-ios/build/artifacts/Telegram.ipa
+          path: /Users/Shared/telegram-ios/build/artifacts/WhiteGram.ipa
           if-no-files-found: error
           retention-days: 30
