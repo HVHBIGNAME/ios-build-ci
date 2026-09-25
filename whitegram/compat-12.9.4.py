@@ -126,4 +126,42 @@ for relative in changed:
         if dependency_path.exists() and add_dep(build_path, label):
             build_count += 1
 
+compat_file = source_root / "submodules/TelegramUI/Components/TabBarComponent/Sources/WhiteGramTabBarCompatibility.swift"
+if not compat_file.exists():
+    compat_file.parent.mkdir(parents=True, exist_ok=True)
+    compat_file.write_text(
+        """import UIKit
+import TelegramPresentationData
+
+extension TabBarComponent {
+    public convenience init(
+        theme: PresentationTheme,
+        tintSelectedItem: Bool = true,
+        isLiftedStateEnabled: Bool = true,
+        strings: PresentationStrings,
+        items: [Item],
+        search: Search?,
+        selectedId: AnyHashable?,
+        outerInsets: UIEdgeInsets,
+        hideItemTitles: Bool,
+        forceFullWidth: Bool,
+        compactPanel: Bool,
+        compactAction: ((UIView) -> Void)?
+    ) {
+        self.init(
+            theme: theme,
+            tintSelectedItem: tintSelectedItem,
+            isLiftedStateEnabled: isLiftedStateEnabled,
+            strings: strings,
+            items: items,
+            search: search,
+            selectedId: selectedId,
+            outerInsets: outerInsets
+        )
+    }
+}
+""",
+        encoding="utf-8",
+    )
+
 print(f"Added {import_count} compatibility import(s) and {build_count} BUILD dependency(ies)")
