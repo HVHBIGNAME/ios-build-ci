@@ -51,7 +51,7 @@ git -C "$source_dir" fetch --no-tags --depth=1 "$public_repo" "$public_ref:refs/
 git -C "$source_dir" fetch --no-tags --depth=1 "$base_repo" "refs/tags/$public_base:refs/whitegram/base"
 
 apply_status=0
-if git -C "$source_dir" apply --3way --reject --whitespace=nowarn "$patch_file"; then
+if git -C "$source_dir" apply --reject --whitespace=nowarn "$patch_file"; then
   apply_status=0
 else
   apply_status=$?
