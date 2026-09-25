@@ -33,8 +33,15 @@ text, count = re.subn(
     rf"\g<1>{app_name}\g<2>",
     text,
 )
-if count == 0:
+if count == 0 and f"<string>{app_name}</string>" not in text:
     raise SystemExit("CFBundleDisplayName was not found in Telegram/BUILD")
+text, count = re.subn(
+    r'(name = "disableProvisioningProfiles",\s*build_setting_default = )False',
+    r'\1True',
+    text,
+)
+if count != 1:
+    raise SystemExit("disableProvisioningProfiles flag was not found in Telegram/BUILD")
 build_path.write_text(text)
 
 versions_path = root / "versions.json"

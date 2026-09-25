@@ -84,8 +84,7 @@ jobs:
             --configurationPath=build-system/appstore-configuration.json \
             --codesigningInformationPath=build-system/fake-codesigning \
             --configuration=release_arm64 \
-            --buildNumber="$build_number" \
-            --disableProvisioningProfiles
+            --buildNumber="$build_number"
           mkdir -p build/artifacts
           if [[ -f bazel-bin/Telegram/Telegram.ipa ]]; then
             cp bazel-bin/Telegram/Telegram.ipa build/artifacts/Telegram.ipa
