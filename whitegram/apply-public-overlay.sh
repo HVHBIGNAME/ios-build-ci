@@ -4,6 +4,7 @@ set -euo pipefail
 source_dir="${1:?source checkout path is required}"
 public_dir="${2:?public checkout path is required}"
 public_repo="https://github.com/WhiteGram/WhiteGram-iOS.git"
+base_repo="https://github.com/TelegramMessenger/Telegram-iOS.git"
 public_ref="db18308774f863074278feedc4df4507b0fb174e"
 public_base="release-12.6.2"
 patch_file="${RUNNER_TEMP:-/tmp}/whitegram-public-overlay.patch"
@@ -20,7 +21,7 @@ fi
 
 git -C "$public_dir" fetch --depth=1 origin "$public_ref"
 git -C "$public_dir" checkout --detach "$public_ref"
-git -C "$public_dir" fetch --depth=1 origin "refs/tags/$public_base:refs/tags/$public_base"
+git -C "$public_dir" fetch --depth=1 "$base_repo" "refs/tags/$public_base:refs/tags/$public_base"
 
 git -C "$public_dir" diff --binary "$public_base" "$public_ref" -- \
   '*.swift' 'BUILD' '*.bzl' '*.xcconfig' '*.plist' '*.json' '*.sh' '*.strings' \
@@ -47,7 +48,7 @@ echo "Applying WhiteGram public overlay $(git -C "$public_dir" rev-parse --short
 git -C "$source_dir" remote remove whitegram-public >/dev/null 2>&1 || true
 git -C "$source_dir" remote add whitegram-public "$public_repo"
 git -C "$source_dir" fetch --no-tags --depth=1 "$public_repo" "$public_ref:refs/whitegram/public"
-git -C "$source_dir" fetch --no-tags --depth=1 "$public_repo" "refs/tags/$public_base:refs/whitegram/base"
+git -C "$source_dir" fetch --no-tags --depth=1 "$base_repo" "refs/tags/$public_base:refs/whitegram/base"
 
 if ! git -C "$source_dir" apply --3way --whitespace=nowarn "$patch_file"; then
   echo "WhiteGram overlay has unresolved conflicts" >&2
