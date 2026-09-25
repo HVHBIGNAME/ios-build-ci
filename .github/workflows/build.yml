@@ -24,6 +24,11 @@ jobs:
             app_build: "34639"
 
     steps:
+      - name: Checkout build repository
+        uses: actions/checkout@v4
+        with:
+          path: .
+
       - name: Клонировать официальные исходники Telegram
         uses: actions/checkout@v4
         with:
