@@ -1,17 +1,18 @@
-name: Build Telegram IPA
+name: Build WhiteGram IPA
 
 on:
   workflow_dispatch:
   push:
     branches:
       - main
+      - whitegram-source-12.9.4
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
-    name: Telegram ${{ matrix.source_version }} → 12.9.4
+    name: WhiteGram ${{ matrix.source_version }} → 12.9.4
     runs-on: macos-26
     timeout-minutes: 360
     strategy:
@@ -47,20 +48,20 @@ jobs:
           cp -R "$GITHUB_WORKSPACE/telegram-ios" /Users/Shared/telegram-ios
           git -C /Users/Shared/telegram-ios submodule update --init --recursive
 
-      - name: Установить версию 12.9.4
+      - name: Применить публичный WhiteGram overlay
         run: |
           set -euxo pipefail
-          source_dir=/Users/Shared/telegram-ios
-          cd "$source_dir"
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          path = Path("versions.json")
-          data = json.loads(path.read_text())
-          data["app"] = "${{ matrix.app_version }}"
-          path.write_text(json.dumps(data, indent=2) + "\n")
-          PY
-          test "$(python3 -c 'import json; print(json.load(open("versions.json"))["app"])')" = "${{ matrix.app_version }}"
+          rm -rf /Users/Shared/whitegram-public
+          bash "$GITHUB_WORKSPACE/whitegram/apply-public-overlay.sh" \
+            /Users/Shared/telegram-ios \
+            /Users/Shared/whitegram-public
+
+      - name: Настроить WhiteGram и версию 12.9.4
+        run: |
+          set -euxo pipefail
+          python3 "$GITHUB_WORKSPACE/whitegram/configure.py" /Users/Shared/telegram-ios
+          test "$(python3 -c 'import json; print(json.load(open("/Users/Shared/telegram-ios/versions.json"))["app"])')" = "${{ matrix.app_version }}"
+          test "$(python3 -c 'import json; print(json.load(open("/Users/Shared/telegram-ios/build-system/appstore-configuration.json"))["bundle_id"])')" = "whitegram.telegra.Telegraph"
 
       - name: Собрать release IPA
         run: |
@@ -78,7 +79,8 @@ jobs:
             --configurationPath=build-system/appstore-configuration.json \
             --codesigningInformationPath=build-system/fake-codesigning \
             --configuration=release_arm64 \
-            --buildNumber="$build_number"
+            --buildNumber="$build_number" \
+            --disableProvisioningProfiles
           mkdir -p build/artifacts
           if [[ -f bazel-bin/Telegram/Telegram.ipa ]]; then
             cp bazel-bin/Telegram/Telegram.ipa build/artifacts/Telegram.ipa
@@ -94,12 +96,35 @@ jobs:
           test -d "$app_path"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app_path/Info.plist"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app_path/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app_path/Info.plist"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app_path/Info.plist")" = "whitegram.telegra.Telegraph"
+          python3 - "$staging_dir" <<'PY'
+          import plistlib
+          import sys
+          from pathlib import Path
+
+          staging = Path(sys.argv[1])
+          app = staging / "Payload" / "Telegram.app"
+          expected = "whitegram.telegra.Telegraph"
+          with (app / "Info.plist").open("rb") as f:
+              info = plistlib.load(f)
+          if info.get("CFBundleIdentifier") != expected:
+              raise SystemExit(f"unexpected main bundle id: {info.get('CFBundleIdentifier')}")
+          for suffix in ("Share", "NotificationService", "NotificationContent", "SiriIntents", "Widget", "BroadcastUpload"):
+              plist_path = app / "PlugIns" / f"{suffix}.appex" / "Info.plist"
+              if plist_path.exists():
+                  with plist_path.open("rb") as f:
+                      plist = plistlib.load(f)
+                  if plist.get("CFBundleIdentifier") != f"{expected}.{suffix}":
+                      raise SystemExit(f"unexpected {suffix} bundle id: {plist.get('CFBundleIdentifier')}")
+          print("WhiteGram bundle identifiers verified")
+          PY
           rm -rf "$staging_dir"
 
       - name: Загрузить IPA
         uses: actions/upload-artifact@v4
         with:
-          name: Telegram-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}-unsigned
+          name: WhiteGram-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}-unsigned
           path: /Users/Shared/telegram-ios/build/artifacts/Telegram.ipa
           if-no-files-found: error
           retention-days: 30
