@@ -126,6 +126,22 @@ for relative in changed:
         if dependency_path.exists() and add_dep(build_path, label):
             build_count += 1
 
+restore_paths = (
+    "submodules/TelegramUI/Sources/Chat/ChatControllerLoadDisplayNode.swift",
+    "submodules/TelegramUI/Sources/ChatController.swift",
+)
+restored_count = 0
+for relative in restore_paths:
+    result = subprocess.run(
+        ["git", "-C", str(source_root), "show", f"HEAD:{relative}"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    if result.returncode == 0:
+        (source_root / relative).write_bytes(result.stdout)
+        restored_count += 1
+
 compat_file = source_root / "submodules/TelegramUI/Components/TabBarComponent/Sources/WhiteGramTabBarCompatibility.swift"
 if not compat_file.exists():
     compat_file.parent.mkdir(parents=True, exist_ok=True)
@@ -164,4 +180,4 @@ extension TabBarComponent {
         encoding="utf-8",
     )
 
-print(f"Added {import_count} compatibility import(s) and {build_count} BUILD dependency(ies)")
+print(f"Added {import_count} compatibility import(s) and {build_count} BUILD dependency(ies); restored {restored_count} incompatible file(s)")
