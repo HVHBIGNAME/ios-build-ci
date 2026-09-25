@@ -28,6 +28,8 @@ changed = subprocess.check_output(
 def module_map(root: Path) -> dict[str, str]:
     result: dict[str, str] = {}
     for build in root.rglob("BUILD"):
+        if not build.is_file():
+            continue
         text = build.read_text(encoding="utf-8", errors="replace")
         relative_build = build.relative_to(root).as_posix()
         package = relative_build.rsplit("/", 1)[0] if "/" in relative_build else ""
@@ -50,7 +52,7 @@ def nearest_build(path: Path) -> Path | None:
     current = path.parent
     while current != source_root and current != current.parent:
         candidate = current / "BUILD"
-        if candidate.exists():
+        if candidate.is_file():
             return candidate
         current = current.parent
     return None
