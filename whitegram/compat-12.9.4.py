@@ -33,16 +33,13 @@ def module_map(root: Path) -> dict[str, str]:
         text = build.read_text(encoding="utf-8", errors="replace")
         relative_build = build.relative_to(root).as_posix()
         package = relative_build.rsplit("/", 1)[0] if "/" in relative_build else ""
-        for match in re.finditer(
-            r'swift_library\s*\((.*?)\n\)', text, flags=re.DOTALL
-        ):
-            block = match.group(1)
-            name_match = re.search(r'name\s*=\s*"([^"]+)"', block)
-            module_match = re.search(r'module_name\s*=\s*"([^"]+)"', block)
-            if name_match is None or module_match is None:
-                continue
-            label = f"//{package}:{name_match.group(1)}" if package else f"//:{name_match.group(1)}"
-            result.setdefault(module_match.group(1), label)
+        for match in re.finditer(r'module_name\s*=\s*"([^"]+)"', text):
+            module = match.group(1)
+            before = text[:match.start()]
+            names = re.findall(r'name\s*=\s*"([^"]+)"', before)
+            target = names[-1] if names else module
+            label = f"//{package}:{target}" if package else f"//:{target}"
+            result.setdefault(module, label)
     result.setdefault("Postbox", "//submodules/Postbox:Postbox")
     result.setdefault("TelegramUIPreferences", "//submodules/TelegramUIPreferences:TelegramUIPreferences")
     return result
@@ -103,26 +100,30 @@ for relative in changed:
         continue
     public_text = public_path.read_text(encoding="utf-8", errors="replace")
     target_text = target_path.read_text(encoding="utf-8", errors="replace")
-    missing = sorted(
-        module
-        for module in imports(public_text) - imports(target_text)
-        if module in modules and not module.startswith("_")
-    )
-    if not missing:
+    public_modules = imports(public_text) & modules.keys()
+    if not public_modules:
         continue
-    lines = target_text.splitlines(keepends=True)
-    import_indices = [index for index, line in enumerate(lines) if line.strip().startswith("import ")]
-    insert_at = (max(import_indices) + 1) if import_indices else 0
-    for module in reversed(missing):
-        lines.insert(insert_at, f"import {module}\n")
-        import_count += 1
-    target_path.write_text("".join(lines), encoding="utf-8")
+    target_modules = imports(target_text)
+    missing = sorted(module for module in public_modules if module not in target_modules)
+    if missing:
+        lines = target_text.splitlines(keepends=True)
+        import_indices = [index for index, line in enumerate(lines) if line.strip().startswith("import ")]
+        insert_at = (max(import_indices) + 1) if import_indices else 0
+        for module in reversed(missing):
+            lines.insert(insert_at, f"import {module}\n")
+            import_count += 1
+        target_path.write_text("".join(lines), encoding="utf-8")
     build_path = nearest_build(target_path)
-    if build_path is not None:
-        for module in missing:
-            label = modules[module]
-            dependency_path = source_root / label[2:].split(":", 1)[0]
-            if dependency_path.exists() and add_dep(build_path, label):
-                build_count += 1
+    if build_path is None:
+        continue
+    build_package = build_path.parent.relative_to(source_root).as_posix()
+    for module in sorted(public_modules):
+        label = modules[module]
+        label_package = label[2:].split(":", 1)[0]
+        if label_package == build_package:
+            continue
+        dependency_path = source_root / label_package
+        if dependency_path.exists() and add_dep(build_path, label):
+            build_count += 1
 
 print(f"Added {import_count} compatibility import(s) and {build_count} BUILD dependency(ies)")
