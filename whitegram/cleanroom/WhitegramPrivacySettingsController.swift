@@ -119,36 +119,68 @@ private enum WhitegramPrivacySettingsEntry: ItemListNodeEntry {
         case let .header(_, text):
             return ItemListSectionHeaderItem(presentationData: presentationData, text: text, sectionId: self.section)
         case let .ghostMode(settings):
-            return privacySwitch(presentationData: presentationData, settings: settings, title: "Ghost Mode", text: "Suppress activity indicators and optional privacy events.", section: self.section) { value in
-                arguments.update { $0.ghostModeEnabled = value }
+            return privacySwitch(presentationData: presentationData, settings: settings, value: settings.ghostModeEnabled, title: "Ghost Mode", text: "Suppress activity indicators and optional privacy events.", section: self.section) { value in
+                arguments.update { current in
+                    var current = current
+                    current.ghostModeEnabled = value
+                    return current
+                }
             }
         case let .readReceipts(settings):
-            return privacySwitch(presentationData: presentationData, settings: settings, title: "Disable Read Receipts", text: "Do not mark outgoing messages as read remotely.", section: self.section) { value in
-                arguments.update { $0.disableReadReceipts = value }
+            return privacySwitch(presentationData: presentationData, settings: settings, value: settings.disableReadReceipts, title: "Disable Read Receipts", text: "Do not mark outgoing messages as read remotely.", section: self.section) { value in
+                arguments.update { current in
+                    var current = current
+                    current.disableReadReceipts = value
+                    return current
+                }
             }
         case let .typingStatus(settings):
-            return privacySwitch(presentationData: presentationData, settings: settings, title: "Disable Typing Status", text: "Hide typing and recording activity.", section: self.section) { value in
-                arguments.update { $0.disableTypingStatus = value }
+            return privacySwitch(presentationData: presentationData, settings: settings, value: settings.disableTypingStatus, title: "Disable Typing Status", text: "Hide typing and recording activity.", section: self.section) { value in
+                arguments.update { current in
+                    var current = current
+                    current.disableTypingStatus = value
+                    return current
+                }
             }
         case let .onlineStatus(settings):
-            return privacySwitch(presentationData: presentationData, settings: settings, title: "Disable Online Status", text: "Do not publish online state.", section: self.section) { value in
-                arguments.update { $0.disableOnlineStatus = value }
+            return privacySwitch(presentationData: presentationData, settings: settings, value: settings.disableOnlineStatus, title: "Disable Online Status", text: "Do not publish online state.", section: self.section) { value in
+                arguments.update { current in
+                    var current = current
+                    current.disableOnlineStatus = value
+                    return current
+                }
             }
         case let .phoneNumber(settings):
-            return privacySwitch(presentationData: presentationData, settings: settings, title: "Hide Phone Number", text: "Hide phone numbers in supported profile views.", section: self.section) { value in
-                arguments.update { $0.hidePhoneNumber = value }
+            return privacySwitch(presentationData: presentationData, settings: settings, value: settings.hidePhoneNumber, title: "Hide Phone Number", text: "Hide phone numbers in supported profile views.", section: self.section) { value in
+                arguments.update { current in
+                    var current = current
+                    current.hidePhoneNumber = value
+                    return current
+                }
             }
         case let .avatarInGroups(settings):
-            return privacySwitch(presentationData: presentationData, settings: settings, title: "Hide Avatars In Groups", text: "Reduce identity exposure in group views.", section: self.section) { value in
-                arguments.update { $0.hideAvatarInGroups = value }
+            return privacySwitch(presentationData: presentationData, settings: settings, value: settings.hideAvatarInGroups, title: "Hide Avatars In Groups", text: "Reduce identity exposure in group views.", section: self.section) { value in
+                arguments.update { current in
+                    var current = current
+                    current.hideAvatarInGroups = value
+                    return current
+                }
             }
         case let .deletedMessages(settings):
-            return privacySwitch(presentationData: presentationData, settings: settings, title: "Save Deleted Messages", text: "Keep a local copy of deleted messages when supported.", section: self.section) { value in
-                arguments.update { $0.saveDeletedMessages = value }
+            return privacySwitch(presentationData: presentationData, settings: settings, value: settings.saveDeletedMessages, title: "Save Deleted Messages", text: "Keep a local copy of deleted messages when supported.", section: self.section) { value in
+                arguments.update { current in
+                    var current = current
+                    current.saveDeletedMessages = value
+                    return current
+                }
             }
         case let .antiCensorship(settings):
-            return privacySwitch(presentationData: presentationData, settings: settings, title: "Anti-Censorship Mode", text: "Use conservative fallback behavior for restricted content.", section: self.section) { value in
-                arguments.update { $0.antiCensorshipEnabled = value }
+            return privacySwitch(presentationData: presentationData, settings: settings, value: settings.antiCensorshipEnabled, title: "Anti-Censorship Mode", text: "Use conservative fallback behavior for restricted content.", section: self.section) { value in
+                arguments.update { current in
+                    var current = current
+                    current.antiCensorshipEnabled = value
+                    return current
+                }
             }
         }
     }
@@ -156,6 +188,7 @@ private enum WhitegramPrivacySettingsEntry: ItemListNodeEntry {
     private func privacySwitch(
         presentationData: ItemListPresentationData,
         settings: WhitegramPrivacySettings,
+        value: Bool,
         title: String,
         text: String,
         section: ItemListSectionId,
@@ -166,7 +199,7 @@ private enum WhitegramPrivacySettingsEntry: ItemListNodeEntry {
             systemStyle: .glass,
             title: privacyString(presentationData, ru: title, en: title),
             text: privacyString(presentationData, ru: text, en: text),
-            value: settings.ghostModeEnabled && title == "Ghost Mode" ? true : (title == "Disable Read Receipts" ? settings.disableReadReceipts : (title == "Disable Typing Status" ? settings.disableTypingStatus : (title == "Disable Online Status" ? settings.disableOnlineStatus : (title == "Hide Phone Number" ? settings.hidePhoneNumber : (title == "Hide Avatars In Groups" ? settings.hideAvatarInGroups : (title == "Save Deleted Messages" ? settings.saveDeletedMessages : settings.antiCensorshipEnabled)))))),
+            value: value,
             sectionId: section,
             style: .blocks,
             updated: update
