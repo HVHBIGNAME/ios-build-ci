@@ -127,24 +127,26 @@ for relative in changed:
         if dependency_path.exists() and add_dep(build_path, label):
             build_count += 1
 
-cleanroom_root = Path(__file__).resolve().parent / "cleanroom"
+source_base = Path(__file__).resolve().parent
 cleanroom_files = {
-    "WhitegramPrivacySettings.swift": "submodules/TelegramUIPreferences/Sources/WhitegramPrivacySettings.swift",
-    "WhitegramPrivacySettingsController.swift": "submodules/SettingsUI/Sources/WhitegramPrivacySettingsController.swift",
-    "WhitegramAccountsSettingsController.swift": "submodules/SettingsUI/Sources/WhitegramAccountsSettingsController.swift",
-    "WhitegramMenuSection.swift": "submodules/SettingsUI/Sources/WhitegramMenuSection.swift",
-    "WhitegramMainMenuController.swift": "submodules/SettingsUI/Sources/WhitegramMainMenuController.swift",
-    "WhitegramSettingsController.swift": "submodules/SettingsUI/Sources/WhitegramSettingsController.swift",
-    "WhitegramSettingsPlaceholderController.swift": "submodules/SettingsUI/Sources/WhitegramSettingsPlaceholderController.swift",
+    "cleanroom/WhitegramPrivacySettings.swift": "submodules/TelegramUIPreferences/Sources/WhitegramPrivacySettings.swift",
+    "cleanroom/WhitegramPrivacySettingsController.swift": "submodules/SettingsUI/Sources/WhitegramPrivacySettingsController.swift",
+    "cleanroom/WhitegramAccountsSettingsController.swift": "submodules/SettingsUI/Sources/WhitegramAccountsSettingsController.swift",
+    "cleanroom/WhitegramMenuSection.swift": "submodules/SettingsUI/Sources/WhitegramMenuSection.swift",
+    "cleanroom/WhitegramMainMenuController.swift": "submodules/SettingsUI/Sources/WhitegramMainMenuController.swift",
+    "cleanroom/WhitegramSettingsController.swift": "submodules/SettingsUI/Sources/WhitegramSettingsController.swift",
+    "cleanroom/WhitegramSettingsPlaceholderController.swift": "submodules/SettingsUI/Sources/WhitegramSettingsPlaceholderController.swift",
     "generated/WhitegramSettingsState.swift": "submodules/SettingsUI/Sources/WhitegramSettingsState.swift",
     "generated/WhitegramSettingsCatalog.swift": "submodules/SettingsUI/Sources/WhitegramSettingsCatalog.swift",
 }
+missing = [name for name in cleanroom_files if not (source_base / name).is_file()]
+if missing:
+    raise SystemExit("Missing clean-room sources: " + ", ".join(sorted(missing)))
 for source_name, target_name in cleanroom_files.items():
-    source_path = cleanroom_root / source_name
+    source_path = source_base / source_name
     target_path = source_root / target_name
-    if source_path.exists():
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source_path, target_path)
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source_path, target_path)
 
 settings_path = source_root / "submodules/SettingsUI/Sources/WhiteGramSettingsController.swift"
 if settings_path.exists():

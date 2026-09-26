@@ -1,0 +1,64 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Whitegram languages</title></head><body>
+<script>
+(function () {
+  var workers = {};
+  function post(message) { window.webkit.messageHandlers.wg.postMessage(message); }
+  function key(pluginId, lang) { return pluginId + "::" + lang; }
+  function fail(entry, error) {
+    Object.keys(entry.pending).forEach(function (id) {
+      post({ type: "result", id: Number(id), ok: false, error: error });
+    });
+    entry.pending = {};
+  }
+  function terminate(k, reason) {
+    var entry = workers[k];
+    if (!entry) return;
+    entry.worker.terminate();
+    fail(entry, reason || "Интерпретатор остановлен");
+    delete workers[k];
+  }
+  function get(pluginId, lang) {
+    var k = key(pluginId, lang);
+    if (workers[k]) return workers[k];
+    var worker = new Worker("glue/" + lang + ".js");
+    var entry = { worker: worker, pluginId: pluginId, lang: lang, pending: {} };
+    worker.onmessage = function (event) {
+      var m = event.data || {};
+      if (m.type === "result") {
+        delete entry.pending[m.id];
+        post({ type: "result", id: m.id, ok: !!m.ok, result: m.result === undefined ? null : m.result, error: m.error || null });
+      } else if (m.type === "event") {
+        post({ type: "event", pluginId: pluginId, lang: lang, kind: m.kind, data: m.data === undefined ? null : m.data });
+      }
+    };
+    worker.onerror = function (error) {
+      var text = String((error && error.message) || error);
+      post({ type: "event", pluginId: pluginId, lang: lang, kind: "stderr", data: text });
+      fail(entry, "Интерпретатор упал: " + text);
+      delete workers[k];
+    };
+    worker.postMessage({ type: "init", pluginId: pluginId, lang: lang });
+    workers[k] = entry;
+    return entry;
+  }
+  window.__wgHost = {
+    dispatch: function (m) {
+      if (m.op === "reset") {
+        terminate(key(m.pluginId, m.lang), "Интерпретатор перезапущен");
+        post({ type: "result", id: m.id, ok: true, result: null });
+        return;
+      }
+      var entry = get(m.pluginId, m.lang);
+      entry.pending[m.id] = true;
+      entry.worker.postMessage({ type: "op", id: m.id, op: m.op, payload: m.payload });
+    },
+    terminatePlugin: function (pluginId) {
+      Object.keys(workers).forEach(function (k) { if (workers[k].pluginId === pluginId) terminate(k); });
+    },
+    terminateLanguage: function (lang) {
+      Object.keys(workers).forEach(function (k) { if (workers[k].lang === lang) terminate(k, "Язык переустановлен"); });
+    }
+  };
+})();
+</script></body></html>
