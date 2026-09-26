@@ -71,7 +71,7 @@ private enum WhitegramMainMenuEntry: ItemListNodeEntry {
         case let .version(_, value):
             return ItemListTextItem(
                 presentationData: presentationData,
-                text: value,
+                text: .plain(value),
                 sectionId: self.section,
                 style: .blocks
             )
@@ -116,11 +116,7 @@ public func whitegramMainMenuController(context: AccountContext) -> ViewControll
         case "privacy":
             pushController?(whitegramPrivacySettingsController(context: context))
         case "allSettings":
-            pushController?(whitegramSimpleInfoController(
-                context: context,
-                title: section.enTitle,
-                lines: WhitegramMenuCatalog.sections.map { "\($0.enTitle) — \($0.enDescription)" }
-            ))
+            pushController?(whitegramSettingsController(context: context))
         default:
             pushController?(whitegramNotPortedController(context: context, section: section))
         }
@@ -147,7 +143,7 @@ public func whitegramMainMenuController(context: AccountContext) -> ViewControll
         }
     let controller = ItemListController(context: context, state: signal)
     pushController = { [weak controller] inner in
-        controller?.push(inner, in: .root, with: .animation(fast: true))
+        controller?.navigationController?.pushViewController(inner, animated: true)
     }
     return controller
 }
@@ -178,10 +174,18 @@ private struct WhitegramSimpleEntry: ItemListNodeEntry {
 
     var stableId: Int { return self.index }
 
+    static func ==(lhs: WhitegramSimpleEntry, rhs: WhitegramSimpleEntry) -> Bool {
+        return lhs.index == rhs.index
+    }
+
+    static func <(lhs: WhitegramSimpleEntry, rhs: WhitegramSimpleEntry) -> Bool {
+        return lhs.index < rhs.index
+    }
+
     func item(presentationData: ItemListPresentationData, arguments: Any) -> ListViewItem {
         return ItemListTextItem(
             presentationData: presentationData,
-            text: self.text,
+            text: .plain(self.text),
             sectionId: self.section,
             style: .blocks
         )
@@ -192,7 +196,7 @@ public func whitegramSimpleInfoController(context: AccountContext, title: String
     let signal = context.sharedContext.presentationData
         |> deliverOnMainQueue
         |> map { presentationData -> (ItemListControllerState, (ItemListNodeState, Any)) in
-            let entries: [ItemListNodeEntry] = lines.enumerated().map { WhitegramSimpleEntry(text: $1, index: $0) }
+            let entries: [WhitegramSimpleEntry] = lines.enumerated().map { WhitegramSimpleEntry(text: $1, index: $0) }
             let controllerState = ItemListControllerState(
                 presentationData: ItemListPresentationData(presentationData),
                 title: .text(title),

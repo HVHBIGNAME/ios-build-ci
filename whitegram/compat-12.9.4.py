@@ -134,6 +134,10 @@ cleanroom_files = {
     "WhitegramAccountsSettingsController.swift": "submodules/SettingsUI/Sources/WhitegramAccountsSettingsController.swift",
     "WhitegramMenuSection.swift": "submodules/SettingsUI/Sources/WhitegramMenuSection.swift",
     "WhitegramMainMenuController.swift": "submodules/SettingsUI/Sources/WhitegramMainMenuController.swift",
+    "WhitegramSettingsController.swift": "submodules/SettingsUI/Sources/WhitegramSettingsController.swift",
+    "WhitegramSettingsPlaceholderController.swift": "submodules/SettingsUI/Sources/WhitegramSettingsPlaceholderController.swift",
+    "generated/WhitegramSettingsState.swift": "submodules/SettingsUI/Sources/WhitegramSettingsState.swift",
+    "generated/WhitegramSettingsCatalog.swift": "submodules/SettingsUI/Sources/WhitegramSettingsCatalog.swift",
 }
 for source_name, target_name in cleanroom_files.items():
     source_path = cleanroom_root / source_name
