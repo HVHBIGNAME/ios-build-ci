@@ -131,6 +131,7 @@ cleanroom_root = Path(__file__).resolve().parent / "cleanroom"
 cleanroom_files = {
     "WhitegramPrivacySettings.swift": "submodules/TelegramUIPreferences/Sources/WhitegramPrivacySettings.swift",
     "WhitegramPrivacySettingsController.swift": "submodules/SettingsUI/Sources/WhitegramPrivacySettingsController.swift",
+    "WhitegramAccountsSettingsController.swift": "submodules/SettingsUI/Sources/WhitegramAccountsSettingsController.swift",
 }
 for source_name, target_name in cleanroom_files.items():
     source_path = cleanroom_root / source_name
@@ -142,11 +143,20 @@ for source_name, target_name in cleanroom_files.items():
 settings_path = source_root / "submodules/SettingsUI/Sources/WhiteGramSettingsController.swift"
 if settings_path.exists():
     text = settings_path.read_text(encoding="utf-8", errors="replace")
+    changed = False
     if "case privacy" not in text:
         text = text.replace("    case contextMenu\n    case other\n", "    case contextMenu\n    case privacy\n    case other\n", 1)
         text = text.replace("        case .other:\n            return whiteGramString(strings, ru: \"Другие\", en: \"Other\")", "        case .privacy:\n            return whiteGramString(strings, ru: \"Приватность\", en: \"Privacy\")\n        case .other:\n            return whiteGramString(strings, ru: \"Другие\", en: \"Other\")", 1)
         text = text.replace("        case .other:\n            return PresentationResourcesSettings.settings", "        case .privacy:\n            return PresentationResourcesSettings.settings\n        case .other:\n            return PresentationResourcesSettings.settings", 1)
         text = text.replace("            case .other:\n                pushController?(whiteGramOtherSettingsController(context: context))", "            case .privacy:\n                pushController?(whitegramPrivacySettingsController(context: context))\n            case .other:\n                pushController?(whiteGramOtherSettingsController(context: context))", 1)
+        changed = True
+    if "case accounts" not in text:
+        text = text.replace("    case tabs\n", "    case tabs\n    case accounts\n", 1)
+        text = text.replace("        case .privacy:\n", "        case .accounts:\n            return whiteGramString(strings, ru: \"Аккаунты\", en: \"Accounts\")\n        case .privacy:\n", 1)
+        text = text.replace("        case .privacy:\n            return PresentationResourcesSettings.settings\n", "        case .accounts:\n            return PresentationResourcesSettings.settings\n        case .privacy:\n            return PresentationResourcesSettings.settings\n", 1)
+        text = text.replace("            case .privacy:\n", "            case .accounts:\n                pushController?(whitegramAccountsSettingsController(context: context))\n            case .privacy:\n", 1)
+        changed = True
+    if changed:
         settings_path.write_text(text, encoding="utf-8")
 
 restore_paths = (
