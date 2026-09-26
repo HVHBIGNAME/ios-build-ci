@@ -116,7 +116,9 @@ public func whitegramMainMenuController(context: AccountContext) -> ViewControll
         case "privacy":
             pushController?(whitegramPrivacySettingsController(context: context))
         case "allSettings":
-            pushController?(whitegramSettingsController(context: context))
+            // The public fork ships a real settings screen with its own section
+            // titles, so prefer it over the generated skeleton.
+            pushController?(whiteGramSettingsController(context: context))
         default:
             pushController?(whitegramNotPortedController(context: context, section: section))
         }

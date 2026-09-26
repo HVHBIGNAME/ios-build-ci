@@ -90,7 +90,7 @@ private enum WhitegramSettingsRow: ItemListNodeEntry {
     }
 }
 
-public func whitegramSettingsController(context: AccountContext) -> ViewController {
+public func whitegramGeneratedSettingsController(context: AccountContext) -> ViewController {
     let promise = ValuePromise(WhitegramSettingsState.current, ignoreRepeated: true)
     var pushController: ((ViewController) -> Void)?
     let arguments = WhitegramSettingsControllerArguments(

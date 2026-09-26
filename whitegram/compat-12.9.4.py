@@ -134,7 +134,7 @@ cleanroom_files = {
     "cleanroom/WhitegramAccountsSettingsController.swift": "submodules/SettingsUI/Sources/WhitegramAccountsSettingsController.swift",
     "cleanroom/WhitegramMenuSection.swift": "submodules/SettingsUI/Sources/WhitegramMenuSection.swift",
     "cleanroom/WhitegramMainMenuController.swift": "submodules/SettingsUI/Sources/WhitegramMainMenuController.swift",
-    "cleanroom/WhitegramSettingsController.swift": "submodules/SettingsUI/Sources/WhitegramSettingsController.swift",
+    "cleanroom/WhitegramGeneratedSettingsScreen.swift": "submodules/SettingsUI/Sources/WhitegramGeneratedSettingsScreen.swift",
     "cleanroom/WhitegramSettingsPlaceholderController.swift": "submodules/SettingsUI/Sources/WhitegramSettingsPlaceholderController.swift",
     "generated/WhitegramSettingsState.swift": "submodules/SettingsUI/Sources/WhitegramSettingsState.swift",
     "generated/WhitegramSettingsCatalog.swift": "submodules/SettingsUI/Sources/WhitegramSettingsCatalog.swift",
@@ -143,6 +143,22 @@ cleanroom_files = {
 missing = [name for name in cleanroom_files if not (source_base / name).is_file()]
 if missing:
     raise SystemExit("Missing clean-room sources: " + ", ".join(sorted(missing)))
+
+# The CI filesystem is case-insensitive, so a target name that differs from an
+# existing file only by case silently overwrites it. That once destroyed the
+# fork's whiteGramSettingsController, so refuse to allow it.
+for target_name in cleanroom_files.values():
+    target = source_root / target_name
+    if not target.parent.is_dir():
+        continue
+    lowered = target.name.lower()
+    for existing in target.parent.iterdir():
+        if existing.name.lower() == lowered and existing.name != target.name:
+            raise SystemExit(
+                "Case-insensitive collision: {} would overwrite {}".format(
+                    target_name, existing.name
+                )
+            )
 for source_name, target_name in cleanroom_files.items():
     source_path = source_base / source_name
     target_path = source_root / target_name
