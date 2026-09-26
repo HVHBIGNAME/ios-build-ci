@@ -138,6 +138,7 @@ cleanroom_files = {
     "cleanroom/WhitegramSettingsPlaceholderController.swift": "submodules/SettingsUI/Sources/WhitegramSettingsPlaceholderController.swift",
     "generated/WhitegramSettingsState.swift": "submodules/SettingsUI/Sources/WhitegramSettingsState.swift",
     "generated/WhitegramSettingsCatalog.swift": "submodules/SettingsUI/Sources/WhitegramSettingsCatalog.swift",
+    "cleanroom/WhitegramGhost.swift": "submodules/TelegramCore/Sources/WhitegramGhost.swift",
 }
 missing = [name for name in cleanroom_files if not (source_base / name).is_file()]
 if missing:
@@ -147,6 +148,60 @@ for source_name, target_name in cleanroom_files.items():
     target_path = source_root / target_name
     target_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source_path, target_path)
+
+
+def patch_file(relative_path, anchor, replacement):
+    """Insert `replacement` in place of `anchor`, refusing to guess."""
+    path = source_root / relative_path
+    if not path.is_file():
+        raise SystemExit("Patch target missing: " + relative_path)
+    text = path.read_bytes().decode("utf-8")
+    newline = "\r\n" if "\r\n" in text else "\n"
+    anchor = anchor.replace("\n", newline)
+    replacement = replacement.replace("\n", newline)
+    if replacement in text:
+        print("  already patched: " + relative_path)
+        return
+    found = text.count(anchor)
+    if found != 1:
+        raise SystemExit(
+            "Patch anchor matched {} times in {}: {!r}".format(
+                found, relative_path, anchor[:80]
+            )
+        )
+    path.write_bytes(text.replace(anchor, replacement).encode("utf-8"))
+    print("  patched: " + relative_path)
+
+
+# Ghost mode: stop telling the server what the account is doing. These are the
+# three request paths Telegram uses to publish online status, typing/recording
+# activity, and read receipts.
+patch_file(
+    "submodules/TelegramCore/Sources/State/ManagedAccountPresence.swift",
+    "    private func updatePresence(_ isOnline: Bool) {\n",
+    "    private func updatePresence(_ isOnline: Bool) {\n"
+    "        if WhitegramGhost.suppressOnlineStatus {\n"
+    "            return\n"
+    "        }\n",
+)
+
+patch_file(
+    "submodules/TelegramCore/Sources/State/ManagedLocalInputActivities.swift",
+    "private func requestActivity(postbox: Postbox, network: Network, accountPeerId: PeerId, peerId: PeerId, threadId: Int64?, activity: PeerInputActivity?) -> Signal<Void, NoError> {\n",
+    "private func requestActivity(postbox: Postbox, network: Network, accountPeerId: PeerId, peerId: PeerId, threadId: Int64?, activity: PeerInputActivity?) -> Signal<Void, NoError> {\n"
+    "    if activity != nil, WhitegramGhost.suppressTypingStatus {\n"
+    "        return .complete()\n"
+    "    }\n",
+)
+
+patch_file(
+    "submodules/TelegramCore/Sources/State/SynchronizePeerReadState.swift",
+    "private func pushPeerReadState(network: Network, postbox: Postbox, stateManager: AccountStateManager, peerId: PeerId, readState: PeerReadState) -> Signal<PeerReadState, PeerReadStateValidationError> {\n",
+    "private func pushPeerReadState(network: Network, postbox: Postbox, stateManager: AccountStateManager, peerId: PeerId, readState: PeerReadState) -> Signal<PeerReadState, PeerReadStateValidationError> {\n"
+    "    if WhitegramGhost.suppressReadReceipts {\n"
+    "        return .single(readState)\n"
+    "    }\n",
+)
 
 settings_path = source_root / "submodules/SettingsUI/Sources/WhiteGramSettingsController.swift"
 if settings_path.exists():

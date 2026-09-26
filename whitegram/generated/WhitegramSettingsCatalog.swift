@@ -25,7 +25,7 @@ public struct WhitegramSettingsRowDescriptor {
 }
 
 public enum WhitegramSettingsCatalog {
-    public static let rows: [WhitegramSettingsRow] = [
+    public static let rows: [WhitegramSettingsRowDescriptor] = [
         WhitegramSettingsRowDescriptor(id: "messagePreview", order: 0, section: 0, kind: .valueRow, title: "MessagePreview", labelsVerified: false),
         WhitegramSettingsRowDescriptor(id: "chatListPreview", order: 1, section: 0, kind: .valueRow, title: "ChatListPreview", labelsVerified: false),
         WhitegramSettingsRowDescriptor(id: "tabBarPreview", order: 2, section: 0, kind: .valueRow, title: "TabBarPreview", labelsVerified: false),
