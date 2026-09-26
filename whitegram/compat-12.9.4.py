@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -125,6 +126,28 @@ for relative in changed:
         dependency_path = source_root / label_package
         if dependency_path.exists() and add_dep(build_path, label):
             build_count += 1
+
+cleanroom_root = Path(__file__).resolve().parent / "cleanroom"
+cleanroom_files = {
+    "WhitegramPrivacySettings.swift": "submodules/TelegramUIPreferences/Sources/WhitegramPrivacySettings.swift",
+    "WhitegramPrivacySettingsController.swift": "submodules/SettingsUI/Sources/WhitegramPrivacySettingsController.swift",
+}
+for source_name, target_name in cleanroom_files.items():
+    source_path = cleanroom_root / source_name
+    target_path = source_root / target_name
+    if source_path.exists():
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source_path, target_path)
+
+settings_path = source_root / "submodules/SettingsUI/Sources/WhiteGramSettingsController.swift"
+if settings_path.exists():
+    text = settings_path.read_text(encoding="utf-8", errors="replace")
+    if "case privacy" not in text:
+        text = text.replace("    case contextMenu\n    case other\n", "    case contextMenu\n    case privacy\n    case other\n", 1)
+        text = text.replace("        case .other:\n            return whiteGramString(strings, ru: \"Другие\", en: \"Other\")", "        case .privacy:\n            return whiteGramString(strings, ru: \"Приватность\", en: \"Privacy\")\n        case .other:\n            return whiteGramString(strings, ru: \"Другие\", en: \"Other\")", 1)
+        text = text.replace("        case .other:\n            return PresentationResourcesSettings.settings", "        case .privacy:\n            return PresentationResourcesSettings.settings\n        case .other:\n            return PresentationResourcesSettings.settings", 1)
+        text = text.replace("            case .other:\n                pushController?(whiteGramOtherSettingsController(context: context))", "            case .privacy:\n                pushController?(whitegramPrivacySettingsController(context: context))\n            case .other:\n                pushController?(whiteGramOtherSettingsController(context: context))", 1)
+        settings_path.write_text(text, encoding="utf-8")
 
 restore_paths = (
     "submodules/TelegramUI/Sources/Chat/ChatControllerLoadDisplayNode.swift",
