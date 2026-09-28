@@ -19,7 +19,7 @@ public enum WhitegramVirusTotalFileHasher {
     public static func hash(url: URL, progress: ((Int64, Int64) -> Void)? = nil, completion: @escaping (Result<WhitegramVirusTotalFileHash, WhitegramServiceError>) -> Void) -> WhitegramServiceTask {
         let operation = WhitegramServiceOperation(completion: completion)
         #if canImport(CryptoKit) && canImport(Darwin)
-        if #available(iOS 13.0, macOS 10.15, *) {
+        if #available(iOS 13.4, macOS 10.15.4, *) {
             let coordinator = NSFileCoordinator(filePresenter: nil)
             operation.task.onCancel { coordinator.cancel() }
             self.queue.async {
@@ -40,7 +40,7 @@ public enum WhitegramVirusTotalFileHasher {
 
 #if canImport(CryptoKit) && canImport(Darwin)
 extension WhitegramVirusTotalFileHasher {
-    @available(iOS 13.0, macOS 10.15, *)
+    @available(iOS 13.4, macOS 10.15.4, *)
     private static func coordinatedHash(url: URL, coordinator: NSFileCoordinator, task: WhitegramServiceTask, progress: ((Int64, Int64) -> Void)?) throws -> WhitegramVirusTotalFileHash {
         guard !task.isCancelled else { throw WhitegramServiceError.cancelled }
         guard url.isFileURL else { throw WhitegramServiceError.fileUnreadable }
@@ -62,7 +62,7 @@ extension WhitegramVirusTotalFileHasher {
         return try result.get()
     }
 
-    @available(iOS 13.0, macOS 10.15, *)
+    @available(iOS 13.4, macOS 10.15.4, *)
     private static func readHash(url: URL, task: WhitegramServiceTask, progress: ((Int64, Int64) -> Void)?) throws -> WhitegramVirusTotalFileHash {
         do {
             guard !task.isCancelled else { throw WhitegramServiceError.cancelled }

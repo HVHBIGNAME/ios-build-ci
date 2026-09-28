@@ -46,7 +46,7 @@ The parent still owns source installation/discovery, menu/catalog routing, chat-
 
 - Telegram modules: **AccountContext, Display, ItemListUI, PresentationDataUtils, SwiftSignalKit, TelegramCore, TelegramPresentationData**. These are already dependencies in the inspected SettingsUI `BUILD`.
 - Apple SDK: **Foundation, UIKit, Security, UniformTypeIdentifiers, CryptoKit, Darwin**.
-- `CryptoKit` hashing requires **iOS 13+**. Earlier systems receive a hashing-unavailable error and can enter a hash manually. The iOS 14 document-picker initializer has an older-API fallback.
+- File hashing requires **iOS 13.4+ / macOS 10.15.4+**, including the throwing `FileHandle.read(upToCount:)` API. Earlier systems receive a hashing-unavailable error and can enter a hash manually. The iOS 14 document-picker initializer has an older-API fallback.
 - `FoundationNetworking` is conditionally imported only where the host Swift toolchain needs it.
 - No provider SDK, downloaded model package or third-party networking/crypto dependency is required.
 

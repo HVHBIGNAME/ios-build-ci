@@ -4,7 +4,7 @@ import XCTest
 #if canImport(CryptoKit) && canImport(Darwin)
 import CryptoKit
 
-@available(macOS 10.15, *)
+@available(macOS 10.15.4, *)
 final class WhitegramVirusTotalHashTests: XCTestCase {
     private var directory: URL!
 
