@@ -43,6 +43,8 @@ public struct WhitegramMenuSection: Hashable {
 /// Order and wording follow the reference client's main menu.
 public enum WhitegramMenuCatalog {
     public static let sections: [WhitegramMenuSection] = [
+        WhitegramMenuSection(id: "ai", icon: "sparkles", ruTitle: "Искусственный интеллект", ruDescription: "Gemini и Groq: запросы и ответы", enTitle: "Artificial intelligence", enDescription: "Gemini and Groq prompts and responses"),
+        WhitegramMenuSection(id: "publicSettings", icon: "slider.horizontal.3", ruTitle: "Чаты, папки и истории", ruDescription: "Все настройки открытого WhiteGram", enTitle: "Chats, folders and stories", enDescription: "Complete public WhiteGram settings"),
         WhitegramMenuSection(
             id: "about",
             icon: "person.crop.circle",
@@ -199,9 +201,9 @@ public enum WhitegramMenuCatalog {
             id: "virusTotal",
             icon: "checkmark.shield.fill",
             ruTitle: "VirusTotal",
-            ruDescription: "Проверка ссылок и файлов",
+            ruDescription: "Проверка файлов по SHA-256",
             enTitle: "VirusTotal",
-            enDescription: "Link and file checking"
+            enDescription: "File SHA-256 reputation lookup"
         ),
         WhitegramMenuSection(
             id: "voiceChanger",
@@ -239,9 +241,9 @@ public enum WhitegramMenuCatalog {
             id: "icons",
             icon: "square.grid.2x2.fill",
             ruTitle: "Иконки",
-            ruDescription: "Наборы иконок, замена значков интерфейса",
+            ruDescription: "Выбор иконки приложения",
             enTitle: "Icons",
-            enDescription: "Icon sets, interface glyph replacement"
+            enDescription: "Choose the application icon"
         ),
         WhitegramMenuSection(
             id: "plugins",
@@ -263,9 +265,9 @@ public enum WhitegramMenuCatalog {
             id: "sessions",
             icon: "clock.fill",
             ruTitle: "Сессии",
-            ruDescription: "Сохранение входов в Keychain",
+            ruDescription: "Аккаунты Telegram: вход и переключение",
             enTitle: "Sessions",
-            enDescription: "Saving logins in Keychain"
+            enDescription: "Telegram account login and switching"
         ),
         WhitegramMenuSection(
             id: "allSettings",
@@ -277,6 +279,5 @@ public enum WhitegramMenuCatalog {
         )
     ]
 
-    /// Sections that open a dedicated screen; the rest show a placeholder until ported.
-    public static let implemented: Set<String> = ["about", "privacy", "allSettings"]
+    public static let implemented: Set<String> = ["about", "ghost", "privacy", "plugins", "fonts", "icons", "voiceChanger", "ai", "virusTotal", "messages", "tabs", "camera", "translation", "misc", "sessions", "publicSettings", "interface", "appearance", "info", "search", "allSettings"]
 }

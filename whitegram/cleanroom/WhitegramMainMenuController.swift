@@ -4,7 +4,9 @@ import Display
 import Postbox
 import SwiftSignalKit
 import TelegramCore
+import TelegramUIPreferences
 import TelegramPresentationData
+import PresentationDataUtils
 import ItemListUI
 import AccountContext
 
@@ -23,12 +25,12 @@ private final class WhitegramMainMenuArguments {
 }
 
 private enum WhitegramMainMenuEntry: ItemListNodeEntry {
-    case row(WhitegramMainMenuSection, WhitegramMenuSection)
+    case row(WhitegramMainMenuSection, Int, WhitegramMenuSection)
     case version(WhitegramMainMenuSection, String)
 
     var section: ItemListSectionId {
         switch self {
-        case let .row(section, _):
+        case let .row(section, _, _):
             return section.rawValue
         case let .version(section, _):
             return section.rawValue
@@ -37,7 +39,7 @@ private enum WhitegramMainMenuEntry: ItemListNodeEntry {
 
     var stableId: String {
         switch self {
-        case let .row(_, item):
+        case let .row(_, _, item):
             return "row-\(item.id)"
         case let .version(_, value):
             return "version-\(value)"
@@ -49,13 +51,18 @@ private enum WhitegramMainMenuEntry: ItemListNodeEntry {
     }
 
     static func <(lhs: WhitegramMainMenuEntry, rhs: WhitegramMainMenuEntry) -> Bool {
-        return lhs.stableId < rhs.stableId
+        if lhs.section != rhs.section { return lhs.section < rhs.section }
+        switch (lhs, rhs) {
+        case let (.row(_, lhsIndex, _), .row(_, rhsIndex, _)): return lhsIndex < rhsIndex
+        case (.row, .version): return true
+        default: return false
+        }
     }
 
     func item(presentationData: ItemListPresentationData, arguments: Any) -> ListViewItem {
         let russian = presentationData.strings.baseLanguageCode.lowercased().hasPrefix("ru")
         switch self {
-        case let .row(_, section):
+        case let .row(_, _, section):
             return ItemListDisclosureItem(
                 presentationData: presentationData,
                 systemStyle: .glass,
@@ -83,7 +90,7 @@ private let whitegramAboutIds = ["about", "apiStatus", "donate"]
 
 private let whitegramFeatureIds = [
     "search", "appearance", "notifications", "liquidGlass", "messages", "camera", "ghost", "privacy",
-    "info", "misc", "interface", "tabs", "localStars", "fonts", "translation", "traffic", "virusTotal",
+    "info", "misc", "interface", "tabs", "localStars", "fonts", "translation", "ai", "traffic", "virusTotal",
     "voiceChanger", "player", "radio", "features", "icons", "plugins", "localization", "sessions"
 ]
 
@@ -94,33 +101,64 @@ private func whitegramSection(id: String) -> WhitegramMenuSection {
 
 private func whitegramMainMenuEntries(russian: Bool) -> [WhitegramMainMenuEntry] {
     var entries: [WhitegramMainMenuEntry] = []
-    for id in whitegramAboutIds {
-        entries.append(.row(.about, whitegramSection(id: id)))
+    for id in whitegramAboutIds where WhitegramMenuCatalog.implemented.contains(id) {
+        entries.append(.row(.about, entries.count, whitegramSection(id: id)))
     }
-    for id in whitegramFeatureIds {
-        entries.append(.row(.features, whitegramSection(id: id)))
+    for id in whitegramFeatureIds where WhitegramMenuCatalog.implemented.contains(id) {
+        entries.append(.row(.features, entries.count, whitegramSection(id: id)))
     }
-    entries.append(.row(.all, whitegramSection(id: "allSettings")))
-    let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
-    let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—"
+    for id in ["publicSettings", "allSettings"] {
+        entries.append(.row(.all, entries.count, whitegramSection(id: id)))
+    }
+    let version = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "—"
+    let build = (Bundle.main.infoDictionary?["CFBundleVersion"] as? String) ?? "—"
     entries.append(.version(.all, russian ? "\(version) (\(build))" : "Whitegram \(version) (\(build))"))
     return entries
 }
 
 public func whitegramMainMenuController(context: AccountContext) -> ViewController {
+    WhitegramForkBridge.migrate()
     var pushController: ((ViewController) -> Void)?
     let arguments = WhitegramMainMenuArguments(open: { section in
+        let russian = context.sharedContext.currentPresentationData.with { $0.strings.baseLanguageCode.hasPrefix("ru") }
         switch section.id {
         case "about":
             pushController?(whitegramAboutController(context: context, section: section))
-        case "privacy":
+        case "ghost", "privacy":
             pushController?(whitegramPrivacySettingsController(context: context))
+        case "messages":
+            pushController?(whitegramHistoryController(context: context))
+        case "fonts":
+            pushController?(whitegramFontsController(context: context))
+        case "icons":
+            pushController?(whitegramIconsController(context: context))
+        case "plugins":
+            pushController?(whitegramPluginManagerController(context: context))
+        case "voiceChanger":
+            pushController?(whitegramVoiceSettingsController(context: context))
+        case "ai":
+            pushController?(whitegramAISettingsController(context: context))
+        case "virusTotal":
+            pushController?(whitegramVirusTotalController(context: context))
+        case "tabs":
+            pushController?(whiteGramTabsSettingsController(context: context))
+        case "camera":
+            pushController?(whiteGramChatSettingsController(context: context))
+        case "translation":
+            pushController?(whiteGramOtherSettingsController(context: context))
+        case "sessions":
+            pushController?(whitegramAccountsSettingsController(context: context))
+        case "search":
+            pushController?(whitegramGeneratedSettingsController(context: context, title: section.title(russian: russian), availableOnly: true))
         case "allSettings":
-            // The public fork ships a real settings screen with its own section
-            // titles, so prefer it over the generated skeleton.
+            pushController?(whitegramGeneratedSettingsController(context: context, title: section.title(russian: russian)))
+        case "publicSettings":
             pushController?(whiteGramSettingsController(context: context))
         default:
-            pushController?(whitegramNotPortedController(context: context, section: section))
+            let sections: [String: Set<Int>] = ["appearance": [3, 9], "interface": [5], "info": [6], "misc": [8]]
+            if let sections = sections[section.id] {
+                pushController?(whitegramGeneratedSettingsController(context: context, sections: sections, title: section.title(russian: russian), availableOnly: true))
+            }
         }
     })
     let signal = context.sharedContext.presentationData
@@ -151,20 +189,12 @@ public func whitegramMainMenuController(context: AccountContext) -> ViewControll
 }
 
 private func whitegramAboutController(context: AccountContext, section: WhitegramMenuSection) -> ViewController {
-    let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
-    let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—"
+    let version = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "—"
+    let build = (Bundle.main.infoDictionary?["CFBundleVersion"] as? String) ?? "—"
     return whitegramSimpleInfoController(
         context: context,
         title: section.enTitle,
         lines: ["Whitegram", "\(version) (\(build))", section.ruDescription, section.enDescription]
-    )
-}
-
-private func whitegramNotPortedController(context: AccountContext, section: WhitegramMenuSection) -> ViewController {
-    return whitegramSimpleInfoController(
-        context: context,
-        title: section.enTitle,
-        lines: [section.ruDescription, section.enDescription]
     )
 }
 
@@ -213,7 +243,7 @@ public func whitegramSimpleInfoController(context: AccountContext, title: String
                 style: .blocks,
                 animateChanges: false
             )
-            return (controllerState, (listState, ()))
+            return (controllerState, (listState, NSNull()))
         }
     return ItemListController(context: context, state: signal)
 }

@@ -29,6 +29,11 @@ jobs:
         with:
           path: .
 
+      - name: Set up source validation tools
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       - name: Клонировать официальные исходники Telegram
         uses: actions/checkout@v4
         with:
@@ -67,6 +72,46 @@ jobs:
           python3 "$GITHUB_WORKSPACE/whitegram/compat-12.9.4.py" \
             /Users/Shared/telegram-ios \
             /Users/Shared/whitegram-public
+
+      - name: Set up JavaScript plugin tests
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate source integration and plugin contracts
+        env:
+          WHITEGRAM_ASSEMBLED_SOURCE: /Users/Shared/telegram-ios
+          WHITEGRAM_PUBLIC_SOURCE: /Users/Shared/whitegram-public
+          WHITEGRAM_APPEARANCE_SOURCE: /Users/Shared/telegram-ios
+          WHITEGRAM_VOICE_SOURCE: /Users/Shared/telegram-ios
+          WHITEGRAM_VOICE_PUBLIC_SOURCE: /Users/Shared/whitegram-public
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/whitegram-check-env"
+          python="$RUNNER_TEMP/whitegram-check-env/bin/python"
+          "$python" -m pip install -r whitegram/requirements-checks.txt
+          "$python" -B -m unittest discover -s whitegram/tests -p 'test_*.py' -v
+          "$python" -B -m unittest discover -s whitegram/tests/voice -p 'test_*.py' -v
+          node --test whitegram/tests/plugins/bootstrap.test.cjs
+          "$python" -B whitegram/tests/plugins/check_swift_syntax.py
+          "$python" -B whitegram/tests/services/check_sources.py --target /Users/Shared/telegram-ios
+          "$python" -B whitegram/validate_port.py /Users/Shared/telegram-ios --report "$RUNNER_TEMP/whitegram-source-validation.json"
+
+      - name: Run native Swift service, storage and voice tests
+        run: |
+          set -euo pipefail
+          python3 -B whitegram/tests/services/run_swift_tests.py
+          python3 -B whitegram/tests/plugins/run_native.py
+          python3 -B whitegram/tests/voice/run_native.py --require-swift
+
+      - name: Upload source validation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: WhiteGram-source-validation
+          path: ${{ runner.temp }}/whitegram-source-validation.json
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: Настроить WhiteGram и версию 12.9.4
         run: |

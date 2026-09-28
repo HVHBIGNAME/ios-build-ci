@@ -5,6 +5,15 @@ import subprocess
 import sys
 from pathlib import Path
 
+from runtime_patches import apply_runtime_patches
+from appearance_patches import apply_appearance_patches
+from public_api_adaptations import apply_public_api_adaptations
+from voice_patches import VOICE_RUNTIME_FILES, apply_voice_patches
+from plugin_resources import install_plugin_resources
+from interface_patches import apply_interface_patches
+from history_patches import apply_history_patches
+from swift_syntax_patches import apply_swift_syntax_patches
+
 source_root = Path(sys.argv[1]).resolve()
 public_root = Path(sys.argv[2]).resolve()
 public_ref = "db18308774f863074278feedc4df4507b0fb174e"
@@ -130,16 +139,35 @@ for relative in changed:
 source_base = Path(__file__).resolve().parent
 cleanroom_files = {
     "cleanroom/WhitegramPrivacySettings.swift": "submodules/TelegramUIPreferences/Sources/WhitegramPrivacySettings.swift",
+    "cleanroom/WhitegramForkBridge.swift": "submodules/TelegramUIPreferences/Sources/WhitegramForkBridge.swift",
     "cleanroom/WhitegramPrivacySettingsController.swift": "submodules/SettingsUI/Sources/WhitegramPrivacySettingsController.swift",
     "cleanroom/WhitegramAccountsSettingsController.swift": "submodules/SettingsUI/Sources/WhitegramAccountsSettingsController.swift",
     "cleanroom/WhitegramMenuSection.swift": "submodules/SettingsUI/Sources/WhitegramMenuSection.swift",
     "cleanroom/WhitegramMainMenuController.swift": "submodules/SettingsUI/Sources/WhitegramMainMenuController.swift",
     "cleanroom/WhitegramGeneratedSettingsScreen.swift": "submodules/SettingsUI/Sources/WhitegramGeneratedSettingsScreen.swift",
     "cleanroom/WhitegramSettingsPlaceholderController.swift": "submodules/SettingsUI/Sources/WhitegramSettingsPlaceholderController.swift",
-    "generated/WhitegramSettingsState.swift": "submodules/SettingsUI/Sources/WhitegramSettingsState.swift",
+    "generated/WhitegramSettingsState.swift": "submodules/TelegramCore/Sources/WhitegramSettingsState.swift",
     "generated/WhitegramSettingsCatalog.swift": "submodules/SettingsUI/Sources/WhitegramSettingsCatalog.swift",
     "cleanroom/WhitegramGhost.swift": "submodules/TelegramCore/Sources/WhitegramGhost.swift",
+    "cleanroom/WhitegramPreferences.swift": "submodules/TelegramCore/Sources/WhitegramPreferences.swift",
+    "cleanroom/WhitegramFontRegistry.swift": "submodules/Display/Source/WhitegramFontRegistry.swift",
+    "cleanroom/WhitegramFontsController.swift": "submodules/SettingsUI/Sources/WhitegramFontsController.swift",
+    "cleanroom/WhitegramIconsController.swift": "submodules/SettingsUI/Sources/WhitegramIconsController.swift",
+    "cleanroom/WhitegramHistoryStore.swift": "submodules/TelegramCore/Sources/WhitegramHistoryStore.swift",
+    "cleanroom/WhitegramHistoryController.swift": "submodules/SettingsUI/Sources/WhitegramHistoryController.swift",
+    "cleanroom/WhitegramPortCapabilities.swift": "submodules/SettingsUI/Sources/WhitegramPortCapabilities.swift",
 }
+cleanroom_files.update({"cleanroom/" + name: destination for name, destination in VOICE_RUNTIME_FILES.items()})
+for name in (
+    "WhitegramPluginHTTP.swift", "WhitegramPluginManagerController.swift",
+    "WhitegramPluginRuntime.swift", "WhitegramPluginStorage.swift",
+    "WhitegramPluginTelegram.swift", "WhitegramPluginUI.swift",
+    "WhitegramAIService.swift", "WhitegramAISettingsController.swift",
+    "WhitegramVirusTotalService.swift", "WhitegramVirusTotalFileHasher.swift",
+    "WhitegramVirusTotalController.swift", "WhitegramServiceCore.swift",
+    "WhitegramServiceHTTP.swift", "WhitegramServiceCredentials.swift", "WhitegramServiceUI.swift",
+):
+    cleanroom_files["cleanroom/" + name] = "submodules/SettingsUI/Sources/Whitegram/" + name
 missing = [name for name in cleanroom_files if not (source_base / name).is_file()]
 if missing:
     raise SystemExit("Missing clean-room sources: " + ", ".join(sorted(missing)))
@@ -189,34 +217,18 @@ def patch_file(relative_path, anchor, replacement):
     print("  patched: " + relative_path)
 
 
-# Ghost mode: stop telling the server what the account is doing. These are the
-# three request paths Telegram uses to publish online status, typing/recording
-# activity, and read receipts.
+apply_runtime_patches(source_root)
+apply_public_api_adaptations(source_root)
+apply_appearance_patches(source_root)
+apply_interface_patches(source_root)
+apply_history_patches(source_root)
+apply_swift_syntax_patches(source_root)
+apply_voice_patches(source_root)
+install_plugin_resources(source_root, source_base)
 patch_file(
-    "submodules/TelegramCore/Sources/State/ManagedAccountPresence.swift",
-    "    private func updatePresence(_ isOnline: Bool) {\n",
-    "    private func updatePresence(_ isOnline: Bool) {\n"
-    "        if WhitegramGhost.suppressOnlineStatus {\n"
-    "            return\n"
-    "        }\n",
-)
-
-patch_file(
-    "submodules/TelegramCore/Sources/State/ManagedLocalInputActivities.swift",
-    "private func requestActivity(postbox: Postbox, network: Network, accountPeerId: PeerId, peerId: PeerId, threadId: Int64?, activity: PeerInputActivity?) -> Signal<Void, NoError> {\n",
-    "private func requestActivity(postbox: Postbox, network: Network, accountPeerId: PeerId, peerId: PeerId, threadId: Int64?, activity: PeerInputActivity?) -> Signal<Void, NoError> {\n"
-    "    if activity != nil, WhitegramGhost.suppressTypingStatus {\n"
-    "        return .complete()\n"
-    "    }\n",
-)
-
-patch_file(
-    "submodules/TelegramCore/Sources/State/SynchronizePeerReadState.swift",
-    "private func pushPeerReadState(network: Network, postbox: Postbox, stateManager: AccountStateManager, peerId: PeerId, readState: PeerReadState) -> Signal<PeerReadState, PeerReadStateValidationError> {\n",
-    "private func pushPeerReadState(network: Network, postbox: Postbox, stateManager: AccountStateManager, peerId: PeerId, readState: PeerReadState) -> Signal<PeerReadState, PeerReadStateValidationError> {\n"
-    "    if WhitegramGhost.suppressReadReceipts {\n"
-    "        return .single(readState)\n"
-    "    }\n",
+    "submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/PeerInfoScreenSettingsActions.swift",
+    "whiteGramSettingsController(context:",
+    "whitegramMainMenuController(context:",
 )
 
 settings_path = source_root / "submodules/SettingsUI/Sources/WhiteGramSettingsController.swift"
@@ -244,58 +256,21 @@ if settings_path.exists():
     if changed:
         settings_path.write_text(text, encoding="utf-8")
 
-restore_paths = (
-    "submodules/TelegramUI/Sources/Chat/ChatControllerLoadDisplayNode.swift",
-    "submodules/TelegramUI/Sources/ChatController.swift",
+for name in ("whiteGramStorySettingsController", "whiteGramTabsSettingsController", "whiteGramChatSettingsController", "whiteGramChatFoldersSettingsController"):
+    patch_file("submodules/SettingsUI/Sources/WhiteGramSettingsController.swift", f"private func {name}(", f"public func {name}(")
+patch_file(
+    "submodules/SettingsUI/Sources/WhiteGramSettingsController.swift",
+    "            case .media:\n                break",
+    "            case .media:\n                pushController?(whiteGramOtherSettingsController(context: context))",
 )
-restored_count = 0
-for relative in restore_paths:
-    result = subprocess.run(
-        ["git", "-C", str(source_root), "show", f"HEAD:{relative}"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    )
-    if result.returncode == 0:
-        (source_root / relative).write_bytes(result.stdout)
-        restored_count += 1
 
-compat_file = source_root / "submodules/TelegramUI/Components/TabBarComponent/Sources/WhiteGramTabBarCompatibility.swift"
-if not compat_file.exists():
-    compat_file.parent.mkdir(parents=True, exist_ok=True)
-    compat_file.write_text(
-        """import UIKit
-import TelegramPresentationData
+patch_file(
+    "submodules/TelegramUI/Components/Chat/ChatTextInputPanelNode/Sources/ChatTextInputPanelNode.swift",
+    "            guard let self, let presentationInterfaceState = self.presentationInterfaceState, let (width, leftInset, rightInset, bottomInset, additionalSideInsets, maxHeight, maxOverlayHeight, metrics, isSecondary, isMediaInputExpanded) = self.validLayout else {\n"
+    "                return\n"
+    "            }\n"
+    "            let _ = self.updateLayout(width: width, leftInset: leftInset, rightInset: rightInset, bottomInset: bottomInset, additionalSideInsets: additionalSideInsets, maxHeight: maxHeight, maxOverlayHeight: maxOverlayHeight, isSecondary: isSecondary, transition: .animated(duration: 0.25, curve: .easeInOut), interfaceState: presentationInterfaceState, metrics: metrics, isMediaInputExpanded: isMediaInputExpanded)",
+    "            self?.requestLayout(transition: .animated(duration: 0.25, curve: .easeInOut))",
+)
 
-extension TabBarComponent {
-    public convenience init(
-        theme: PresentationTheme,
-        tintSelectedItem: Bool = true,
-        isLiftedStateEnabled: Bool = true,
-        strings: PresentationStrings,
-        items: [Item],
-        search: Search?,
-        selectedId: AnyHashable?,
-        outerInsets: UIEdgeInsets,
-        hideItemTitles: Bool,
-        forceFullWidth: Bool,
-        compactPanel: Bool,
-        compactAction: ((UIView) -> Void)?
-    ) {
-        self.init(
-            theme: theme,
-            tintSelectedItem: tintSelectedItem,
-            isLiftedStateEnabled: isLiftedStateEnabled,
-            strings: strings,
-            items: items,
-            search: search,
-            selectedId: selectedId,
-            outerInsets: outerInsets
-        )
-    }
-}
-""",
-        encoding="utf-8",
-    )
-
-print(f"Added {import_count} compatibility import(s) and {build_count} BUILD dependency(ies); restored {restored_count} incompatible file(s)")
+print(f"Added {import_count} compatibility import(s) and {build_count} BUILD dependency(ies)")

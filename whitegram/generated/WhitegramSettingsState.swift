@@ -16,7 +16,7 @@ public struct WhitegramSettingsState: Codable, Equatable {
     public var classicInterface: Bool = false
     public var oledMode: Bool = false
     public var reactionButtonGlow: Bool = false
-    public var stickerSizeScale: Double = 0.0
+    public var stickerSizeScale: Double = 1.0
     public var showOriginalTelegramIcons: Bool = false
     public var customSettingsIcons: Bool = false
     public var videoMessageCamera: Int = 0
@@ -98,7 +98,7 @@ public struct WhitegramSettingsState: Codable, Equatable {
     public var localStarsCount: Bool = false
     public var customFontEnabled: Bool = false
     public var customFontName: String = ""
-    public var fontHistory: Bool = false
+    public var fontHistory: [[String: String]] = []
     public var disableChatSwipeOptions: Bool = false
     public var disableSwipeToRecordStory: Bool = false
     public var hideBusinessBotPanel: Bool = false
@@ -106,7 +106,7 @@ public struct WhitegramSettingsState: Codable, Equatable {
     public var showChatCreationDate: Bool = false
     public var forceDeviceMicrophone: Bool = false
     public var sendLargePhotos: Bool = false
-    public var photoCompressionQuality: Double = 0.0
+    public var photoCompressionQuality: Double = 0.8
     public var visualUsernameEnabled: Bool = false
     public var visualUsername: String = ""
     public var showCharCountTyping: Bool = false
@@ -116,14 +116,14 @@ public struct WhitegramSettingsState: Codable, Equatable {
     public var neutralMediaAccent: Bool = false
     public var scammerProtectionEnabled: Bool = false
     public var hideMyDeletedMessages: Bool = false
-    public var deletedMessagesOpacity: Double = 0.0
+    public var deletedMessagesOpacity: Double = 0.6
     public var hideMyEditedMessages: Bool = false
     public var onlineHistoryEnabled: Bool = false
     public var doubleTapEditEnabled: Bool = false
     public var hideTabLabels: Bool = false
     public var hideBottomTabBar: Bool = false
-    public var tabBarScale: Double = 0.0
-    public var tabBarWidthScale: Double = 0.0
+    public var tabBarScale: Double = 1.0
+    public var tabBarWidthScale: Double = 1.0
     public var translateMessagesEnabled: Bool = false
     public var localTranslationEnabled: Bool = false
     public var translateBeforeSending: Bool = false
@@ -190,12 +190,12 @@ public struct WhitegramSettingsState: Codable, Equatable {
     public var accountSwitcherEnabled: Bool = false
     public var hideChatListTitle: Bool = false
     public var hideChatListPremiumBadge: Bool = false
-    public var videoBackgroundPath: Bool = false
+    public var videoBackgroundPath: String? = nil
     public var videoBackgroundInProfile: Bool = false
     public var profilePhotoWallpaperSet: Bool = false
     public var profilePhotoWallPublic: Bool = false
-    public var profilePhotoWallStatusText: Bool = false
-    public var translationTargetLang: Bool = false
+    public var profilePhotoWallStatusText: String? = nil
+    public var translationTargetLang: String? = nil
     public var antiCensorshipEnabled: Bool = false
     public var datacenterID: Int = 0
     public var virusTotalEnabled: Bool = false
@@ -223,7 +223,7 @@ public struct WhitegramSettingsState: Codable, Equatable {
     public var groqApiKey: String = ""
     public var groqModelId: String = ""
     public var groqUseProxy: Bool = false
-    public var musicPlaybackSpeed: Double = 0.0
+    public var musicPlaybackSpeed: Double = 1.0
     public var musicPlaybackPitchFollowsSpeed: Bool = false
     public var musicCrossfadeEnabled: Bool = false
     public var musicCrossfadeDuration: Int = 0
@@ -253,22 +253,17 @@ public struct WhitegramSettingsState: Codable, Equatable {
     public static let updatedNotification = Notification.Name("WhitegramSettingsStateUpdated")
 
     public static var current: WhitegramSettingsState {
-        if let data = UserDefaults.standard.data(forKey: storageKey),
-           let value = try? JSONDecoder().decode(WhitegramSettingsState.self, from: data) {
-            return value
-        }
-        return WhitegramSettingsState()
+        return WhitegramPreferences.load(defaults: WhitegramSettingsState())
     }
 
-    public func save() {
-        if let data = try? JSONEncoder().encode(self) {
-            UserDefaults.standard.set(data, forKey: Self.storageKey)
-        }
-        NotificationCenter.default.post(name: Self.updatedNotification, object: nil)
+    @discardableResult
+    public func save() -> Bool {
+        return WhitegramPreferences.save(self)
     }
 
     public func boolValue(for id: String) -> Bool? {
         switch id {
+        case "ghostMode", "ghostModeEnabled": return self.ghostModeEnabled
         case "accountSwitcherEnabled": return self.accountSwitcherEnabled
         case "albumArtBlur": return self.albumArtBlur
         case "alwaysOnline": return self.alwaysOnline
@@ -445,6 +440,7 @@ public struct WhitegramSettingsState: Codable, Equatable {
 
     public mutating func setBool(_ value: Bool, for id: String) {
         switch id {
+        case "ghostMode", "ghostModeEnabled": self.ghostModeEnabled = value
         case "accountSwitcherEnabled": self.accountSwitcherEnabled = value
         case "albumArtBlur": self.albumArtBlur = value
         case "alwaysOnline": self.alwaysOnline = value

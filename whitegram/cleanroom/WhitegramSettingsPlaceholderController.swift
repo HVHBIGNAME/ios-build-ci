@@ -5,6 +5,7 @@ import Postbox
 import SwiftSignalKit
 import TelegramCore
 import TelegramPresentationData
+import PresentationDataUtils
 import ItemListUI
 import AccountContext
 
@@ -29,7 +30,7 @@ public func whitegramNotPortedController(context: AccountContext, id: String) ->
                 style: .blocks,
                 animateChanges: false
             )
-            return (controllerState, (listState, ()))
+            return (controllerState, (listState, NSNull()))
         }
     return ItemListController(context: context, state: signal)
 }

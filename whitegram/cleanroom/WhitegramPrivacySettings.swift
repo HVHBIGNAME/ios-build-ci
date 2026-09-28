@@ -1,4 +1,5 @@
 import Foundation
+import TelegramCore
 
 public struct WhitegramPrivacySettings: Codable, Equatable {
     public var ghostModeEnabled: Bool
@@ -10,8 +11,8 @@ public struct WhitegramPrivacySettings: Codable, Equatable {
     public var saveDeletedMessages: Bool
     public var antiCensorshipEnabled: Bool
 
-    public static let storageKey = "WhitegramPrivacySettings.v1"
-    public static let updatedNotification = Notification.Name("WhitegramPrivacySettingsUpdated")
+    public static let storageKey = WhitegramPreferences.storageKey
+    public static let updatedNotification = WhitegramPreferences.updatedNotification
 
     public init(
         ghostModeEnabled: Bool = false,
@@ -34,11 +35,7 @@ public struct WhitegramPrivacySettings: Codable, Equatable {
     }
 
     public static var current: WhitegramPrivacySettings {
-        if let data = UserDefaults.standard.data(forKey: storageKey),
-           let value = try? JSONDecoder().decode(WhitegramPrivacySettings.self, from: data) {
-            return value
-        }
-        return WhitegramPrivacySettings()
+        return WhitegramPreferences.load(defaults: WhitegramPrivacySettings())
     }
 
     public var shouldSendReadReceipts: Bool {
@@ -54,9 +51,6 @@ public struct WhitegramPrivacySettings: Codable, Equatable {
     }
 
     public func save() {
-        if let data = try? JSONEncoder().encode(self) {
-            UserDefaults.standard.set(data, forKey: Self.storageKey)
-        }
-        NotificationCenter.default.post(name: Self.updatedNotification, object: nil)
+        WhitegramPreferences.save(self)
     }
 }
