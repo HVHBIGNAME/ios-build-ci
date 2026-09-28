@@ -12,6 +12,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from history_patches import apply_history_patches
+from build_patches import apply_build_patches
 from runtime_patches import CORE, apply_fork_bindings, apply_privacy
 from source_patches import SourcePatches
 
@@ -190,6 +191,27 @@ class MenuIntegrationTests(unittest.TestCase):
         self.assertFalse(implemented - entries)
         self.assertIn("where WhitegramMenuCatalog.implemented.contains(id)", menu)
         self.assertNotIn("whitegramNotPortedController", menu)
+
+
+@unittest.skipUnless(SOURCE, "set WHITEGRAM_ASSEMBLED_SOURCE for source integration")
+class BuildIntegrationTests(unittest.TestCase):
+    def test_native_rules_match_target_without_changing_rule_invocations(self):
+        root = Path(SOURCE)
+        patches = SourcePatches(root)
+        with patch("build_patches.SourcePatches", return_value=patches), patch.object(Path, "write_bytes"):
+            apply_build_patches(root)
+        value = patches.pending["Telegram/BUILD"]
+        original = patches.original["Telegram/BUILD"]
+        upstream = subprocess.check_output(["git", "-C", str(root), "show", "HEAD:Telegram/BUILD"]).decode("utf-8")
+        for repository, rule in (("rules_cc", "objc_library"), ("rules_shell", "sh_binary")):
+            self.assertNotIn(f"@{repository}//", value)
+            self.assertNotIn(f"@{repository}//", upstream)
+            self.assertGreater(upstream.count(rule + "("), 0)
+            self.assertEqual(value.count(rule + "("), original.count(rule + "("))
+        repeated = in_memory(root, patches.pending)
+        with patch("build_patches.SourcePatches", return_value=repeated), patch.object(Path, "write_bytes") as writes:
+            apply_build_patches(root)
+        writes.assert_not_called()
 
 
 if __name__ == "__main__":

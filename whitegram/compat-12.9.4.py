@@ -13,6 +13,7 @@ from plugin_resources import install_plugin_resources
 from interface_patches import apply_interface_patches
 from history_patches import apply_history_patches
 from swift_syntax_patches import apply_swift_syntax_patches
+from build_patches import apply_build_patches
 
 source_root = Path(sys.argv[1]).resolve()
 public_root = Path(sys.argv[2]).resolve()
@@ -218,6 +219,7 @@ def patch_file(relative_path, anchor, replacement):
 
 
 apply_runtime_patches(source_root)
+apply_build_patches(source_root)
 apply_public_api_adaptations(source_root)
 apply_appearance_patches(source_root)
 apply_interface_patches(source_root)
