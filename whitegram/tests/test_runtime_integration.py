@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from history_patches import apply_history_patches
 from build_patches import apply_build_patches
+from plugin_resources import install_plugin_resources
 from runtime_patches import CORE, apply_fork_bindings, apply_privacy
 from source_patches import SourcePatches
 
@@ -195,6 +196,33 @@ class MenuIntegrationTests(unittest.TestCase):
 
 @unittest.skipUnless(SOURCE, "set WHITEGRAM_ASSEMBLED_SOURCE for source integration")
 class BuildIntegrationTests(unittest.TestCase):
+    def test_native_rules_and_plugin_resources_compose_in_both_orders(self):
+        root = Path(SOURCE)
+        upstream = subprocess.check_output(["git", "-C", str(root), "show", "HEAD:Telegram/BUILD"]).decode("utf-8")
+        imports = 'load("@rules_cc//cc:objc_library.bzl", "objc_library")\nload("@rules_shell//shell:sh_binary.bzl", "sh_binary")\n'
+        outputs = []
+        for resource_first in (False, True):
+            patches = in_memory(root, {"Telegram/BUILD": imports + upstream})
+            def rules():
+                apply_build_patches(root)
+            def resources():
+                install_plugin_resources(root, OVERLAY)
+            operations = (resources, rules) if resource_first else (rules, resources)
+            with patch("build_patches.SourcePatches", return_value=patches), patch("plugin_resources.SourcePatches", return_value=patches), patch.object(Path, "write_bytes"), patch.object(Path, "mkdir"):
+                for operation in operations:
+                    operation()
+                first = dict(patches.pending)
+                patches.original = dict(first)
+                for operation in operations:
+                    operation()
+                self.assertEqual(patches.pending, first)
+            value = first["Telegram/BUILD"]
+            self.assertEqual(value.count('name = "WhitegramPluginSDK"'), 1)
+            self.assertEqual(value.count('"apple_resource_bundle")'), 1)
+            self.assertEqual(value.count('\n        ":WhitegramPluginSDK",'), 1)
+            outputs.append(value)
+        self.assertEqual(outputs[0], outputs[1])
+
     def test_native_rules_match_target_without_changing_rule_invocations(self):
         root = Path(SOURCE)
         patches = SourcePatches(root)

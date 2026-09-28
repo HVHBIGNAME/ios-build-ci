@@ -18,9 +18,13 @@ def install_plugin_resources(root: Path, overlay: Path):
             raise ValueError(f"Missing plugin SDK resource: {name}")
     patches = SourcePatches(root)
     build = "Telegram/BUILD"
-    anchor = 'load("@rules_cc//cc:objc_library.bzl", "objc_library")'
-    patches.replace("plugin-sdk-resources", build, anchor,
-        'load("@build_bazel_rules_apple//apple:resources.bzl", "apple_resource_bundle")\n' + anchor)
+    bundle_import = 'load("@build_bazel_rules_apple//apple:resources.bzl", "apple_resource_bundle")'
+    import_count = patches.read(build).count(bundle_import)
+    if import_count > 1:
+        raise ValueError("Duplicate apple_resource_bundle import in Telegram/BUILD")
+    if import_count == 0:
+        anchor = 'load("@bazel_skylib//rules:common_settings.bzl",'
+        patches.replace("plugin-sdk-resources", build, anchor, bundle_import + "\n" + anchor)
     anchor = 'ios_application(\n    name = "Telegram",'
     bundle = 'apple_resource_bundle(\n    name = "WhitegramPluginSDK",\n    infoplists = ["WhitegramPluginSDK/Info.plist"],\n    resources = [\n'
     bundle += "".join(f'        "WhitegramPluginSDK/{name}",\n' for name in SDK_FILES)
