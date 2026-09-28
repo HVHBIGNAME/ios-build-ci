@@ -61,7 +61,7 @@ final class WhitegramPluginHTTP: NSObject, URLSessionDataDelegate, @unchecked Se
             for (name, value) in headers {
                 guard !name.isEmpty, name.utf8.count <= 128, value.utf8.count <= 8192,
                       name.unicodeScalars.allSatisfy({ CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!#$%&'*+-.^_`|~").contains($0) }),
-                      !value.contains("\r"), !value.contains("\n"), !value.contains("\0"),
+                      !value.utf8.contains(where: { $0 == 0 || $0 == 10 || $0 == 13 }),
                       !["host", "content-length", "connection", "transfer-encoding", "proxy-authorization"].contains(name.lowercased()) else {
                     throw WhitegramPluginError("INVALID_ARGUMENT", "Invalid or transport-owned HTTP header: \(name)")
                 }

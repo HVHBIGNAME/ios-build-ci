@@ -42,7 +42,7 @@ final class WhitegramPluginHTTPTests: XCTestCase {
         for options in invalid {
             var options = options
             options["url"] = "https://example.test"
-            XCTAssertThrowsError(try WhitegramPluginHTTP.makeRequest(options)) { error in
+            XCTAssertThrowsError(try WhitegramPluginHTTP.makeRequest(options), "Accepted invalid options: \(options)") { error in
                 XCTAssertEqual((error as? WhitegramPluginError)?.code, "INVALID_ARGUMENT")
             }
         }
@@ -51,6 +51,17 @@ final class WhitegramPluginHTTPTests: XCTestCase {
             "body": String(repeating: "a", count: 2 * 1024 * 1024 + 1)
         ])) { error in
             XCTAssertEqual((error as? WhitegramPluginError)?.code, "QUOTA_EXCEEDED")
+        }
+    }
+
+    func testHeaderSeparatorsAreRejectedAtByteBoundaries() {
+        for separator in ["\r", "\n", "\r\n", "\0"] {
+            XCTAssertThrowsError(try WhitegramPluginHTTP.makeRequest([
+                "url": "https://example.test",
+                "headers": ["X-Test": "before" + separator + "after"]
+            ]), "Accepted separator: \(separator.debugDescription)") { error in
+                XCTAssertEqual((error as? WhitegramPluginError)?.code, "INVALID_ARGUMENT")
+            }
         }
     }
 
