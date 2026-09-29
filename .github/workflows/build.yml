@@ -122,6 +122,15 @@ jobs:
           test "$(python3 -c 'import json; print(json.load(open("/Users/Shared/telegram-ios/versions.json"))["app"])')" = "${{ matrix.app_version }}"
           test "$(python3 -c 'import json; print(json.load(open("/Users/Shared/telegram-ios/build-system/appstore-configuration.json"))["bundle_id"])')" = "ph.telegra.Telegraph"
 
+      - name: Restore Bazel disk cache
+        id: bazel_cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /Users/Shared/whitegram-bazel-cache
+          key: bazel-${{ runner.os }}-${{ runner.arch }}-${{ matrix.source_version }}-${{ hashFiles('telegram-ios/versions.json') }}-${{ github.sha }}
+          restore-keys: |
+            bazel-${{ runner.os }}-${{ runner.arch }}-${{ matrix.source_version }}-${{ hashFiles('telegram-ios/versions.json') }}-
+
       - name: Собрать release IPA
         run: |
           set -euxo pipefail
@@ -134,6 +143,7 @@ jobs:
           python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
           python3 -u build-system/Make/Make.py \
             --bazelUserRoot="$bazel_user_root" \
+            --cacheDir=/Users/Shared/whitegram-bazel-cache \
             build \
             --configurationPath=build-system/appstore-configuration.json \
             --codesigningInformationPath=build-system/fake-codesigning \
@@ -183,6 +193,13 @@ jobs:
           cd "$source_dir"
           test -s build/artifacts/WhiteGram.ipa
           rm -rf "$staging_dir"
+
+      - name: Save Bazel disk cache
+        if: always() && steps.bazel_cache.outcome == 'success' && steps.bazel_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /Users/Shared/whitegram-bazel-cache
+          key: ${{ steps.bazel_cache.outputs.cache-primary-key }}
 
       - name: Загрузить IPA
         uses: actions/upload-artifact@v4

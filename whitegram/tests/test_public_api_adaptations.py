@@ -204,6 +204,8 @@ class PublicApiAdaptationsTests(unittest.TestCase):
             self.assertEqual(value.count(declaration), 1)
         self.assertIn("import ItemListUI\n", value)
         self.assertIn("import ManagedAnimationNode\n", value)
+        self.assertIn("environment: ComponentFlow.Environment<Empty>", value)
+        self.assertNotIn("environment: Environment<Empty>", value)
         self.assertIn("completion(state.fromLanguage, state.toLanguage)", value)
         self.assertIn("updated.fromLanguage = code", value)
         self.assertIn("updated.toLanguage = code", value)
@@ -218,6 +220,14 @@ class PublicApiAdaptationsTests(unittest.TestCase):
         self.assertIn("fromLanguage: fromLang, toLanguage: toLang, ignoredLanguages: ignoredLanguages, replaceText: replaceText, translateChat: translateChat)", value)
         self.assertIn("controller.pushController = pushController ?? { _ in }", value)
         self.assertIn("controller.presentController = presentController ?? { _ in }", value)
+
+    def test_older_restored_helpers_upgrade_without_duplicate_declarations(self):
+        current, _, _ = run_in_memory(fixture_files())
+        old = dict(current)
+        old[TRANSLATE_SCREEN] = old[TRANSLATE_SCREEN].replace("ComponentFlow.Environment<Empty>", "Environment<Empty>")
+        upgraded, writes, _ = run_in_memory(old)
+        self.assertEqual(upgraded, current)
+        self.assertEqual(set(writes), {TRANSLATE_SCREEN})
 
     def test_modified_restored_helper_is_rejected_instead_of_duplicated(self):
         first, _, _ = run_in_memory(fixture_files())
@@ -411,6 +421,9 @@ class PublicHelperProvenanceTests(unittest.TestCase):
         screen = public_blob("TranslateScreen")
         context_source = screen[screen.index("private final class GiftViewContextReferenceContentSource:"):]
         expected = "\n".join(line for line in (language + playback + context_source).splitlines() if not line.startswith("import "))
+        # The target sheet also imports SwiftUI, whose Environment shadows the
+        # ComponentFlow type used by the restored playback component.
+        expected = expected.replace("environment: Environment<Empty>", "environment: ComponentFlow.Environment<Empty>")
         # Ignore formatting, but compare string literals independently so a UI
         # label or animation resource cannot change under whitespace normalization.
         strings = r'"(?:\\.|[^"\\])*"'

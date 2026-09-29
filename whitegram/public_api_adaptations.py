@@ -402,7 +402,7 @@ final class PlayPauseIconComponent: Component {
         return View(frame: CGRect())
     }
 
-    func update(view: View, availableSize: CGSize, state: EmptyComponentState, environment: Environment<Empty>, transition: ComponentTransition) -> CGSize {
+    func update(view: View, availableSize: CGSize, state: EmptyComponentState, environment: ComponentFlow.Environment<Empty>, transition: ComponentTransition) -> CGSize {
         return view.update(component: self, availableSize: availableSize, transition: transition)
     }
 }
@@ -432,6 +432,9 @@ def adapt_translation_sheet(patches: SourcePatches) -> None:
         "import TelegramUIPreferences\nimport ItemListUI\nimport ManagedAnimationNode\nimport Markdown\n",
     )
     anchor = "private let translateToTag = GenericComponentViewTag()"
+    previous_helpers = TRANSLATION_HELPERS.replace("ComponentFlow.Environment<Empty>", "Environment<Empty>")
+    if previous_helpers in patches.read(TRANSLATE_SCREEN):
+        patches.replace("translation-sheet-restored-helpers", TRANSLATE_SCREEN, previous_helpers, TRANSLATION_HELPERS)
     patches.replace(
         "translation-sheet-restored-helpers",
         TRANSLATE_SCREEN,
