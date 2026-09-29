@@ -14,7 +14,7 @@ from public_api_adaptations import apply_public_api_adaptations
 public_api_features = apply_public_api_adaptations(source_root)
 ```
 
-The function returns `SourcePatches.write()`'s feature-to-path report: **8 features, 6 target Swift files, 15 required anchor occurrences**. All replacements are validated in memory before that write. A second pass returns the same report with zero writes. Partial, duplicate, or modified required anchors raise `ValueError`.
+The function returns `SourcePatches.write()`'s feature-to-path report: **9 features, 7 target Swift files, 16 required fresh-tree anchor occurrences**. All replacements are validated in memory before that write. A second pass returns the same report with zero writes. Partial, duplicate, or modified required anchors raise `ValueError`.
 
 ## Implemented adaptations
 
@@ -26,6 +26,7 @@ Paths below are relative to the assembled source root. `Chat/` abbreviates `subm
 | `translation-share-button-signature` | `Chat/ChatMessageBubbleItemNode/Sources/ChatMessageBubbleItemNode.swift` | 1 | Pass `EngineMessage(item.message)` and `accountPeerId: item.context.account.peerId` to the translation `ChatMessageShareButton.update` call. |
 | `translation-message-update-transition` | Same bubble file | 2 | Supply the required third `nil` transition argument to translation-start and translation-completion `controllerInteraction.requestMessageUpdate` calls. |
 | `community-selection-release` | `submodules/ChatListUI/Sources/ChatListController.swift` | 1 | Release WhiteGram's selection lock on the target's new `.community` early-return path, after opening the community and clearing its highlight. Otherwise every later peer selection remains blocked. |
+| `chat-list-rich-text-content` | `submodules/ChatListUI/Sources/Node/ChatListItem.swift` | 1 | Match all nine `ContentData.chat` fields, including the target's added `richTextPreview`, in the compact-list author-prefix branch. The eight-field fork pattern prevented inference of the enclosing layout closure. |
 | `passkey-credential-removal-identity` | `submodules/TelegramUI/Components/Settings/PasskeysScreen/Sources/PasskeysScreen.swift` | 2 | Capture the selected passkey before removing it from `passkeysData`; use its id for engine deletion and the Apple credential-store notification. The fork re-looked it up after `removeAll`, making the iOS 26 notification unreachable. Retain the compiler/availability guards, and use the captured value outside the SDK guard as well. |
 | `translation-sheet-helper-imports` | `submodules/TranslateUI/Sources/TranslateScreen.swift` | 1 | Import `ItemListUI` and `ManagedAnimationNode`, whose real targets already occur in `TranslateUI/BUILD`. |
 | `translation-sheet-restored-helpers` | Same translation screen | 1 | Restore the full language selector, animated play/pause component, and reference context-menu source alongside their consumer. |

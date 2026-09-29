@@ -189,12 +189,17 @@ public func whitegramMainMenuController(context: AccountContext) -> ViewControll
 }
 
 private func whitegramAboutController(context: AccountContext, section: WhitegramMenuSection) -> ViewController {
+    let russian = context.sharedContext.currentPresentationData.with { $0.strings.baseLanguageCode.hasPrefix("ru") }
     let version = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "—"
     let build = (Bundle.main.infoDictionary?["CFBundleVersion"] as? String) ?? "—"
     return whitegramSimpleInfoController(
         context: context,
-        title: section.enTitle,
-        lines: ["Whitegram", "\(version) (\(build))", section.ruDescription, section.enDescription]
+        title: section.title(russian: russian),
+        lines: [
+            "Whitegram", "\(version) (\(build))",
+            russian ? "База исходников: Telegram 12.9.2" : "Source baseline: Telegram 12.9.2",
+            russian ? "Частичный перенос функций Whitegram. Полное соответствие оригиналу не подтверждено." : "Partial Whitegram feature port. Full parity with the original has not been verified."
+        ]
     )
 }
 

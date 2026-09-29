@@ -12,6 +12,7 @@ from source_patches import SourcePatches
 CHAT = "submodules/TelegramUI/Components/Chat/"
 TRANSLATE_SCREEN = "submodules/TranslateUI/Sources/TranslateScreen.swift"
 CHAT_LIST_CONTROLLER = "submodules/ChatListUI/Sources/ChatListController.swift"
+CHAT_LIST_ITEM = "submodules/ChatListUI/Sources/Node/ChatListItem.swift"
 PASSKEYS_SCREEN = "submodules/TelegramUI/Components/Settings/PasskeysScreen/Sources/PasskeysScreen.swift"
 
 
@@ -56,6 +57,15 @@ def adapt_translation_button(patches: SourcePatches) -> None:
         "                    item.controllerInteraction.expandedTranslationMessageStableIds.remove(item.message.stableId)\n"
         "                }\n"
         "                item.controllerInteraction.requestMessageUpdate(item.message.id, false, nil)",
+    )
+
+
+def adapt_chat_list_content(patches: SourcePatches) -> None:
+    patches.replace(
+        "chat-list-rich-text-content",
+        CHAT_LIST_ITEM,
+        "if compactChatLayout, case let .chat(itemPeer, _, _, _, _, _, _, _) = contentData {",
+        "if compactChatLayout, case let .chat(itemPeer, _, _, _, _, _, _, _, _) = contentData {",
     )
 
 
@@ -454,6 +464,7 @@ def apply_public_api_adaptations(root: Path) -> dict[str, list[str]]:
     patches = SourcePatches(root)
     adapt_message_reactions(patches)
     adapt_translation_button(patches)
+    adapt_chat_list_content(patches)
     adapt_community_selection(patches)
     adapt_passkey_credential_identity(patches)
     adapt_translation_sheet(patches)

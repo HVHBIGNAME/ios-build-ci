@@ -19,10 +19,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from public_api_adaptations import (
     CHAT,
     CHAT_LIST_CONTROLLER,
+    CHAT_LIST_ITEM,
     PASSKEYS_SCREEN,
     TRANSLATE_SCREEN,
     TRANSLATION_HELPERS,
     adapt_community_selection,
+    adapt_chat_list_content,
     adapt_message_reactions,
     adapt_passkey_credential_identity,
     adapt_translation_button,
@@ -124,6 +126,7 @@ def fixture_files() -> dict[str, str]:
         ANIMATED: reaction_fixture("item.message"),
         STICKER: reaction_fixture("item.message"),
         CHAT_LIST_CONTROLLER: COMMUNITY_SELECTION,
+        CHAT_LIST_ITEM: "if compactChatLayout, case let .chat(itemPeer, _, _, _, _, _, _, _) = contentData {\n    useInlineAuthorPrefix = true\n}\n",
         PASSKEYS_SCREEN: PASSKEY_REMOVAL,
         TRANSLATE_SCREEN: TRANSLATION_SHEET,
     }
@@ -152,6 +155,14 @@ def run_in_memory(files: dict[str, str]):
 
 
 class PublicApiAdaptationsTests(unittest.TestCase):
+    def test_compact_chat_pattern_accounts_for_rich_text_preview(self):
+        patches = pending_patches(fixture_files())
+        adapt_chat_list_content(patches)
+        value = patches.pending[CHAT_LIST_ITEM]
+        self.assertIn("if compactChatLayout, case let .chat(itemPeer, _, _, _, _, _, _, _, _) = contentData", value)
+        self.assertNotIn(".chat(itemPeer, _, _, _, _, _, _, _)", value)
+        self.assertIn("useInlineAuthorPrefix = true", value)
+
     def test_reaction_predicates_wrap_raw_messages_but_callbacks_stay_raw(self):
         patches = pending_patches(fixture_files())
         adapt_message_reactions(patches)
@@ -309,6 +320,8 @@ class AssembledSourceTests(unittest.TestCase):
         ).decode("utf-8")
 
     def test_actual_upstream_message_contracts_match_adapted_calls(self):
+        content = self.upstream(CHAT_LIST_ITEM)
+        self.assertIn("customEmojiRanges: [(NSRange, ChatTextInputTextCustomEmojiAttribute)]?, richTextPreview: NSAttributedString?)", content)
         predicates = self.upstream(CHAT + "ChatMessageItemCommon/Sources/ChatMessageItemCommon.swift")
         self.assertIn("public func canAddMessageReactions(message: EngineMessage) -> Bool", predicates)
         share = self.upstream(CHAT + "ChatMessageShareButton/Sources/ChatMessageShareButton.swift")
