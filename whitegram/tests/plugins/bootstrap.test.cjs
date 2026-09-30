@@ -299,7 +299,7 @@ test("unsupported hooks cannot masquerade as installed capabilities", async () =
   for (const api of ["tabs.add", "ui.overlay", "ui.provide", "intercept", "services.provide", "jobs.schedule", "tg.invoke", "postbox.transaction", "lang.python.run", "fakeAPI"]) {
     assert.equal(host.run(`wg.capabilities.has(${JSON.stringify(api)})`), false, api);
   }
-  for (const source of ["wg.tabs.add({})", "wg.ui.overlay({})", "wg.ui.provide('slot',function(){})", "wg.intercept('tg',function(){})", "wg.services.provide('service',{})", "wg.fakeAPI()", "wg.__native.fakeAPI()", "wg.on('onMessageReceive',function(){})"]) {
+  for (const source of ["wg.tabs.add({})", "wg.ui.overlay({})", "wg.ui.provide('slot',function(){})", "wg.intercept('tg',function(){})", "wg.services.provide('service',{})", "wg.fakeAPI()", "wg.__native.fakeAPI()", "wg.onSendMessage(function(){})"]) {
     assert.throws(() => host.run(source), code("UNSUPPORTED_API"), source);
   }
   assert.equal(host.run("wg.lang.python.installed"), false);
@@ -536,10 +536,10 @@ test("POST with an empty body stays POST and UI callbacks preserve legacy arity"
 
 test("capabilities describe implemented leaf methods and reject unsupported siblings", async () => {
   const host = new Host();
-  for (const api of ["events.on", "events.once", "events.emit", "events.stream", "bytes.from", "ui.surfaces", "ui.closeAll", "ui.Button", "ui.el.Image", "client.sendFile", "permissions.has"]) {
+  for (const api of ["events.on", "events.once", "events.emit", "events.stream", "bytes.from", "ui.surfaces", "ui.closeAll", "ui.Button", "ui.el.Image", "client.sendFile", "permissions.has", "client.currentChat"]) {
     assert.equal(host.run(`wg.capabilities.has(${JSON.stringify(api)})`), true, api);
   }
-  for (const api of ["ui.el.Web", "ui.ZStack", "tg.invoke", "client.currentChat", "lang.python.run", "net.dns"]) {
+  for (const api of ["ui.el.Web", "ui.ZStack", "tg.invoke", "lang.python.run", "net.dns"]) {
     assert.equal(host.run(`wg.capabilities.has(${JSON.stringify(api)})`), false, api);
   }
   await host.stop();

@@ -7,11 +7,13 @@ from pathlib import Path
 
 from runtime_patches import apply_runtime_patches
 from appearance_patches import apply_appearance_patches
+from appearance_extension_patches import apply_appearance_extensions
 from public_api_adaptations import apply_public_api_adaptations
 from voice_patches import VOICE_RUNTIME_FILES, apply_voice_patches
 from plugin_resources import install_plugin_resources
 from interface_patches import apply_interface_patches
 from history_patches import apply_history_patches
+from plugin_hook_patches import PLUGIN_HOOK_RUNTIME_FILES, apply_plugin_hook_patches
 from swift_syntax_patches import apply_swift_syntax_patches
 from build_patches import apply_build_patches
 
@@ -155,10 +157,17 @@ cleanroom_files = {
     "cleanroom/WhitegramFontsController.swift": "submodules/SettingsUI/Sources/WhitegramFontsController.swift",
     "cleanroom/WhitegramIconsController.swift": "submodules/SettingsUI/Sources/WhitegramIconsController.swift",
     "cleanroom/WhitegramHistoryStore.swift": "submodules/TelegramCore/Sources/WhitegramHistoryStore.swift",
+    "cleanroom/WhitegramHistoryModels.swift": "submodules/TelegramCore/Sources/WhitegramHistoryModels.swift",
+    "cleanroom/WhitegramHistoryCapture.swift": "submodules/TelegramCore/Sources/WhitegramHistoryCapture.swift",
     "cleanroom/WhitegramHistoryController.swift": "submodules/SettingsUI/Sources/WhitegramHistoryController.swift",
+    "cleanroom/WhitegramHistoryPresentation.swift": "submodules/SettingsUI/Sources/WhitegramHistoryPresentation.swift",
+    "cleanroom/WhitegramAppearanceSettings.swift": "submodules/TelegramCore/Sources/Settings/WhitegramAppearanceSettings.swift",
+    "cleanroom/WhitegramBubbleAppearance.swift": "submodules/TelegramPresentationData/Sources/WhitegramBubbleAppearance.swift",
+    "cleanroom/WhitegramAppearanceController.swift": "submodules/SettingsUI/Sources/WhitegramAppearanceController.swift",
     "cleanroom/WhitegramPortCapabilities.swift": "submodules/SettingsUI/Sources/WhitegramPortCapabilities.swift",
 }
 cleanroom_files.update({"cleanroom/" + name: destination for name, destination in VOICE_RUNTIME_FILES.items()})
+cleanroom_files.update({"cleanroom/" + name: destination for name, destination in PLUGIN_HOOK_RUNTIME_FILES.items()})
 for name in (
     "WhitegramPluginHTTP.swift", "WhitegramPluginManagerController.swift",
     "WhitegramPluginRuntime.swift", "WhitegramPluginStorage.swift",
@@ -224,6 +233,8 @@ apply_public_api_adaptations(source_root)
 apply_appearance_patches(source_root)
 apply_interface_patches(source_root)
 apply_history_patches(source_root)
+apply_plugin_hook_patches(source_root)
+apply_appearance_extensions(source_root)
 apply_swift_syntax_patches(source_root)
 apply_voice_patches(source_root)
 install_plugin_resources(source_root, source_base)

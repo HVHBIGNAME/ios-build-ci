@@ -69,7 +69,7 @@ private enum WhitegramPluginAPI {
         func add(_ paths: [String], permission: String = "", sync: Bool = true, exposed: Bool = true) {
             for path in paths { result.append(WhitegramPluginAPIEntry(path: path, permission: permission, sync: sync, exposed: exposed)) }
         }
-        add(["runtime.info", "runtime.started", "runtime.failed", "permissions.check", "log", "timer.create", "timer.clear"], exposed: false)
+        add(["runtime.info", "runtime.started", "runtime.failed", "permissions.check", "log", "timer.create", "timer.clear", "events.setSubscriptions"], exposed: false)
         add(["package.resolveModule", "package.list", "package.read"], permission: "storage", exposed: false)
         add(["storage.get", "storage.set", "storage.remove", "storage.keys", "storage.clear"], permission: "storage")
         add(["fs.list", "fs.read", "fs.readBase64", "fs.readBytes", "fs.write", "fs.writeBase64", "fs.writeBytes", "fs.exists", "fs.remove"], permission: "storage")
@@ -77,6 +77,7 @@ private enum WhitegramPluginAPI {
         add(["clipboard.get", "clipboard.set"], permission: "clipboard")
         add(["capabilities.info"])
         add(["ui.createSurface", "ui.updateSurface", "ui.setSurfaceOptions", "ui.setSurfaceVisible", "ui.closeSurface", "ui.surfaceInfo", "ui.pushScreen", "ui.toast"], permission: "uiMutation", exposed: false)
+        add(["ui.registerSettingsPage", "ui.addSettingsRow"], permission: "uiMutation", exposed: false)
         add(["ui.theme", "ui.keyboardHeight", "ui.haptic"], permission: "uiMutation")
         add(["ui.confirm", "ui.actionSheet"], permission: "uiMutation", sync: false)
         add(["http.request"], permission: "network", sync: false)
@@ -87,6 +88,7 @@ private enum WhitegramPluginAPI {
         add(["tg.sendFileMessage"], permission: "media", sync: false)
         add(["tg.watchMessages"], permission: "messages", sync: false, exposed: false)
         add(["tg.unwatchMessages"], permission: "messages", exposed: false)
+        add(["tg.getCurrentChat"], permission: "messages", exposed: false)
         return result
     }()
     static let byPath = Dictionary(uniqueKeysWithValues: entries.map { ($0.path, $0) })
@@ -95,6 +97,7 @@ private enum WhitegramPluginAPI {
 final class WhitegramPluginRuntime {
     private struct Request {
         let lifetime: WhitegramPluginLifetime
+        let path: String
     }
 
     let record: WhitegramPluginRecord
@@ -106,6 +109,8 @@ final class WhitegramPluginRuntime {
     private let http = WhitegramPluginHTTP()
     private let ui: WhitegramPluginUI
     private let iosVersion: String
+    private let initialGrants: [String: Bool]
+    private var hookSubscription: WhitegramPluginEventSubscription?
     private var js: JSContext?
     private var bootstrapReady = false
     private var didStart = false
@@ -127,6 +132,12 @@ final class WhitegramPluginRuntime {
     private var startupDeadline: DispatchWorkItem?
     var stateChanged: ((WhitegramPluginStatus) -> Void)?
     var logged: ((WhitegramPluginLogEntry) -> Void)?
+    var settingsChanged: (() -> Void)?
+
+    var settingsItems: [WhitegramPluginSettingsItem] {
+        dispatchPrecondition(condition: .onQueue(.main))
+        return self.ui.settingsItems
+    }
 
     init(context: AccountContext, accountId: String, record: WhitegramPluginRecord, root: URL) {
         dispatchPrecondition(condition: .onQueue(.main))
@@ -137,17 +148,36 @@ final class WhitegramPluginRuntime {
         self.queue = DispatchQueue(label: "WhitegramPlugin.JS.\(record.id)", qos: .userInitiated)
         self.ui = WhitegramPluginUI(context: context)
         self.iosVersion = UIDevice.current.systemVersion
+        self.initialGrants = WhitegramPluginPermission.grants(accountId: accountId, pluginId: record.id)
         self.ui.dispatch = { [weak self] surface, callback, payload in
             self?.queue.async { [weak self] in
-                guard let self = self, self.lifetime.isActive else { return }
+                guard let self = self, self.lifetime.isActive, self.granted("uiMutation") else { return }
                 self.callJS("__wgUIDispatch", [surface, callback, payload])
             }
         }
+        self.ui.settingsChanged = { [weak self] in self?.settingsChanged?() }
+        let subscription = WhitegramPluginHooks.subscribe(postbox: context.account.postbox, queue: self.queue, receive: { [weak self] events, dropped in
+            guard let self = self, self.lifetime.isActive, self.granted("messages") else { return }
+            if dropped != 0 { self.log("warn", "Telegram event queue dropped \(dropped) observations; the plugin is not keeping up") }
+            for event in events {
+                guard self.lifetime.isActive, self.granted("messages") else { return }
+                self.callJS("__wgNativeEvent", [event.name, event.payload])
+            }
+        })
+        self.hookSubscription = subscription
+        self.lifetime.add("events", cancel: { subscription.dispose() })
     }
 
     func attach(_ controller: ViewController) {
         dispatchPrecondition(condition: .onQueue(.main))
         self.ui.attach(controller)
+    }
+
+    func activateSettingsItem(_ key: String, from controller: ViewController) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        guard self.lifetime.isActive, self.granted("uiMutation") else { return }
+        self.ui.attach(controller)
+        self.ui.activateSettingsItem(key)
     }
 
     private func setState(_ state: WhitegramPluginStatus) {
@@ -246,6 +276,11 @@ final class WhitegramPluginRuntime {
         ]
         for (name, event) in events {
             self.observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                if let self = self, event == "settings.changed",
+                   WhitegramPluginPermission.grants(accountId: self.accountId, pluginId: self.record.id) != self.initialGrants {
+                    self.stop()
+                    return
+                }
                 self?.queue.async { [weak self] in
                     guard let self = self, self.lifetime.isActive else { return }
                     if event == "settings.changed" && !self.granted("settings") { return }
@@ -325,6 +360,8 @@ final class WhitegramPluginRuntime {
         for watch in self.watches.values { watch.dispose() }
         self.watches.removeAll()
         self.watchRequests.removeAll()
+        self.hookSubscription?.dispose()
+        self.hookSubscription = nil
         self.js?.exceptionHandler = nil
         self.js = nil
         self.bootstrapReady = false
@@ -336,12 +373,23 @@ final class WhitegramPluginRuntime {
         return WhitegramPluginPermission.grants(accountId: self.accountId, pluginId: self.record.id)[permission] == true
     }
 
+    private func permissionFailure(_ path: String) -> WhitegramPluginError? {
+        guard let entry = WhitegramPluginAPI.byPath[path] else { return WhitegramPluginError("UNSUPPORTED_API", path) }
+        var required = entry.permission.isEmpty ? [] : [entry.permission]
+        if path == "tg.sendFileMessage" { required.append(contentsOf: ["messages", "storage"]) }
+        if path == "tg.openChat" { required.append("uiMutation") }
+        if required.isEmpty { return nil }
+        let grants = WhitegramPluginPermission.grants(accountId: self.accountId, pluginId: self.record.id)
+        if let missing = required.first(where: { grants[$0] != true }) {
+            return WhitegramPluginError("PERMISSION_DENIED", "wg.\(path) requires \(missing)")
+        }
+        return nil
+    }
+
     private func validate(_ path: String, synchronous: Bool) throws {
         guard self.lifetime.isActive || (self.unloading && (path == "log" || path == "permissions.check" || path.hasPrefix("storage."))) else { throw WhitegramPluginError("PLUGIN_STOPPED", "Plugin is stopped") }
         guard let entry = WhitegramPluginAPI.byPath[path], entry.sync == synchronous else { throw WhitegramPluginError("UNSUPPORTED_API", "No \(synchronous ? "synchronous" : "asynchronous") implementation for wg.\(path)") }
-        if !entry.permission.isEmpty && !self.granted(entry.permission) { throw WhitegramPluginError("PERMISSION_DENIED", "wg.\(path) requires \(entry.permission)") }
-        if path == "tg.sendFileMessage" && (!self.granted("messages") || !self.granted("storage")) { throw WhitegramPluginError("PERMISSION_DENIED", "Sending files also requires messages and storage") }
-        if path == "tg.openChat" && !self.granted("uiMutation") { throw WhitegramPluginError("PERMISSION_DENIED", "Opening a chat also requires uiMutation") }
+        if let error = self.permissionFailure(path) { throw error }
     }
 
     private func arguments(_ json: String) throws -> [Any] {
@@ -360,16 +408,19 @@ final class WhitegramPluginRuntime {
     }
 
     private func capabilities() -> [String: Any] {
-        return ["runtime": "JavaScriptCore", "version": "whitegram-native-1", "ios": self.iosVersion,
+        return ["runtime": "JavaScriptCore", "version": "whitegram-native-2", "ios": self.iosVersion,
                 "subsystems": ["javascript": "1", "ui": "1", "storage": "1", "http": "1", "tg": "12.9.2"],
                 "functions": WhitegramPluginAPI.entries.filter { $0.exposed }.map { $0.path },
+                "events": WhitegramPluginHooks.eventNames, "eventSemantics": "observational-postbox",
                 "features": ["javascript": true, "http": true, "localHistory": true, "peerWatches": true, "nativeSurfaces": true,
+                             "globalTelegramEvents": true, "pluginSettingsPages": true, "currentChat": true,
                              "globalTelegramHooks": false, "tabs": false, "interceptors": false, "languageWorkers": false, "rawMTProto": false]]
     }
 
     private func syncCall(_ path: String, arguments: [Any]) throws -> Any {
         switch path {
-        case "runtime.info": return ["id": self.record.id, "name": self.record.name, "version": self.record.version, "entry": self.record.entry, "manifest": WhitegramPluginAPI.entries.map { $0.json }]
+        case "runtime.info": return ["id": self.record.id, "name": self.record.name, "version": self.record.version, "entry": self.record.entry,
+                                     "manifest": WhitegramPluginAPI.entries.map { $0.json }, "events": WhitegramPluginHooks.eventNames]
         case "runtime.started":
             self.startupDeadline?.cancel(); self.startupDeadline = nil; self.lifetime.remove("startup")
             self.log("info", "Plugin started")
@@ -381,6 +432,17 @@ final class WhitegramPluginRuntime {
             return NSNull()
         case "permissions.check": return self.granted(try whitegramPluginString(arguments, 0))
         case "capabilities.info": return self.capabilities()
+        case "events.setSubscriptions":
+            guard arguments.count == 1, let names = arguments[0] as? [String], Set(names).isSubset(of: Set(WhitegramPluginHooks.eventNames)),
+                  names.count <= WhitegramPluginHooks.eventNames.count, let subscription = self.hookSubscription else {
+                throw WhitegramPluginError("INVALID_ARGUMENT", "Expected supported Telegram event names")
+            }
+            guard names.isEmpty || self.granted("messages") else { throw WhitegramPluginError("PERMISSION_DENIED", "Telegram event subscriptions require messages") }
+            subscription.setEvents(Set(names))
+            return true
+        case "tg.getCurrentChat":
+            guard let context = self.accountContext else { throw WhitegramPluginError("ACCOUNT_UNAVAILABLE", "Account is unavailable") }
+            return WhitegramPluginHooks.currentChat(postbox: context.account.postbox) as Any? ?? NSNull()
         case "tg.myId":
             guard let context = self.accountContext else { throw WhitegramPluginError("ACCOUNT_UNAVAILABLE", "Account is unavailable") }
             return String(context.account.peerId.toInt64())
@@ -419,10 +481,10 @@ final class WhitegramPluginRuntime {
             if arguments.count > 1 && arguments[1] as? Bool == true { return data.base64EncodedString() }
             guard let text = String(data: data, encoding: .utf8) else { throw WhitegramPluginError("INVALID_ENCODING", "Package file is not UTF-8") }
             return text
-        case "clipboard.get": return try self.onMain { UIPasteboard.general.string as Any? ?? NSNull() }
+        case "clipboard.get": return try self.onMain(path: path) { UIPasteboard.general.string as Any? ?? NSNull() }
         case "clipboard.set":
             let text = try whitegramPluginString(arguments, 0)
-            return try self.onMain { UIPasteboard.general.string = text; return true }
+            return try self.onMain(path: path) { UIPasteboard.general.string = text; return true }
         default:
             if path.hasPrefix("storage.") { return try self.requireFiles().storage(String(path.dropFirst(8)), arguments: arguments) }
             if path.hasPrefix("fs.") { return try self.requireFiles().file(String(path.dropFirst(3)), arguments: arguments) }
@@ -431,17 +493,18 @@ final class WhitegramPluginRuntime {
                 var arguments = arguments
                 if path == "ui.createSurface", arguments.count == 3 { arguments[2] = try self.prepareImages(arguments[2]) }
                 if path == "ui.updateSurface", arguments.count == 2 { arguments[1] = try self.prepareImages(arguments[1]) }
-                return try self.onMain { try self.ui.call(path, arguments: arguments) }
+                return try self.onMain(path: path) { try self.ui.call(path, arguments: arguments) }
             }
             throw WhitegramPluginError("UNSUPPORTED_API", path)
         }
     }
 
-    private func onMain<T>(_ f: () throws -> T) throws -> T {
+    private func onMain<T>(path: String, _ f: () throws -> T) throws -> T {
         // Main never synchronously waits for this queue. This preserves the
         // recovered createSurface -> ID contract without JSC on the UI thread.
         return try DispatchQueue.main.sync {
             guard self.lifetime.isActive else { throw WhitegramPluginError("PLUGIN_STOPPED", "Plugin stopped before UI operation") }
+            if let error = self.permissionFailure(path) { throw error }
             return try f()
         }
     }
@@ -493,10 +556,13 @@ final class WhitegramPluginRuntime {
             let requestLifetime = WhitegramPluginLifetime()
             let timeout = DispatchWorkItem { [weak self] in self?.complete(token, .failure(WhitegramPluginError("TIMEOUT", "wg.\(path) timed out"))) }
             requestLifetime.add("operation", cancel: { disposable.dispose(); timeout.cancel() })
-            self.requests[token] = Request(lifetime: requestLifetime)
+            self.requests[token] = Request(lifetime: requestLifetime, path: path)
             self.lifetime.add("request:" + token, cancel: { requestLifetime.cancel() })
             self.queue.asyncAfter(deadline: .now() + (path.hasPrefix("ui.") ? 120 : 65), execute: timeout)
-            let isActive = { [weak self, weak requestLifetime] in self?.lifetime.isActive == true && requestLifetime?.isActive == true }
+            let isActive = { [weak self, weak requestLifetime] in
+                guard let self = self, self.lifetime.isActive, requestLifetime?.isActive == true else { return false }
+                return self.permissionFailure(path) == nil
+            }
             let complete: (Result<Any, WhitegramPluginError>) -> Void = { [weak self] result in self?.queue.async { [weak self] in self?.complete(token, result) } }
             if path == "http.request" {
                 guard let options = arguments.first as? [String: Any] else { throw WhitegramPluginError("INVALID_ARGUMENT", "HTTP request expects options") }
@@ -546,6 +612,11 @@ final class WhitegramPluginRuntime {
 
     private func complete(_ token: String, _ result: Result<Any, WhitegramPluginError>) {
         guard let request = self.requests.removeValue(forKey: token) else { return }
+        var result = result
+        if self.lifetime.isActive {
+            do { try self.validate(request.path, synchronous: false) }
+            catch { result = .failure(WhitegramPluginError.wrap(error)) }
+        }
         request.lifetime.cancel()
         self.lifetime.remove("request:" + token)
         if let watchId = self.watchRequests.removeValue(forKey: token), case .failure = result {
@@ -581,7 +652,7 @@ final class WhitegramPluginRuntime {
                     guard let self = self else { return }
                     let initial = first; first = false
                     self.queue.async { [weak self] in
-                        guard let self = self, self.lifetime.isActive, self.watches[id] != nil else { return }
+                        guard let self = self, self.lifetime.isActive, self.granted("messages"), self.watches[id] != nil else { return }
                         if initial { complete(.success(id)) }
                         var payload = (value as? [String: Any]) ?? [:]
                         payload["initial"] = initial

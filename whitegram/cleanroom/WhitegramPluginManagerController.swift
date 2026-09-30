@@ -114,6 +114,7 @@ private final class WhitegramPluginManager {
             self.runtimes[record.id] = runtime
             self.statuses[record.id] = .starting
             runtime.attach(controller)
+            runtime.settingsChanged = { [weak self] in self?.changed() }
             runtime.logged = { [weak self] entry in
                 guard let self = self else { return }
                 var entries = self.logs[record.id] ?? []
@@ -138,6 +139,12 @@ private final class WhitegramPluginManager {
     }
 
     func attach(_ record: WhitegramPluginRecord, from controller: ViewController) { self.runtimes[record.id]?.attach(controller) }
+
+    func settingsItems(_ id: String) -> [WhitegramPluginSettingsItem] { return self.runtimes[id]?.settingsItems ?? [] }
+
+    func activateSettingsItem(_ key: String, pluginId: String, from controller: ViewController) {
+        self.runtimes[pluginId]?.activateSettingsItem(key, from: controller)
+    }
 
     func stop(_ id: String, completion: (() -> Void)? = nil) {
         guard let runtime = self.runtimes[id] else { completion?(); return }
@@ -385,7 +392,8 @@ private func whitegramPluginDetailController(context: AccountContext, manager: W
                 }
             }))
             controller.present(alert, animated: true)
-        default: break
+        default:
+            if action.hasPrefix("pluginUI:") { manager.activateSettingsItem(String(action.dropFirst(9)), pluginId: record.id, from: controller) }
         }
     }, toggle: { key, value in
         guard let permission = WhitegramPluginPermission(rawValue: key) else { return }
@@ -409,6 +417,14 @@ private func whitegramPluginDetailController(context: AccountContext, manager: W
         entries.append(WhitegramPluginEntry(stableId: "permissionInfo", index: 30, section: 2, content: .text(requested + " Changing permissions stops the running plugin. Run it again to use the new permissions.")))
         entries.append(WhitegramPluginEntry(stableId: "clearLogs", index: 31, section: 3, content: .action("Clear Log", false)))
         entries.append(WhitegramPluginEntry(stableId: "delete", index: 32, section: 3, content: .action("Delete Plugin", true)))
+        let settingsItems = manager.settingsItems(record.id)
+        if !settingsItems.isEmpty {
+            entries.append(WhitegramPluginEntry(stableId: "pluginUI", index: 40, section: 4, content: .header("PLUGIN CONTROLS")))
+            for (index, item) in settingsItems.enumerated() {
+                entries.append(WhitegramPluginEntry(stableId: "pluginUI:" + item.key, index: 41 + index, section: 4,
+                    content: .disclosure(item.title, item.subtitle)))
+            }
+        }
         return entries
     })
     reference.value = controller

@@ -263,14 +263,19 @@ final class WhitegramPluginStorage {
         let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
         guard values.isRegularFile == true, values.isSymbolicLink != true else { throw WhitegramPluginError("INVALID_PATH", "Expected a regular file") }
         guard let size = values.fileSize, size <= limit else { throw WhitegramPluginError("QUOTA_EXCEEDED", "File exceeds \(limit) bytes") }
-        let handle = try FileHandle(forReadingFrom: url)
-        defer { try? handle.close() }
+        guard let stream = InputStream(url: url) else { throw WhitegramPluginError("IO_ERROR", "Could not open the plugin file") }
+        stream.open()
+        defer { stream.close() }
         var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 65536)
         // A selected document can change after stat; never allocate its new,
         // unbounded size just to reject it after the read.
         while data.count <= limit {
-            guard let chunk = try handle.read(upToCount: min(65536, limit + 1 - data.count)), !chunk.isEmpty else { break }
-            data.append(chunk)
+            let remaining = limit - data.count
+            let count = stream.read(&buffer, maxLength: remaining >= buffer.count ? buffer.count : remaining + 1)
+            guard count >= 0 else { throw WhitegramPluginError("IO_ERROR", stream.streamError?.localizedDescription ?? "Could not read the plugin file") }
+            if count == 0 { break }
+            data.append(contentsOf: buffer.prefix(count))
         }
         guard data.count <= limit else { throw WhitegramPluginError("QUOTA_EXCEEDED", "File exceeds \(limit) bytes") }
         return data

@@ -16,6 +16,8 @@
   var sleepers = Object.create(null), toastActions = Object.create(null), streams = [];
   var uiDispatch = null, eventRegistrations = [];
   var loadPromises = [], installed = false, finishedEntry = false, runtimeStarted = false;
+  var nativeSubscriptions = [], ignoredHookResults = Object.create(null);
+  var settingsPages = Object.create(null), settingsRows = Object.create(null), settingsSurfaces = Object.create(null);
   var stringify = JSON.stringify.bind(JSON), parse = JSON.parse.bind(JSON);
 
   function fault(code, message) {
@@ -147,6 +149,7 @@
 
   var info = sync("runtime.info");
   var manifest = info.manifest;
+  var nativeEvents = info.events || [];
   var supported = Object.create(null), permissionTable = Object.create(null);
   manifest.forEach(function (entry) {
     supported[entry.path] = entry;
@@ -167,16 +170,32 @@
   }
   var legacyEvents = {
     onAppForeground: "app.foreground", onAppBackground: "app.background",
-    onThemeChange: "theme.changed", onScreenshot: "app.screenshot"
+    onThemeChange: "theme.changed", onScreenshot: "app.screenshot", onUpdate: "tg.update"
   };
+  var lifecycleEvents = ["onMessageReceive", "onOutgoingMessage", "onMessageSend", "onChatOpen", "onChatClose", "onUpdates", "preRequest", "postRequest"].concat(Object.keys(legacyEvents));
+  function refreshNativeSubscriptions(extraPattern) {
+    if (stopped || stopping) return;
+    var patterns = Object.keys(listeners).concat(Object.keys(subscriptions || {}));
+    if (extraPattern) patterns.push(extraPattern);
+    var names = nativeEvents.filter(function (name) { return patterns.some(function (pattern) { return matches(pattern, name); }); });
+    if (names.length && !gate("messages", "events.subscribe")) names = [];
+    if (stringify(names) === stringify(nativeSubscriptions)) return;
+    sync("events.setSubscriptions", [names]);
+    nativeSubscriptions = names;
+  }
   function validateEvent(pattern) {
     assertActive();
     if (!pattern || pattern.length > 256) throw fault("INVALID_ARGUMENT", "Invalid event name");
     if (pattern === "prototype" || Object.prototype.hasOwnProperty.call(Object.prototype, pattern)) throw fault("INVALID_ARGUMENT", "Reserved event name");
-    if (/^(onMessage|onOutgoing|onChat|onUpdate|onSendMessage|preRequest|postRequest|override:|tg\.)/.test(pattern)) {
-      throw fault("UNSUPPORTED_API", "Global Telegram hooks are unavailable; use wg.chat.watchMessages for a specific peer");
+    pattern = legacyEvents[pattern] || pattern;
+    if (nativeEvents.some(function (name) { return matches(pattern, name); })) {
+      assertPermission("messages", "on(" + pattern + ")");
+      return pattern;
     }
-    return legacyEvents[pattern] || pattern;
+    if (/^(onMessage|onOutgoing|onChat|onUpdate|onSendMessage|preRequest|postRequest|override:|tg\.)/.test(pattern)) {
+      throw fault("UNSUPPORTED_API", "Unsupported Telegram hook " + pattern + "; supported hooks are observational, not interceptors");
+    }
+    return pattern;
   }
   function on(event, callback) {
     var name = validateEvent(String(event));
@@ -185,6 +204,8 @@
     if (count >= 256) throw fault("QUOTA_EXCEEDED", "Too many event handlers");
     var id = "e" + (++sequence);
     (listeners[name] || (listeners[name] = [])).push({ id: id, callback: callback });
+    try { refreshNativeSubscriptions(); }
+    catch (error) { listeners[name].pop(); if (!listeners[name].length) delete listeners[name]; throw error; }
     return id;
   }
   function off(event, id) {
@@ -193,15 +214,36 @@
     if (id == null) delete listeners[name];
     else listeners[name] = listeners[name].filter(function (entry) { return entry.id !== id && entry.callback !== id; });
     if (listeners[name] && !listeners[name].length) delete listeners[name];
+    refreshNativeSubscriptions();
+  }
+  function eventPermitted(name) {
+    return nativeEvents.indexOf(name) === -1 || gate("messages", "events.deliver");
+  }
+  function deliverEvent(callback, payload, name) {
+    if (stopped || stopping || !eventPermitted(name)) return;
+    function inspectResult(result) {
+      var action = result && (result.action || result.strategy);
+      if (nativeEvents.indexOf(name) !== -1 && action && action !== "continue" && !ignoredHookResults[name]) {
+        ignoredHookResults[name] = true;
+        log("warn", name + " is an observation; HookResult." + action + " cannot change the Telegram operation");
+      }
+    }
+    try {
+      var result = callback(payload, name);
+      if (result && typeof result.then === "function") Promise.resolve(result).then(inspectResult, function (error) { log("error", error && error.stack || error); });
+      else inspectResult(result);
+    } catch (error) { log("error", error && error.stack || error); }
   }
   function emit(name, payload) {
     if (stopped || stopping) return;
+    name = legacyEvents[name] || name;
+    if (!eventPermitted(name)) return;
     var callbacks = [];
     Object.keys(listeners).forEach(function (pattern) {
       if (matches(pattern, name)) callbacks = callbacks.concat(listeners[pattern]);
     });
-    callbacks.forEach(function (entry) { if (!stopped && !stopping) safeCallback(entry.callback, [payload, name]); });
-    if (!stopped && !stopping && typeof global.__wgSDKEvent === "function") byteScope(function () { global.__wgSDKEvent(name, transfer(payload, true)); });
+    callbacks.forEach(function (entry) { deliverEvent(entry.callback, payload, name); });
+    if (!stopped && !stopping && eventPermitted(name) && typeof global.__wgSDKEvent === "function") byteScope(function () { global.__wgSDKEvent(name, transfer(payload, true)); });
   }
   global.__wgNativeEvent = emit;
 
@@ -222,7 +264,8 @@
     wg[name] = legacy("tg." + name);
     permissionTable[name] = name === "getMe" ? "account" : name === "sendFileMessage" ? "media" : "messages";
   });
-  wg.getCurrentChat = unsupported("getCurrentChat");
+  wg.getCurrentChat = function () { return sync("tg.getCurrentChat"); };
+  permissionTable.getCurrentChat = "messages";
   wg.ui.confirm = function (title, message, callback) {
     return async("ui.confirm", [title, message]).then(function (value) { safeCallback(callback, [value]); return value; });
   };
@@ -339,11 +382,12 @@
     putBytes: putBytes, takeBytes: takeBytes,
     log: function (level, area, message) { log(level, area + ": " + message); },
     subscribe: function (pattern) {
-      validateEvent(pattern);
+      pattern = validateEvent(String(pattern));
       if (!subscriptions[pattern] && Object.keys(subscriptions).length >= 256) throw fault("QUOTA_EXCEEDED", "Too many event subscriptions");
+      refreshNativeSubscriptions(pattern);
       subscriptions[pattern] = true;
     },
-    unsubscribe: function (pattern) { delete subscriptions[pattern]; },
+    unsubscribe: function (pattern) { delete subscriptions[legacyEvents[pattern] || pattern]; refreshNativeSubscriptions(); },
     emit: function (name, payload, save) {
       assertActive();
       if (!name.startsWith("plugin.")) throw fault("INVALID_ARGUMENT", "Custom events must start with plugin.");
@@ -460,6 +504,12 @@
     uiDispatch = global.__wgUIDispatch;
     global.__wgUIDispatch = function (surface, callback, payload) {
       if (stopped || stopping) return;
+      if (surface === "__settings") {
+        if (!gate("uiMutation", "settings.activate")) return;
+        var entry = payload && (payload.kind === "page" ? settingsPages[payload.id] : settingsRows[payload.id]);
+        if (entry && entry.token === callback) safeCallback(function () { activateSettings(entry, payload.kind); }, []);
+        return;
+      }
       if (surface !== "__toast") return uiDispatch(surface, callback, payload);
       var action = toastActions[callback];
       delete toastActions[callback];
@@ -534,7 +584,8 @@
         "client.markRead": ["tg.markChatAsRead", [peer]]
       };
       var call = Object.prototype.hasOwnProperty.call(names, action) ? names[action] : null;
-      var promise = call ? async(call[0], call[1]) : Promise.reject(fault("UNSUPPORTED_API", "Unknown action " + action));
+      var promise = action === "client.getCurrentChat" ? Promise.resolve().then(wg.getCurrentChat) :
+        call ? async(call[0], call[1]) : Promise.reject(fault("UNSUPPORTED_API", "Unknown action " + action));
       if (typeof callback === "function") promise.then(function (value) { safeCallback(callback, [{ ok: true, result: value }]); }, function (error) { safeCallback(callback, [{ ok: false, error: errorValue(error) }]); });
       return promise;
     };
@@ -552,9 +603,135 @@
     wg.ui.overlay = unsupported("ui.overlay");
     wg.wasm = { available: false, load: function () { return Promise.reject(fault("UNSUPPORTED_LANGUAGE", "WebAssembly execution is not enabled in this build")); } };
     ["addButton", "addLabel", "removeButton", "removeView", "clearButtons", "clearViews", "addHeaderButton", "addMenuButton", "removeHeaderButton"].forEach(function (name) { wg.chat[name] = unsupported("chat." + name); });
-    ["addSettingsRow", "registerSettingsPage", "openSettingsPage", "addMenuItem"].forEach(function (name) { wg[name] = unsupported(name); });
+    wg.addMenuItem = unsupported("addMenuItem");
     wg.getSettingsValue = function (page, control, fallback) { return wg.storage.get("settings:" + page + ":" + control, fallback); };
-    wg.setSettingsValue = function (page, control, value) { return wg.storage.set("settings:" + page + ":" + control, value); };
+    wg.setSettingsValue = function (page, control, value) {
+      var result = wg.storage.set("settings:" + page + ":" + control, value);
+      var surface = settingsSurfaces[page];
+      if (surface && !surface.isClosed) surface.update();
+      return result;
+    };
+    function settingString(value, fallback, limit, field) {
+      if (value === undefined) value = fallback;
+      if (typeof value !== "string" || value.length > limit) throw fault("INVALID_ARGUMENT", "Invalid settings " + field);
+      return value;
+    }
+    function settingId(value) {
+      var id = settingString(value, "main", 128, "id");
+      if (!id || /[\x00-\x1f]/.test(id)) throw fault("INVALID_ARGUMENT", "Settings IDs must be nonempty strings without controls");
+      return id;
+    }
+    function settingControl(config) {
+      if (!config || typeof config !== "object" || Array.isArray(config)) throw fault("INVALID_ARGUMENT", "Expected a settings control");
+      var control = {
+        id: settingId(config.id), type: settingString(config.type, "button", 32, "control type"),
+        title: settingString(config.title, config.id || "", 256, "title"), subtitle: settingString(config.subtitle, "", 1024, "subtitle"),
+        hookName: settingString(config.hookName, "", 256, "hookName")
+      };
+      // WGPluginSettingsPageViewController, original 3.1.1 native body at
+      // 0xd3c924: switch/toggle, slider, select/menu, text/input, label/info.
+      var aliases = { toggle: "switch", menu: "select", input: "text", info: "label" };
+      if (Object.prototype.hasOwnProperty.call(aliases, control.type)) control.type = aliases[control.type];
+      if (["switch", "slider", "text", "select", "label", "button"].indexOf(control.type) === -1) throw fault("UNSUPPORTED_SETTINGS_CONTROL", "Unsupported settings control: " + control.type);
+      if (control.type === "slider") {
+        control.min = config.min === undefined ? 0 : config.min;
+        control.max = config.max === undefined ? 100 : config.max;
+        if (typeof control.min !== "number" || typeof control.max !== "number" || !isFinite(control.min) || !isFinite(control.max) || control.min > control.max || control.min < -1000000 || control.max > 1000000) throw fault("INVALID_ARGUMENT", "Invalid settings slider range");
+      }
+      if (control.type === "select") {
+        if (!Array.isArray(config.options) || !config.options.length || config.options.length > 30) throw fault("INVALID_ARGUMENT", "Select requires 1–30 option dictionaries");
+        control.options = config.options.map(function (option) {
+          if (!option || typeof option !== "object" || Array.isArray(option)) throw fault("INVALID_ARGUMENT", "Expected a select option dictionary");
+          var title = settingString(option.title, option.label === undefined ? option.value : option.label, 256, "option title");
+          return { title: title, value: settingString(option.value, title, 4096, "option value") };
+        });
+      }
+      var fallback = control.type === "switch" ? false : control.type === "slider" ? control.min : "";
+      control.value = config.value === undefined ? fallback : config.value;
+      if (!validSettingValue(control, control.value)) throw fault("INVALID_ARGUMENT", "Invalid settings control value: " + control.id);
+      return control;
+    }
+    function validSettingValue(control, value) {
+      if (control.type === "switch") return typeof value === "boolean";
+      if (control.type === "slider") return typeof value === "number" && isFinite(value) && value >= control.min && value <= control.max;
+      return typeof value === "string" && value.length <= 4096;
+    }
+    function settingTree(pageId) {
+      var page = settingsPages[pageId];
+      return wg.ui.VStack(page.controls.map(function (control) {
+        var value = control.type === "button" || control.type === "label" ? control.value : wg.getSettingsValue(page.id, control.id, control.value);
+        if (!validSettingValue(control, value)) value = control.value;
+        function changed(next) {
+          var surface = settingsSurfaces[pageId];
+          if (settingsPages[pageId] !== page || !surface || surface.isClosed) return;
+          if (!validSettingValue(control, next)) throw fault("INVALID_ARGUMENT", "Invalid control value");
+          wg.setSettingsValue(page.id, control.id, next);
+          if (control.hookName) emit(control.hookName, { pageId: page.id, controlId: control.id, value: next });
+        }
+        var node;
+        if (control.type === "switch") node = wg.ui.Toggle({ id: control.id, title: control.title, value: value, onChange: changed });
+        else if (control.type === "slider") node = wg.ui.Slider({ id: control.id, title: control.title, min: control.min, max: control.max, value: value, onChange: changed });
+        else if (control.type === "text") node = wg.ui.VStack([
+          wg.ui.Text(control.title), wg.ui.TextField({ id: control.id, value: value, onChange: changed })
+        ]);
+        else if (control.type === "label") node = wg.ui.Text(control.title);
+        else if (control.type === "select") {
+          var selected = control.options.find(function (option) { return option.value === value; });
+          node = wg.ui.Button(control.title + (selected ? ": " + selected.title : ""), function () {
+            return wg.ui.menu({ title: control.title, message: control.subtitle, items: control.options.map(function (option) { return option.title; }) }).then(function (index) {
+              if (index >= 0 && index < control.options.length) changed(control.options[index].value);
+            });
+          });
+        }
+        else node = wg.ui.Button(control.title, function () {
+          if (settingsPages[pageId] === page && control.hookName) emit(control.hookName, { pageId: page.id, controlId: control.id, value: value });
+        });
+        return control.subtitle ? wg.ui.VStack([node, wg.ui.Text(control.subtitle, { secondary: true, font: "footnote" })]) : node;
+      }));
+    }
+    function activateSettings(entry, kind) {
+      if (kind === "page") return wg.openSettingsPage(entry.id);
+      if (entry.hookName.indexOf("__wg_open_settings_page:") === 0) return wg.openSettingsPage(entry.hookName.slice(24));
+      if (entry.hookName) emit(entry.hookName, { id: entry.id, pluginId: wg.pluginId });
+    }
+    wg.registerSettingsPage = function (config) {
+      assertPermission("uiMutation", "registerSettingsPage");
+      config = config || {};
+      if (!Array.isArray(config.controls || [])) throw fault("INVALID_ARGUMENT", "Settings controls must be an array");
+      if ((config.controls || []).length > 64) throw fault("QUOTA_EXCEEDED", "At most 64 controls per settings page");
+      var page = { id: settingId(config.id), title: settingString(config.title, wg.pluginName || "Plugin", 256, "title"),
+        controls: (config.controls || []).map(settingControl), token: "settings" + (++sequence) };
+      var ids = Object.create(null);
+      page.controls.forEach(function (control) { if (ids[control.id]) throw fault("INVALID_ARGUMENT", "Duplicate settings control ID: " + control.id); ids[control.id] = true; });
+      sync("ui.registerSettingsPage", [{ id: page.id, title: page.title, token: page.token }]);
+      settingsPages[page.id] = page;
+      var surface = settingsSurfaces[page.id];
+      if (surface && !surface.isClosed) { surface.setTitle(page.title); surface.update(); }
+      return page.id;
+    };
+    wg.addSettingsRow = function (config) {
+      assertPermission("uiMutation", "addSettingsRow");
+      config = config || {};
+      var row = { id: settingId(config.id), title: settingString(config.title, config.id || wg.pluginName, 256, "title"),
+        subtitle: settingString(config.subtitle, "", 1024, "subtitle"), hookName: settingString(config.hookName, "", 256, "hookName"), token: "settings" + (++sequence) };
+      sync("ui.addSettingsRow", [{ id: row.id, title: row.title, subtitle: row.subtitle, token: row.token }]);
+      settingsRows[row.id] = row;
+      return row.id;
+    };
+    wg.openSettingsPage = function (pageId) {
+      assertPermission("uiMutation", "openSettingsPage");
+      pageId = settingId(pageId);
+      var page = settingsPages[pageId];
+      if (!page) throw fault("SETTINGS_PAGE_NOT_FOUND", pageId);
+      var current = settingsSurfaces[pageId];
+      if (current && !current.isClosed) { current.show(); return current; }
+      var surface = wg.screens.push({ title: page.title, render: function () { return settingTree(pageId); }, onClose: function () {
+        if (settingsSurfaces[pageId] === surface) delete settingsSurfaces[pageId];
+      } });
+      settingsSurfaces[pageId] = surface;
+      return surface;
+    };
+    ["registerSettingsPage", "addSettingsRow", "openSettingsPage"].forEach(function (name) { permissionTable[name] = "uiMutation"; });
     wg.chat.watchMessages = function (peerId, callback, limit) {
       assertPermission("messages", "chat.watchMessages");
       if (typeof callback !== "function") throw fault("INVALID_ARGUMENT", "watchMessages requires a callback");
@@ -594,7 +771,10 @@
       pattern = validateEvent(String(pattern));
       if (typeof handler !== "function") throw fault("INVALID_ARGUMENT", "Event handler must be a function");
       if (eventRegistrations.length >= 256) throw fault("QUOTA_EXCEEDED", "Too many SDK event handlers");
-      var id = eventOn(pattern, observeCallback(handler));
+      // Preflight before the recovered on() creates its pattern bucket; a
+      // failed native subscription must not poison the next registration.
+      refreshNativeSubscriptions(pattern);
+      var id = eventOn(pattern, function (payload, name) { deliverEvent(handler, payload, name); });
       eventRegistrations.push({ pattern: String(pattern), id: id, handler: handler });
       return id;
     };
@@ -632,7 +812,6 @@
       streams.push(iterator);
       return iterator;
     };
-    var lifecycleEvents = ["onMessageReceive", "onOutgoingMessage", "onMessageSend", "onChatOpen", "onChatClose", "onUpdate", "onUpdates", "preRequest", "postRequest"].concat(Object.keys(legacyEvents));
     function trackLoad(result) {
       var promise = Promise.resolve(result);
       loadPromises.push(promise);
@@ -648,9 +827,13 @@
       if (wg.__pluginInstances.length >= 32) throw fault("QUOTA_EXCEEDED", "Too many registered plugin instances");
       var methods = lifecycleEvents.filter(function (name) { return typeof plugin[name] === "function"; });
       methods.forEach(validateEvent);
+      var listenerCount = Object.keys(listeners).reduce(function (count, name) { return count + listeners[name].length; }, 0);
+      if (listenerCount + methods.length > 256) throw fault("QUOTA_EXCEEDED", "Not enough event slots to register this plugin");
+      var registrations = [];
+      try { methods.forEach(function (name) { registrations.push([name, on(name, function () { return plugin[name].apply(plugin, arguments); })]); }); }
+      catch (error) { registrations.forEach(function (entry) { off(entry[0], entry[1]); }); throw error; }
       wg.__pluginInstances.push(plugin);
       try {
-        methods.forEach(function (name) { on(name, function () { return plugin[name].apply(plugin, arguments); }); });
         if (typeof plugin.onLoad === "function") trackLoad(plugin.onLoad({ id: wg.pluginId, version: wg.pluginVersion, name: wg.pluginName || wg.pluginId }));
         return plugin;
       } catch (error) { trackLoad(Promise.reject(error)); throw error; }
@@ -667,6 +850,7 @@
       "chat.watchMessages", "files.read", "files.readBase64", "files.list", "bytes.from", "bytes.toString",
       "util.base64ToBytes", "util.bytesToBase64", "permissions.has", "getSettingsValue", "setSettingsValue",
       "settings.getValue", "settings.setValue", "capabilities.has", "capabilities.info", "capabilities.version", "capabilities.feature", "capabilities.iosAtLeast",
+      "registerSettingsPage", "addSettingsRow", "openSettingsPage", "settings.registerPage", "settings.addRow", "settings.addSwitch", "settings.openPage", "getCurrentChat", "client.currentChat", "onUpdate",
       "setTimeout", "setInterval", "clearTimeout", "clearInterval", "sleep", "reply", "getMe", "getPeer", "getChatList", "getMessages",
       "sendTextMessage", "sendFileMessage", "sendDiceMessage", "sendLocationMessage", "sendContactMessage", "editMessage", "deleteMessage",
       "forwardMessage", "pinMessage", "reactToMessage", "markChatAsRead", "openChat", "request", "fetch", "fetchJSON", "fetchPost", "fetchPostJSON", "httpGet", "httpPost", "net.httpTiming",
@@ -740,7 +924,8 @@
     global.module.loaded = true;
     var plugin = global.module.exports;
     if (typeof plugin === "function") plugin = new plugin();
-    if (plugin && (typeof plugin.onLoad === "function" || typeof plugin.onUnload === "function")) wg.registerPlugin(plugin);
+    var exportedHooks = ["onLoad", "onUnload"].concat(lifecycleEvents);
+    if (plugin && exportedHooks.some(function (name) { return typeof plugin[name] === "function"; })) wg.registerPlugin(plugin);
     function waitForLoads(offset) {
       var end = loadPromises.length;
       return Promise.all(loadPromises.slice(offset, end)).then(function () {
@@ -775,6 +960,8 @@
     sticky = Object.create(null);
     subscriptions = Object.create(null);
     bytePool = Object.create(null); byteCount = 0;
+    nativeSubscriptions = [];
+    settingsPages = Object.create(null); settingsRows = Object.create(null); settingsSurfaces = Object.create(null);
   };
   global.__wgDidStop = function () {
     stopped = true;

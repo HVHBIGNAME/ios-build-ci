@@ -332,6 +332,16 @@ final class WhitegramPluginSurfaceController: ViewController {
     }
 }
 
+struct WhitegramPluginSettingsItem: Equatable {
+    let id: String
+    let kind: String
+    let title: String
+    let subtitle: String
+    let token: String
+
+    var key: String { return self.kind + ":" + self.id }
+}
+
 // Main-thread-only UIKit owner. Callback payloads contain no JSValue objects.
 final class WhitegramPluginUI {
     private struct Surface {
@@ -353,7 +363,39 @@ final class WhitegramPluginUI {
     private var activeDialog: UIAlertController?
     private var keyboardHeight: CGFloat = 0
     private var keyboardObserver: NSObjectProtocol?
+    private var registeredSettings: [WhitegramPluginSettingsItem] = []
     var dispatch: ((String, String, Any) -> Void)?
+    var settingsChanged: (() -> Void)?
+
+    var settingsItems: [WhitegramPluginSettingsItem] {
+        dispatchPrecondition(condition: .onQueue(.main))
+        return self.registeredSettings
+    }
+
+    func activateSettingsItem(_ key: String) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        guard let item = self.registeredSettings.first(where: { $0.key == key }) else { return }
+        self.dispatch?("__settings", item.token, ["id": item.id, "kind": item.kind])
+    }
+
+    private func registerSettings(_ kind: String, arguments: [Any]) throws -> String {
+        guard arguments.count == 1, let config = arguments[0] as? [String: Any], let id = config["id"] as? String,
+              let title = config["title"] as? String, let token = config["token"] as? String,
+              !id.isEmpty, id.utf8.count <= 128, !title.isEmpty, title.utf8.count <= 512,
+              !token.isEmpty, token.utf8.count <= 128 else { throw WhitegramPluginError("INVALID_ARGUMENT", "Invalid settings registration") }
+        let subtitle = (config["subtitle"] as? String) ?? ""
+        guard subtitle.utf8.count <= 2048 else { throw WhitegramPluginError("QUOTA_EXCEEDED", "Settings subtitle is too long") }
+        let item = WhitegramPluginSettingsItem(id: id, kind: kind, title: title, subtitle: subtitle, token: token)
+        if let index = self.registeredSettings.firstIndex(where: { $0.key == item.key }) { self.registeredSettings[index] = item }
+        else {
+            guard self.registeredSettings.filter({ $0.kind == kind }).count < (kind == "page" ? 8 : 32) else {
+                throw WhitegramPluginError("QUOTA_EXCEEDED", "At most eight settings pages and 32 action rows per plugin")
+            }
+            self.registeredSettings.append(item)
+        }
+        self.settingsChanged?()
+        return id
+    }
 
     init(context: AccountContext) {
         dispatchPrecondition(condition: .onQueue(.main))
@@ -386,6 +428,8 @@ final class WhitegramPluginUI {
     func call(_ path: String, arguments: [Any]) throws -> Any {
         dispatchPrecondition(condition: .onQueue(.main))
         switch path {
+        case "ui.registerSettingsPage": return try self.registerSettings("page", arguments: arguments)
+        case "ui.addSettingsRow": return try self.registerSettings("row", arguments: arguments)
         case "ui.theme":
             let theme = try self.presentationData().theme
             func hex(_ color: UIColor) -> String {
@@ -543,6 +587,9 @@ final class WhitegramPluginUI {
     func stop() {
         dispatchPrecondition(condition: .onQueue(.main))
         self.dispatch = nil
+        self.registeredSettings.removeAll()
+        self.settingsChanged?()
+        self.settingsChanged = nil
         for id in Array(self.surfaces.keys) { self.close(id) }
         for id in Array(self.toasts.keys) { self.finishToast(id, action: false) }
         self.activeDialog?.dismiss(animated: false)

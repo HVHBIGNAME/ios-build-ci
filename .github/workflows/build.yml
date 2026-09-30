@@ -92,17 +92,19 @@ jobs:
           "$python" -m pip install -r whitegram/requirements-checks.txt
           "$python" -B -m unittest discover -s whitegram/tests -p 'test_*.py' -v
           "$python" -B -m unittest discover -s whitegram/tests/voice -p 'test_*.py' -v
-          node --test whitegram/tests/plugins/bootstrap.test.cjs
+          node --test whitegram/tests/plugins/bootstrap.test.cjs whitegram/tests/plugins/hooks.test.cjs
           "$python" -B whitegram/tests/plugins/check_swift_syntax.py
+          "$python" -B whitegram/tests/plugins/check_hook_patches.py /Users/Shared/telegram-ios
           "$python" -B whitegram/tests/services/check_sources.py --target /Users/Shared/telegram-ios
           "$python" -B whitegram/validate_port.py /Users/Shared/telegram-ios --report "$RUNNER_TEMP/whitegram-source-validation.json"
 
-      - name: Run native Swift service, storage and voice tests
+      - name: Run native Swift service, storage, history and voice tests
         run: |
           set -euo pipefail
           failed=0
           python3 -B whitegram/tests/services/run_swift_tests.py || failed=1
           python3 -B whitegram/tests/plugins/run_native.py || failed=1
+          python3 -B whitegram/tests/history/run_native.py || failed=1
           python3 -B whitegram/tests/voice/run_native.py --require-swift || failed=1
           exit "$failed"
 

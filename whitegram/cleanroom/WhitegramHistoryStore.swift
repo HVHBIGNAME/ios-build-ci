@@ -1,27 +1,4 @@
 import Foundation
-import Postbox
-
-public enum WhitegramHistoryEvent: String, Codable, CaseIterable {
-    case received
-    case deleted
-    case edited
-}
-
-public struct WhitegramHistoryEntry: Codable, Equatable {
-    public let key: String
-    public let accountId: String
-    public let peerId: String
-    public let namespace: Int32
-    public let messageId: Int32
-    public let revision: UInt32
-    public let messageDate: Int32
-    public let capturedAt: Double
-    public let event: WhitegramHistoryEvent
-    public let text: String
-    public let authorId: String?
-    public let outgoing: Bool
-    public let mediaCount: Int
-}
 
 private struct WhitegramHistoryArchive: Codable {
     let version: Int
@@ -46,61 +23,48 @@ private enum WhitegramHistoryError: LocalizedError {
 public final class WhitegramHistoryStore: NSObject {
     public static let updatedNotification = Notification.Name("WhitegramHistoryUpdated")
     public static let maximumArchiveBytes = 8 * 1024 * 1024
-    private static let registryLock = NSLock()
-    private static var stores: [String: WhitegramHistoryStore] = [:]
-    private static let maximumEntries = 2000
-    private static let maximumTextBytes = 8192
+    public static let maximumEntries = 2000
+    static let maximumTextBytes = 8192
+    static let maximumMediaItems = 32
+    static let maximumNameBytes = 512
 
-    public static func forAccount(mediaBoxPath: String, accountPeerId: PeerId) -> WhitegramHistoryStore {
-        let directory = URL(fileURLWithPath: mediaBoxPath).deletingLastPathComponent()
-        registryLock.lock()
-        defer { registryLock.unlock() }
-        if let store = stores[directory.path] { return store }
-        let store = WhitegramHistoryStore(directory: directory, accountId: String(accountPeerId.toInt64()))
-        stores[directory.path] = store
-        return store
+    private struct AccountKey: Hashable {
+        let directory: String
+        let accountId: Int64
     }
 
-    public static func capture(_ message: EngineRawMessage, event: WhitegramHistoryEvent, accountPeerId: PeerId, mediaBoxPath: String) {
-        guard message.id.namespace == Namespaces.Message.Cloud else { return }
-        let flags = WhitegramPreferences.values()
-        let enabled: Bool
-        switch event {
-        case .received: enabled = flags["saveChatHistory"] as? Bool == true
-        case .deleted: enabled = flags["showDeletedMessages"] as? Bool == true || flags["saveDeletedMessagesToBackup"] as? Bool == true || flags["saveChatHistory"] as? Bool == true
-        case .edited: enabled = flags["showEditedOriginalText"] as? Bool == true || flags["saveChatHistory"] as? Bool == true
-        }
-        guard enabled else { return }
-        let outgoing = !message.flags.contains(.Incoming)
-        let bot = (message.author as? TelegramUser)?.botInfo != nil
-        if event == .deleted && ((outgoing && flags["hideMyDeletedMessages"] as? Bool == true) || (bot && flags["hideBotDeletedMessages"] as? Bool == true)) { return }
-        if event == .edited && ((outgoing && flags["hideMyEditedMessages"] as? Bool == true) || (bot && flags["hideBotEditedMessages"] as? Bool == true)) { return }
-        let peerId = String(message.id.peerId.toInt64())
-        let entry = WhitegramHistoryEntry(
-            key: "\(peerId):\(message.id.namespace):\(message.id.id):\(event.rawValue):\(message.stableVersion)",
-            accountId: String(accountPeerId.toInt64()), peerId: peerId, namespace: message.id.namespace,
-            messageId: message.id.id, revision: message.stableVersion, messageDate: message.timestamp,
-            capturedAt: Date().timeIntervalSince1970, event: event,
-            text: String(decoding: message.text.utf8.prefix(maximumTextBytes), as: UTF8.self),
-            authorId: message.author.map { String($0.id.toInt64()) }, outgoing: outgoing, mediaCount: message.media.count
-        )
-        forAccount(mediaBoxPath: mediaBoxPath, accountPeerId: accountPeerId).append(entry)
+    private static let registryLock = NSLock()
+    private static var stores: [AccountKey: WhitegramHistoryStore] = [:]
+
+    static func accountStore(directory: URL, accountId: Int64, cloudNamespace: Int32) -> WhitegramHistoryStore {
+        let directory = directory.standardizedFileURL
+        let key = AccountKey(directory: directory.path, accountId: accountId)
+        self.registryLock.lock()
+        defer { self.registryLock.unlock() }
+        if let store = self.stores[key] { return store }
+        let store = WhitegramHistoryStore(directory: directory, accountId: accountId, cloudNamespace: cloudNamespace)
+        self.stores[key] = store
+        return store
     }
 
     private let queue = DispatchQueue(label: "Whitegram.History", qos: .utility)
     private let directory: URL
     private let file: URL
+    private let legacyFile: URL
     private let accountId: String
+    private let cloudNamespace: Int32
     private var loaded = false
     private var entries: [String: WhitegramHistoryEntry] = [:]
     private var pendingWrite = false
     private var loadError: Error?
     private var writeError: Error?
 
-    private init(directory: URL, accountId: String) {
+    init(directory: URL, accountId: Int64, cloudNamespace: Int32) {
         self.directory = directory
-        self.file = directory.appendingPathComponent("whitegram-history-v1.json")
-        self.accountId = accountId
+        self.file = directory.appendingPathComponent("whitegram-history-\(accountId)-v1.json")
+        self.legacyFile = directory.appendingPathComponent("whitegram-history-v1.json")
+        self.accountId = String(accountId)
+        self.cloudNamespace = cloudNamespace
         super.init()
     }
 
@@ -108,15 +72,62 @@ public final class WhitegramHistoryStore: NSObject {
         if let loadError { throw loadError }
         guard !self.loaded else { return }
         self.loaded = true
-        guard FileManager.default.fileExists(atPath: self.file.path) else { return }
+        let source: URL
+        if FileManager.default.fileExists(atPath: self.file.path) {
+            source = self.file
+        } else if FileManager.default.fileExists(atPath: self.legacyFile.path) {
+            source = self.legacyFile
+        } else {
+            return
+        }
+        let archive: WhitegramHistoryArchive
         do {
-            let input = try FileHandle(forReadingFrom: self.file)
+            let input = try FileHandle(forReadingFrom: source)
             defer { input.closeFile() }
-            let archive = try self.decode(input.readData(ofLength: Self.maximumArchiveBytes + 1))
-            self.entries = Dictionary(archive.entries.map { ($0.key, $0) }, uniquingKeysWith: { old, new in old.capturedAt > new.capturedAt ? old : new })
+            archive = try self.decode(input.readData(ofLength: Self.maximumArchiveBytes + 1))
+        } catch WhitegramHistoryError.differentAccount where source == self.legacyFile {
+            // A reused account directory can contain another account's legacy file. Leave it for its owner.
+            return
         } catch {
             self.loadError = error
             throw error
+        }
+        if source == self.legacyFile {
+            do { try FileManager.default.moveItem(at: source, to: self.file) }
+            catch { self.loaded = false; throw error }
+        }
+        self.entries = Dictionary(archive.entries.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    private func validate(_ entry: WhitegramHistoryEntry) throws {
+        guard entry.accountId == self.accountId else { throw WhitegramHistoryError.differentAccount }
+        let expectedKey = "\(entry.peerId):\(entry.namespace):\(entry.messageId):\(entry.event.rawValue):\(entry.revision)"
+        guard let peerId = Int64(entry.peerId), String(peerId) == entry.peerId,
+              entry.namespace == self.cloudNamespace, entry.messageId > 0, entry.key == expectedKey,
+              entry.text.utf8.count <= Self.maximumTextBytes + 3,
+              entry.mediaCount >= 0, entry.mediaCount <= 1000,
+              entry.capturedAt.isFinite, entry.capturedAt >= 0,
+              entry.capturedAt <= Date().timeIntervalSince1970 + 86400,
+              (entry.peerTitle?.utf8.count ?? 0) <= Self.maximumNameBytes,
+              (entry.authorName?.utf8.count ?? 0) <= Self.maximumNameBytes else {
+            throw WhitegramHistoryError.invalidArchive
+        }
+        if let authorId = entry.authorId, Int64(authorId).map({ String($0) }) != authorId {
+            throw WhitegramHistoryError.invalidArchive
+        }
+        if let media = entry.media {
+            guard media.count <= min(entry.mediaCount, Self.maximumMediaItems) else { throw WhitegramHistoryError.invalidArchive }
+            for item in media {
+                guard (item.mediaId?.utf8.count ?? 0) <= 64,
+                      (item.fileName?.utf8.count ?? 0) <= Self.maximumNameBytes,
+                      (item.mimeType?.utf8.count ?? 0) <= 256,
+                      item.size.map({ $0 >= 0 }) ?? true,
+                      item.width.map({ $0 > 0 }) ?? true,
+                      item.height.map({ $0 > 0 }) ?? true,
+                      item.duration.map({ $0.isFinite && $0 >= 0 }) ?? true else {
+                    throw WhitegramHistoryError.invalidArchive
+                }
+            }
         }
     }
 
@@ -125,41 +136,40 @@ public final class WhitegramHistoryStore: NSObject {
         let archive = try JSONDecoder().decode(WhitegramHistoryArchive.self, from: data)
         guard archive.version == 1, archive.entries.count <= Self.maximumEntries else { throw WhitegramHistoryError.invalidArchive }
         guard archive.accountId == self.accountId else { throw WhitegramHistoryError.differentAccount }
-        for item in archive.entries {
-            let expectedKey = "\(item.peerId):\(item.namespace):\(item.messageId):\(item.event.rawValue):\(item.revision)"
-            guard item.accountId == self.accountId, Int64(item.peerId) != nil, item.namespace == Namespaces.Message.Cloud,
-                  item.messageId > 0, item.text.utf8.count <= Self.maximumTextBytes + 3,
-                  item.key == expectedKey, item.mediaCount >= 0, item.mediaCount <= 1000,
-                  item.capturedAt.isFinite, item.capturedAt >= 0,
-                  item.capturedAt <= Date().timeIntervalSince1970 + 86400 else { throw WhitegramHistoryError.invalidArchive }
-        }
+        for entry in archive.entries { try self.validate(entry) }
         return archive
     }
 
     private func ordered() -> [WhitegramHistoryEntry] {
-        return self.entries.values.sorted { lhs, rhs in
-            return lhs.capturedAt == rhs.capturedAt ? lhs.key < rhs.key : lhs.capturedAt > rhs.capturedAt
-        }
+        return WhitegramHistoryQuery(order: .captureTime).apply(to: Array(self.entries.values))
+    }
+
+    private func encode(_ entries: [WhitegramHistoryEntry]) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return try encoder.encode(WhitegramHistoryArchive(version: 1, accountId: self.accountId, entries: entries))
     }
 
     private func persist() throws {
         guard FileManager.default.fileExists(atPath: self.directory.path) else { throw WhitegramHistoryError.accountRemoved }
         var sorted = Array(self.ordered().prefix(Self.maximumEntries))
-        var data = try JSONEncoder().encode(WhitegramHistoryArchive(version: 1, accountId: self.accountId, entries: sorted))
+        var data = try self.encode(sorted)
         while data.count > Self.maximumArchiveBytes && !sorted.isEmpty {
             sorted.removeLast(min(100, sorted.count))
-            data = try JSONEncoder().encode(WhitegramHistoryArchive(version: 1, accountId: self.accountId, entries: sorted))
+            data = try self.encode(sorted)
         }
         try data.write(to: self.file, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
         self.entries = Dictionary(uniqueKeysWithValues: sorted.map { ($0.key, $0) })
+        self.pendingWrite = false
         self.writeError = nil
         DispatchQueue.main.async { NotificationCenter.default.post(name: Self.updatedNotification, object: self) }
     }
 
-    private func append(_ entry: WhitegramHistoryEntry) {
+    func append(_ entry: WhitegramHistoryEntry) {
         self.queue.async {
             do {
                 try self.load()
+                try self.validate(entry)
                 if self.entries[entry.key] != nil { return }
                 self.entries[entry.key] = entry
                 if self.entries.count > Self.maximumEntries {
@@ -168,6 +178,7 @@ public final class WhitegramHistoryStore: NSObject {
                 guard !self.pendingWrite else { return }
                 self.pendingWrite = true
                 self.queue.asyncAfter(deadline: .now() + 0.25) {
+                    guard self.pendingWrite else { return }
                     self.pendingWrite = false
                     do { try self.persist() }
                     catch { self.writeError = error; NSLog("Whitegram: history write failed") }
@@ -176,29 +187,42 @@ public final class WhitegramHistoryStore: NSObject {
         }
     }
 
-    public func snapshot(completion: @escaping (Result<[WhitegramHistoryEntry], Error>) -> Void) {
+    public func snapshot(matching query: WhitegramHistoryQuery = WhitegramHistoryQuery(), completion: @escaping (Result<[WhitegramHistoryEntry], Error>) -> Void) {
         self.queue.async {
-            let result = Result { try self.load(); if self.writeError != nil { try self.persist() }; return self.ordered() }
+            let result = Result {
+                try self.load()
+                if self.pendingWrite || self.writeError != nil { try self.persist() }
+                return query.apply(to: Array(self.entries.values))
+            }
             DispatchQueue.main.async { completion(result) }
         }
     }
 
     public func clear(event: WhitegramHistoryEvent? = nil, completion: @escaping (Result<Void, Error>) -> Void) {
+        self.clear(matching: WhitegramHistoryQuery(event: event), completion: completion)
+    }
+
+    public func clear(matching query: WhitegramHistoryQuery, completion: @escaping (Result<Void, Error>) -> Void) {
         self.queue.async {
             let result = Result {
-                if event != nil { try self.load() }
+                // Loading also verifies ownership. Even a full clear must not overwrite another account's file.
+                try self.load()
                 let previous = self.entries
-                self.entries = self.entries.filter { _, entry in event != nil && entry.event != event }
-                do { try self.persist(); self.loadError = nil; self.loaded = true }
+                self.entries = self.entries.filter { !query.matches($0.value) }
+                do { try self.persist() }
                 catch { self.entries = previous; throw error }
             }
             DispatchQueue.main.async { completion(result) }
         }
     }
 
-    public func export(completion: @escaping (Result<Data, Error>) -> Void) {
+    public func export(matching query: WhitegramHistoryQuery = WhitegramHistoryQuery(), completion: @escaping (Result<Data, Error>) -> Void) {
         self.queue.async {
-            let result = Result { try self.load(); try self.persist(); return try JSONEncoder().encode(WhitegramHistoryArchive(version: 1, accountId: self.accountId, entries: self.ordered())) }
+            let result = Result {
+                try self.load()
+                if self.pendingWrite || self.writeError != nil { try self.persist() }
+                return try self.encode(query.apply(to: Array(self.entries.values)))
+            }
             DispatchQueue.main.async { completion(result) }
         }
     }
@@ -209,13 +233,17 @@ public final class WhitegramHistoryStore: NSObject {
                 let archive = try self.decode(data)
                 try self.load()
                 let previous = self.entries
-                for item in archive.entries {
-                    if let old = self.entries[item.key], old.capturedAt >= item.capturedAt { continue }
-                    self.entries[item.key] = item
+                var inserted = Set<String>()
+                for entry in archive.entries where self.entries[entry.key] == nil {
+                    self.entries[entry.key] = entry
+                    inserted.insert(entry.key)
                 }
-                do { try self.persist() }
-                catch { self.entries = previous; throw error }
-                return archive.entries.count
+                // First observation wins, including its timestamp; replay cannot rewrite local versions.
+                if !inserted.isEmpty {
+                    do { try self.persist() }
+                    catch { self.entries = previous; throw error }
+                }
+                return inserted.intersection(self.entries.keys).count
             }
             DispatchQueue.main.async { completion(result) }
         }

@@ -111,6 +111,7 @@ final class WhitegramPluginStorageTests: XCTestCase {
         let bytes = Data(repeating: 42, count: 65537)
         try bytes.write(to: file)
         XCTAssertEqual(try WhitegramPluginStorage.readLimited(file, limit: bytes.count), bytes)
+        XCTAssertEqual(try WhitegramPluginStorage.readLimited(file, limit: Int.max), bytes)
         self.assertCode("QUOTA_EXCEEDED") { _ = try WhitegramPluginStorage.readLimited(file, limit: bytes.count - 1) }
         let empty = self.directory.appendingPathComponent("empty.bin")
         try Data().write(to: empty)

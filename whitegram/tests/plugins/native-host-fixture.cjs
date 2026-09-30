@@ -10,6 +10,10 @@ const runtimeSource = fs.readFileSync(path.join(cleanroom, "WhitegramPluginRunti
 const resourceDeclaration = /static let resources = \[([^\]]+)\]/.exec(runtimeSource);
 if (!resourceDeclaration) throw new Error("Native resource declaration is missing");
 const resources = [...resourceDeclaration[1].matchAll(/"([^"]+)"/g)].map(match => match[1] + ".js");
+const hookSource = fs.readFileSync(path.join(cleanroom, "WhitegramPluginHooks.swift"), "utf8");
+const eventDeclaration = /static let eventNames = \[([^\]]+)\]/.exec(hookSource);
+if (!eventDeclaration) throw new Error("Native hook event declaration is missing");
+const telegramEvents = [...eventDeclaration[1].matchAll(/"([^"]+)"/g)].map(match => match[1]);
 
 // Consume the actual native registry declarations, not a separately maintained
 // list of invented native methods. All returned Telegram/UI data below is a
@@ -49,6 +53,9 @@ class NativeHostFixture {
     this.timers = new Map();
     this.surfaces = new Map();
     this.toasts = [];
+    this.eventSubscriptions = new Set();
+    this.settingsItems = new Map();
+    this.currentChat = options.currentChat || null;
     this.package = new Map(Object.entries(options.files || { "main.js": "" }));
     this.data = options.data || new Map();
     this.storage = options.storage || Object.create(null);
@@ -95,12 +102,19 @@ class NativeHostFixture {
 
   sync(name, args) {
     switch (name) {
-      case "runtime.info": return { id: "fixture-plugin", name: "Fixture", version: "1.0", entry: "main.js", manifest: this.manifest };
+      case "runtime.info": return { id: "fixture-plugin", name: "Fixture", version: "1.0", entry: "main.js", manifest: this.manifest, events: telegramEvents };
       case "runtime.started": this.state = "running"; return true;
       case "runtime.failed": this.state = "failed"; this.logs.push({ level: "error", text: args[0] }); return null;
       case "permissions.check": return this.grants[args[0]] === true;
       case "tg.myId": return "123";
-      case "capabilities.info": return { ios: "17.0", functions: this.manifest.filter(entry => entry.exposed).map(entry => entry.path), subsystems: { javascript: "1", ui: "1", tg: "12.9.2" }, features: { http: true, peerWatches: true, globalTelegramHooks: false, languageWorkers: false } };
+      case "tg.getCurrentChat": return this.currentChat;
+      case "events.setSubscriptions": {
+        if (args.length !== 1 || !Array.isArray(args[0]) || args[0].some(name => !telegramEvents.includes(name))) fail("INVALID_ARGUMENT", "Unsupported event name");
+        if (args[0].length && !this.grants.messages) fail("PERMISSION_DENIED", "messages");
+        this.eventSubscriptions = new Set(args[0]);
+        return true;
+      }
+      case "capabilities.info": return { ios: "17.0", events: telegramEvents, eventSemantics: "observational-postbox", functions: this.manifest.filter(entry => entry.exposed).map(entry => entry.path), subsystems: { javascript: "1", ui: "1", tg: "12.9.2" }, features: { http: true, peerWatches: true, globalTelegramEvents: true, pluginSettingsPages: true, currentChat: true, globalTelegramHooks: false, languageWorkers: false } };
       case "log": this.logs.push({ level: args[0], text: args[1] }); return null;
       case "timer.create": this.timers.set(args[0], { delay: args[1], repeats: args[2] }); return args[0];
       case "timer.clear": this.timers.delete(args[0]); return null;
@@ -116,6 +130,16 @@ class NativeHostFixture {
         return value == null ? null : args[1] ? Buffer.from(value).toString("base64") : value;
       }
       case "package.resolveModule": return this.resolveModule(args[0], args[1]);
+      case "ui.registerSettingsPage":
+      case "ui.addSettingsRow": {
+        const kind = name === "ui.registerSettingsPage" ? "page" : "row";
+        const item = args[0];
+        if (!item || typeof item.id !== "string" || !item.id || typeof item.title !== "string" || !item.title || typeof item.token !== "string") fail("INVALID_ARGUMENT", "Settings registration");
+        const key = kind + ":" + item.id;
+        if (!this.settingsItems.has(key) && [...this.settingsItems.values()].filter(item => item.kind === kind).length >= (kind === "page" ? 8 : 32)) fail("QUOTA_EXCEEDED", "Settings registrations");
+        this.settingsItems.set(key, { ...item, kind });
+        return item.id;
+      }
       case "ui.createSurface": {
         if (!["window", "sheet", "screen"].includes(args[0])) fail("UNSUPPORTED_UI", args[0]);
         this.validateTree(args[2]);
@@ -222,10 +246,15 @@ class NativeHostFixture {
     const [toast] = this.toasts.splice(index, 1);
     if (toast?.options.actionCallback) this.context.__wgUIDispatch("__toast", toast.options.actionCallback, { dismissed });
   }
+  activateSettingsItem(key) {
+    const item = this.settingsItems.get(key);
+    if (item && this.active && this.grants.uiMutation) this.context.__wgUIDispatch("__settings", item.token, { id: item.id, kind: item.kind });
+  }
   async stop() {
     this.active = false;
     this.unloading = true;
     this.pending.clear(); this.timers.clear(); this.surfaces.clear(); this.toasts = [];
+    this.eventSubscriptions.clear(); this.settingsItems.clear();
     this.run("__wgPrepareStop()");
     this.load("whitegram-plugin-host.js");
     this.run("__wgDidStop()");
@@ -235,4 +264,4 @@ class NativeHostFixture {
   }
 }
 
-module.exports = { NativeHostFixture, resources, sdkDirectory };
+module.exports = { NativeHostFixture, resources, sdkDirectory, telegramEvents };

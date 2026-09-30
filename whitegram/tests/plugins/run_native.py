@@ -1,4 +1,4 @@
-"""Run native storage/HTTP/preferences tests using only actual production sources."""
+"""Run native storage/HTTP/preferences/event-hub tests using production sources."""
 
 from pathlib import Path
 import shutil
@@ -31,6 +31,7 @@ let package = Package(name: "WhitegramNativeChecks", platforms: [.macOS(.v12)], 
         for name in ("WhitegramPluginStorage.swift", "WhitegramPluginHTTP.swift"):
             shutil.copyfile(overlay / "cleanroom" / name, source / name)
         shutil.copyfile(overlay / "cleanroom" / "WhitegramPreferences.swift", core / "WhitegramPreferences.swift")
+        shutil.copyfile(overlay / "cleanroom" / "WhitegramPluginEventHub.swift", core / "WhitegramPluginEventHub.swift")
         shutil.copyfile(overlay / "generated" / "WhitegramSettingsState.swift", core / "WhitegramSettingsState.swift")
         for path in here.glob("*Tests.swift"):
             shutil.copyfile(path, tests / path.name)

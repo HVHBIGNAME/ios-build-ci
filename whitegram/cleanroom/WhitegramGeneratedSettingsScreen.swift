@@ -38,6 +38,7 @@ private final class WhitegramSettingsCoordinator {
         guard let screen = WhitegramPortCapabilities.screens[id] else { return }
         let target: ViewController
         switch screen {
+        case "appearanceExtensions": target = whitegramAppearanceController(context: self.context)
         case "history": target = whitegramHistoryController(context: self.context)
         case "chats": target = whiteGramChatSettingsController(context: self.context)
         case "tabs": target = whiteGramTabsSettingsController(context: self.context)

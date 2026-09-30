@@ -11,7 +11,7 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
     let entries = ValuePromise<[WhitegramServiceEntry]>([], ignoreRepeated: true)
     let presenter = WhitegramServicePresenter()
     private var observers: [NSObjectProtocol] = []
-    private var hash: String
+    private var sha256: String
     private var file: WhitegramVirusTotalFileHash?
     private var result: WhitegramVirusTotalLookupResult?
     private var task: WhitegramServiceTask?
@@ -22,7 +22,7 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
     private var connection = "Not checked in this session."
 
     init(sha256: String?) {
-        self.hash = sha256 ?? ""
+        self.sha256 = sha256 ?? ""
         super.init()
         self.presenter.changed = { [weak self] in self?.refresh() }
         self.observers.append(whitegramServiceObserve(WhitegramPreferences.updatedNotification) { [weak self] _ in self?.refresh() })
@@ -81,11 +81,11 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
         if let file = self.file {
             add("file", 1, .text(String(file.fileName.prefix(256)) + " · " + ByteCountFormatter.string(fromByteCount: file.byteCount, countStyle: .file)))
         }
-        if !self.hash.isEmpty {
-            add("hash", 1, .text("SHA-256\n" + String(self.hash.prefix(128))))
+        if !self.sha256.isEmpty {
+            add("hash", 1, .text("SHA-256\n" + String(self.sha256.prefix(128))))
             add("copyHash", 1, .action("Copy SHA-256", idle))
         }
-        add("lookup", 1, .action("Look Up SHA-256", idle && enabled && keyAvailable && !self.hash.isEmpty))
+        add("lookup", 1, .action("Look Up SHA-256", idle && enabled && keyAvailable && !self.sha256.isEmpty))
         if self.task != nil { add("cancel", 1, .action("Cancel Operation", true)) }
         add("connection", 1, .text("Connection: " + self.connection))
         if !self.status.isEmpty { add("status", 1, .text(self.status)) }
@@ -129,7 +129,7 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
             self.refresh()
         case "chooseFile": self.chooseFile()
         case "editHash": self.editHash()
-        case "copyHash": whitegramServiceCopy(self.hash); self.status = "Hash copied for one hour."; self.refresh()
+        case "copyHash": whitegramServiceCopy(self.sha256); self.status = "Hash copied for one hour."; self.refresh()
         case "lookup": self.lookup()
         case "engines":
             if case let .found(report)? = self.result { self.checkPresentation(self.presenter.showText(title: "VirusTotal Engine Results", text: whitegramVirusTotalReportText(report))) }
@@ -149,9 +149,9 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
 
     private func editHash() {
         self.checkPresentation(self.presenter.editValue(title: "SHA-256", message: "Enter a 64-character hexadecimal SHA-256 hash. This does not submit a file.",
-            value: self.hash, placeholder: "SHA-256", saved: { [weak self] value in
+            value: self.sha256, placeholder: "SHA-256", saved: { [weak self] value in
                 do {
-                    self?.hash = try WhitegramVirusTotalWire.validatedHash(value)
+                    self?.sha256 = try WhitegramVirusTotalWire.validatedHash(value)
                     self?.file = nil
                     self?.result = nil
                     self?.status = "Hash ready. Tap Look Up SHA-256 to query VirusTotal."
@@ -186,7 +186,7 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
         guard urls.count == 1, let url = urls.first else { self.status = "Choose exactly one file."; self.refresh(); return }
         let id = UUID()
         self.taskId = id
-        self.hash = ""
+        self.sha256 = ""
         self.file = nil
         self.result = nil
         self.status = "Reading the selected file and computing SHA-256…"
@@ -201,7 +201,7 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
             switch result {
             case let .success(file):
                 self.file = file
-                self.hash = file.sha256
+                self.sha256 = file.sha256
                 self.status = "SHA-256 computed locally. Tap Look Up SHA-256 to query the report."
             case let .failure(error): self.status = error.localizedDescription
             }
@@ -215,7 +215,7 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
         self.taskId = id
         self.result = nil
         self.status = "Looking up the existing hash report…"
-        self.task = whitegramLookupVirusTotalHash(self.hash) { [weak self] result in
+        self.task = whitegramLookupVirusTotalHash(self.sha256) { [weak self] result in
             guard let self = self, self.taskId == id else { return }
             self.task = nil
             self.taskId = nil

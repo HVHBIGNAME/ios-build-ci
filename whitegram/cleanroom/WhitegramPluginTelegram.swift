@@ -287,8 +287,8 @@ enum WhitegramPluginTelegram {
         let id = try self.peerId(peer, context: context)
         guard count >= 1, count <= 100 else { throw WhitegramPluginError("INVALID_ARGUMENT", "Watch limit must be 1–100") }
         return self.requirePeer(context, id) {
-            return self.convert(context.account.postbox.aroundMessageHistoryViewForLocation(.peer(peerId: id, threadId: nil), ignoreMessagesInTimestampRange: nil,
-                ignoreMessageIds: Set(), anchor: .upperBound, count: count, trackHoles: false, clipHoles: false, ignoreRelatedChats: true,
+            return self.convert(context.account.postbox.aroundMessageHistoryViewForLocation(.peer(peerId: id, threadId: nil), anchor: .upperBound, ignoreMessagesInTimestampRange: nil,
+                ignoreMessageIds: Set(), count: count, trackHoles: false, clipHoles: false, ignoreRelatedChats: true,
                 fixedCombinedReadStates: nil, topTaggedMessageIdNamespaces: [], tag: nil, appendMessagesFromTheSameGroup: false,
                 namespaces: .just([Namespaces.Message.Cloud]), orderStatistics: [])) { view in
                 return ["peerId": String(id.toInt64()), "messages": view.0.entries.reversed().map { self.messageJSON(EngineMessage($0.message)) }, "scope": "local"] as [String: Any]

@@ -8,7 +8,7 @@
 
 The build pipeline is `apply-public-overlay.sh` → `compat-12.9.4.py` → validation → `configure.py` → the Telegram Bazel/Xcode build → `postprocess.py`.
 
-`compat-12.9.4.py` installs the clean-room implementations and applies the runtime, public API, appearance, interface, history, Swift syntax, voice and plugin-resource patches. Services and plugin implementations are installed under `SettingsUI/Sources/Whitegram/`. Preferences, history storage, ghost controls and voice processing belong to TelegramCore; the fork bridge belongs to TelegramUIPreferences; font registration belongs to Display.
+`compat-12.9.4.py` installs the clean-room implementations and applies the runtime, public API, appearance, interface, history, plugin-event, Swift syntax, voice and plugin-resource patches. Services and plugin UI implementations are installed under `SettingsUI/Sources/Whitegram/`. Preferences, history capture/storage, plugin event delivery, ghost controls and voice processing belong to TelegramCore; the fork bridge belongs to TelegramUIPreferences; font registration belongs to Display.
 
 ## Integration completed
 
@@ -27,6 +27,15 @@ The build pipeline is `apply-public-overlay.sh` → `compat-12.9.4.py` → valid
 - The archive UI supports filtering, searching, category clearing and JSON import/export. Limits are 2,000 entries, an 8 MiB archive and approximately 8 KiB of text per entry.
 - This is a local text/metadata archive. It does not restore Telegram conversations or archive secret-chat/media payloads.
 - Transient write failures are tracked separately from invalid archive-load errors and can be retried when taking a snapshot.
+- The message context menu opens versions of the selected message, including album members. Per-chat/message queries, attachment metadata, original/capture-time sorting and scoped clearing/export are connected.
+- Media-only edits are captured after resolving effective media. Archive files and legacy migration are account-specific; imports preserve the first observation of each version.
+
+### Plugin events and chat appearance
+
+- Plugins can observe incoming, queued, sent, edited/deleted messages and chat visibility. Delivery is account-scoped, bounded, permission-checked and deferred past Postbox commits. These observation callbacks do not cancel or rewrite Telegram operations.
+- Recovered settings-page/row registration and current-chat APIs are connected. Dynamic controls have registration replacement, callback invalidation and lifecycle cleanup.
+- Seven recovered appearance switches open a native preview/settings screen: borders/color, transparent/semitransparent bubbles, typing/message character counts, service timestamps and business-bot panel visibility. Open chats refresh after changes.
+- All new Swift files and patch modules are installed by the assembler. The appearance regression fixtures exercise both unpatched and already-installed sources; plugin hooks reject ambiguous partially patched inputs.
 
 ### Settings and menu
 
@@ -37,7 +46,7 @@ The build pipeline is `apply-public-overlay.sh` → `compat-12.9.4.py` → valid
 - Compact chat-list and compact tab-panel options open the public fork's controls, including its restart notices.
 - SettingsUI controllers explicitly import `PresentationDataUtils` for the target's `ItemListController(context:state:)` initializer.
 
-The feature-specific documents describe the supported behavior and remaining limits: [public APIs](PUBLIC_API_REVIEW.md), [appearance](APPEARANCE_PORT.md), [plugins](PLUGIN_RUNTIME.md), [services](SERVICES_PORT.md), and [voice](VOICE_PORT.md).
+The feature-specific documents describe the supported behavior and remaining limits: [public APIs](PUBLIC_API_REVIEW.md), [appearance](APPEARANCE_PORT.md), [history](HISTORY_PORT.md), [plugins](PLUGIN_RUNTIME.md), [services](SERVICES_PORT.md), and [voice](VOICE_PORT.md). [Feature coverage](FEATURE_COVERAGE.md) audits all 333 catalog rows at starting revision `6d8f529`; its counts deliberately exclude the subsequent history/plugin/appearance work.
 
 ## Fresh-tree verification
 
@@ -50,11 +59,12 @@ A new detached worktree was created from the pinned Telegram commit, then proces
 | Separate build metadata | 13 entries handled outside the runtime overlay |
 | Fresh compatibility pass | 71 imports and 103 BUILD dependencies added |
 | Repeated compatibility pass | Completed successfully; no additional imports/dependencies |
-| Python appearance/public API/runtime integration | 47 passed, no skips |
+| Python appearance/history/public API/runtime integration | 84 passed, no skips |
 | Python voice integration | 13 passed, no skips |
-| JavaScript SDK/bootstrap | 36 passed |
-| Full Swift syntax comparison | 196 files; zero additional parser diagnostics against target HEAD |
-| Plugin syntax check | 9 implementation/test files parsed |
+| JavaScript SDK/bootstrap/hooks | 51 passed |
+| Full Swift syntax comparison | 210 files; zero additional parser diagnostics against target HEAD |
+| Plugin syntax check | 12 implementation/test files parsed |
+| Plugin/history patch composition | 16 event callsites; both application orders and repeat checks passed |
 | Service syntax/contracts | 9 production and 4 test files passed |
 | Tracked patch whitespace | `git diff --check` passed |
 
@@ -78,8 +88,9 @@ $env:WHITEGRAM_VOICE_SOURCE = $env:WHITEGRAM_ASSEMBLED_SOURCE
 $env:WHITEGRAM_VOICE_PUBLIC_SOURCE = $env:WHITEGRAM_PUBLIC_SOURCE
 python -B -m unittest discover -s whitegram/tests -p "test_*.py" -v
 python -B -m unittest discover -s whitegram/tests/voice -p "test_*.py" -v
-node --test whitegram/tests/plugins/bootstrap.test.cjs
+node --test whitegram/tests/plugins/bootstrap.test.cjs whitegram/tests/plugins/hooks.test.cjs
 python -B whitegram/tests/plugins/check_swift_syntax.py
+python -B whitegram/tests/plugins/check_hook_patches.py "$env:WHITEGRAM_ASSEMBLED_SOURCE"
 python -B whitegram/tests/services/check_sources.py --target "$env:WHITEGRAM_ASSEMBLED_SOURCE"
 python -B whitegram/validate_port.py "$env:WHITEGRAM_ASSEMBLED_SOURCE" --report "<report-directory>/syntax.json"
 ```
@@ -88,8 +99,8 @@ Install the parser pair from `requirements-checks.txt` in the Python environment
 
 ## Apple build checkpoint
 
-Swift and Xcode are unavailable on this Windows host. Both native runners were invoked and reported the missing toolchain; their runtime assertions have **not** passed locally. No new IPA has been produced by this integration pass.
+Swift and Xcode are unavailable on this Windows host. Earlier macOS CI runs passed the native service, storage/HTTP/preferences and voice suites. The newly added event-hub and history native cases still require this revision's Apple runner. No new IPA has been produced by this integration pass.
 
-`.github/workflows/build.yml` now runs the Python/JavaScript/source checks and native service, plugin storage/HTTP/preferences, and voice runners before building the IPA. The Foundation plugin host uses separate TelegramCore and SettingsUI targets to retain the production import boundary. Missing Swift fails the native stage. The source-validation JSON is uploaded as a separate artifact.
+`.github/workflows/build.yml` runs the Python/JavaScript/source checks and native service, plugin storage/HTTP/preferences/event-hub, history, and voice runners before building the IPA. Every native runner executes even if another fails, then the stage fails if any failed. The Foundation plugin host uses separate TelegramCore and SettingsUI targets to retain the production import boundary. Missing Swift fails the native stage. The source-validation JSON is uploaded as a separate artifact; Bazel outputs are cached across runs.
 
-The macOS workflow still needs to execute for this revision. Its full app build must establish Apple SDK type correctness, dependencies and linking. UIKit/JavaScriptCore integration and on-device checks of privacy packets, archive persistence, plugin lifecycle, font/icon selection, and recording/preview/send also remain to be run.
+Run `36517261194` exposed three compile defects now corrected: bounded plugin reads use the older-compatible `InputStream` API; history watching passes `anchor` in the public Postbox signature's order; VirusTotal's SHA-256 field no longer shadows `NSObject.hash`. The next full app build must establish remaining Apple SDK type correctness, dependencies and linking. UIKit/JavaScriptCore integration and on-device checks of privacy packets, archive persistence, plugin lifecycle, appearance, font/icon selection, and recording/preview/send remain to be run.

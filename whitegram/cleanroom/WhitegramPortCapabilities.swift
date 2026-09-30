@@ -33,6 +33,10 @@ enum WhitegramPortCapabilities {
     ]
 
     static let screens: [String: String] = [
+        "messageBorder": "appearanceExtensions", "transparentMessages": "appearanceExtensions",
+        "semiTransparentBubbles": "appearanceExtensions", "showCharCountTyping": "appearanceExtensions",
+        "showCharCountMessages": "appearanceExtensions", "showActionTime": "appearanceExtensions",
+        "hideBusinessBotPanel": "appearanceExtensions",
         "compactChatList": "chats",
         "hideBottomTabBar": "tabs",
         "clearSavedChatHistory": "history", "restoreChatsView": "history", "clearDeletedCache": "history",
@@ -49,6 +53,10 @@ enum WhitegramPortCapabilities {
     ]
 
     static let russianTitles: [String: String] = [
+        "messageBorder": "Обводка сообщений", "transparentMessages": "Прозрачные сообщения",
+        "semiTransparentBubbles": "Полупрозрачные пузыри", "showCharCountTyping": "Счётчик при наборе",
+        "showCharCountMessages": "Счётчик в сообщениях", "showActionTime": "Время служебных сообщений",
+        "hideBusinessBotPanel": "Скрыть панель бизнес-бота",
         "ghostMode": "Режим призрака", "alwaysOnline": "Оставаться онлайн, пока клиент работает",
         "disableOnlineStatus": "Не показывать онлайн", "disableTypingStatus": "Не показывать набор текста",
         "disableRecordingStatus": "Не показывать запись голоса и видео", "disableUploadingStatus": "Не показывать загрузку файлов",
