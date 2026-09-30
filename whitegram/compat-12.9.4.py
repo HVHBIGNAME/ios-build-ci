@@ -169,6 +169,12 @@ cleanroom_files = {
 cleanroom_files.update({"cleanroom/" + name: destination for name, destination in VOICE_RUNTIME_FILES.items()})
 cleanroom_files.update({"cleanroom/" + name: destination for name, destination in PLUGIN_HOOK_RUNTIME_FILES.items()})
 for name in (
+    "WhitegramSettingsArchive.swift", "WhitegramSettingsArchiveJSON.swift",
+    "WhitegramSettingsArchiveSchema.swift", "WhitegramSettingsArchiveMirrors.swift",
+    "WhitegramSettingsArchiveStore.swift",
+):
+    cleanroom_files["cleanroom/" + name] = "submodules/TelegramCore/Sources/" + name
+for name in (
     "WhitegramPluginHTTP.swift", "WhitegramPluginManagerController.swift",
     "WhitegramPluginRuntime.swift", "WhitegramPluginStorage.swift",
     "WhitegramPluginTelegram.swift", "WhitegramPluginUI.swift",
@@ -176,6 +182,8 @@ for name in (
     "WhitegramVirusTotalService.swift", "WhitegramVirusTotalFileHasher.swift",
     "WhitegramVirusTotalController.swift", "WhitegramServiceCore.swift",
     "WhitegramServiceHTTP.swift", "WhitegramServiceCredentials.swift", "WhitegramServiceUI.swift",
+    "WhitegramSettingsArchiveKeychain.swift", "WhitegramSettingsTransferController.swift",
+    "WhitegramSettingsTransferDocuments.swift",
 ):
     cleanroom_files["cleanroom/" + name] = "submodules/SettingsUI/Sources/Whitegram/" + name
 missing = [name for name in cleanroom_files if not (source_base / name).is_file()]

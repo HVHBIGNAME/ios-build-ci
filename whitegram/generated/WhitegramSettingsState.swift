@@ -95,7 +95,7 @@ public struct WhitegramSettingsState: Codable, Equatable {
     public var formattingToolbarEnabled: Bool = false
     public var profilePhotosRevision: Int = 0
     public var localStarsEnabled: Bool = false
-    public var localStarsCount: Bool = false
+    public var localStarsCount: Int64 = 0
     public var customFontEnabled: Bool = false
     public var customFontName: String = ""
     public var fontHistory: [[String: String]] = []

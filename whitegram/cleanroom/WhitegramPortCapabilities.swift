@@ -33,6 +33,8 @@ enum WhitegramPortCapabilities {
     ]
 
     static let screens: [String: String] = [
+        "exportSettings": "settingsTransfer", "importSettings": "settingsTransfer",
+        "saveSettingsToKeychain": "settingsTransfer", "restoreSettingsFromKeychain": "settingsTransfer",
         "messageBorder": "appearanceExtensions", "transparentMessages": "appearanceExtensions",
         "semiTransparentBubbles": "appearanceExtensions", "showCharCountTyping": "appearanceExtensions",
         "showCharCountMessages": "appearanceExtensions", "showActionTime": "appearanceExtensions",
@@ -53,6 +55,9 @@ enum WhitegramPortCapabilities {
     ]
 
     static let russianTitles: [String: String] = [
+        "exportSettings": "Экспорт настроек", "importSettings": "Импорт настроек",
+        "saveSettingsToKeychain": "Сохранить настройки в Связку ключей",
+        "restoreSettingsFromKeychain": "Восстановить настройки из Связки ключей",
         "messageBorder": "Обводка сообщений", "transparentMessages": "Прозрачные сообщения",
         "semiTransparentBubbles": "Полупрозрачные пузыри", "showCharCountTyping": "Счётчик при наборе",
         "showCharCountMessages": "Счётчик в сообщениях", "showActionTime": "Время служебных сообщений",

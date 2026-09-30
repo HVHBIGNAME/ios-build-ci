@@ -99,8 +99,16 @@ Install the parser pair from `requirements-checks.txt` in the Python environment
 
 ## Apple build checkpoint
 
-Swift and Xcode are unavailable on this Windows host. Earlier macOS CI runs passed the native service, storage/HTTP/preferences and voice suites. The newly added event-hub and history native cases still require this revision's Apple runner. No new IPA has been produced by this integration pass.
+Revision **`0ff81e131933267d2789499eda140188eae49ea8`** successfully completed [run 36661099276](https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/36661099276), including all native service, plugin, history and voice suites, the full app build and IPA upload. Swift and Xcode remain unavailable on the Windows host.
+
+The downloaded unsigned IPA is `C:\coding\telegram\whitegram\build-0ff81e1\WhiteGram.ipa` (73,098,319 bytes), SHA-256 `6e0f2904eb503ccb010f52581c62bd0f70aab6a3a1e288299566df143ce79b77`. Verification confirmed ZIP integrity, arm64, 12.9.4/34639, all six extension identities, 13 alternate icons and exact committed plugin SDK bytes. `whitegram/verify_ipa.py` now performs these checks in CI; Bazel product names such as `WidgetExtension.appex` are correctly distinguished from bundle ID suffixes such as `.Widget`.
+
+### Settings transfer increment
+
+The four settings backup/import actions are connected through the full/searchable catalog. Their explicit port-format archive validates fields before applying partial updates, excludes credentials/runtime state and refreshes public-fork mirrors. `localStarsCount` is corrected to the original `Int64` type with a read migration for earlier Boolean records. See [SETTINGS_TRANSFER_PORT.md](SETTINGS_TRANSFER_PORT.md).
+
+Ten production files and three native test files pass the local syntax/boundary checks. The 29 new settings-transfer XCTest cases require the next macOS run. They are not part of the already downloaded `0ff81e1` IPA.
 
 `.github/workflows/build.yml` runs the Python/JavaScript/source checks and native service, plugin storage/HTTP/preferences/event-hub, history, and voice runners before building the IPA. Every native runner executes even if another fails, then the stage fails if any failed. The Foundation plugin host uses separate TelegramCore and SettingsUI targets to retain the production import boundary. Missing Swift fails the native stage. The source-validation JSON is uploaded as a separate artifact; Bazel outputs are cached across runs.
 
-Run `36517261194` exposed three compile defects now corrected: bounded plugin reads use the older-compatible `InputStream` API; history watching passes `anchor` in the public Postbox signature's order; VirusTotal's SHA-256 field no longer shadows `NSObject.hash`. The next full app build must establish remaining Apple SDK type correctness, dependencies and linking. UIKit/JavaScriptCore integration and on-device checks of privacy packets, archive persistence, plugin lifecycle, appearance, font/icon selection, and recording/preview/send remain to be run.
+Run `36517261194` exposed three compile defects corrected and verified by `36661099276`: bounded plugin reads use the older-compatible `InputStream` API; history watching passes `anchor` in the public Postbox signature's order; VirusTotal's SHA-256 field no longer shadows `NSObject.hash`. New increments require their own full builds. On-device checks of privacy packets, archive persistence, plugin lifecycle, appearance, font/icon selection, and recording/preview/send remain to be run.

@@ -96,6 +96,7 @@ jobs:
           "$python" -B whitegram/tests/plugins/check_swift_syntax.py
           "$python" -B whitegram/tests/plugins/check_hook_patches.py /Users/Shared/telegram-ios
           "$python" -B whitegram/tests/services/check_sources.py --target /Users/Shared/telegram-ios
+          "$python" -B whitegram/tests/settings_transfer/check_sources.py --target /Users/Shared/telegram-ios
           "$python" -B whitegram/validate_port.py /Users/Shared/telegram-ios --report "$RUNNER_TEMP/whitegram-source-validation.json"
 
       - name: Run native Swift service, storage, history and voice tests
@@ -105,6 +106,7 @@ jobs:
           python3 -B whitegram/tests/services/run_swift_tests.py || failed=1
           python3 -B whitegram/tests/plugins/run_native.py || failed=1
           python3 -B whitegram/tests/history/run_native.py || failed=1
+          python3 -B whitegram/tests/settings_transfer/run_native.py --assembled-source /Users/Shared/telegram-ios || failed=1
           python3 -B whitegram/tests/voice/run_native.py --require-swift || failed=1
           exit "$failed"
 
@@ -194,6 +196,10 @@ jobs:
           zip -qry "$source_dir/build/artifacts/WhiteGram.ipa" Payload
           cd "$source_dir"
           test -s build/artifacts/WhiteGram.ipa
+          python3 "$GITHUB_WORKSPACE/whitegram/verify_ipa.py" build/artifacts/WhiteGram.ipa \
+            --repository "$GITHUB_WORKSPACE" --revision "$GITHUB_SHA" \
+            --version "${{ matrix.app_version }}" --build "$build_number" \
+            --report build/artifacts/WhiteGram-verification.json
           rm -rf "$staging_dir"
 
       - name: Save Bazel disk cache
@@ -207,6 +213,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: WhiteGram-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}-unsigned
-          path: /Users/Shared/telegram-ios/build/artifacts/WhiteGram.ipa
+          path: |
+            /Users/Shared/telegram-ios/build/artifacts/WhiteGram.ipa
+            /Users/Shared/telegram-ios/build/artifacts/WhiteGram-verification.json
           if-no-files-found: error
           retention-days: 30
