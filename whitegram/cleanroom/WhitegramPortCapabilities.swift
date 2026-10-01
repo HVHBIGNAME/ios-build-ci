@@ -33,6 +33,9 @@ enum WhitegramPortCapabilities {
     ]
 
     static let screens: [String: String] = [
+        "sendLargePhotos": "media", "photoQualitySlider": "media", "alwaysSendHD": "media",
+        "cleanMetadataOnSend": "media", "rememberLastCamera": "media",
+        "translationTargetLang": "translation", "translateBeforeSending": "translation",
         "exportSettings": "settingsTransfer", "importSettings": "settingsTransfer",
         "saveSettingsToKeychain": "settingsTransfer", "restoreSettingsFromKeychain": "settingsTransfer",
         "messageBorder": "appearanceExtensions", "transparentMessages": "appearanceExtensions",
@@ -44,7 +47,7 @@ enum WhitegramPortCapabilities {
         "clearSavedChatHistory": "history", "restoreChatsView": "history", "clearDeletedCache": "history",
         "clearEditedCache": "history", "exportDeletedBackup": "history", "importDeletedBackup": "history",
         "stickerSizeAction": "chats", "stickerSizeSlider": "chats",
-        "cameraBack": "chats", "cameraFront": "chats", "cameraSettingsButton": "chats",
+        "cameraBack": "media", "cameraFront": "media", "cameraSettingsButton": "media",
         "customFontsManager": "fonts", "customFontPicker": "fonts", "fontHistoryItem": "fonts",
         "pluginsOpen": "plugins", "pluginRow": "plugins",
         "virusTotalEnabled": "virusTotal", "virusTotalApiKeyRow": "virusTotal", "virusTotalStatusRow": "virusTotal",

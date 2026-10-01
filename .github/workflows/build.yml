@@ -99,7 +99,7 @@ jobs:
           "$python" -B whitegram/tests/settings_transfer/check_sources.py --target /Users/Shared/telegram-ios
           "$python" -B whitegram/validate_port.py /Users/Shared/telegram-ios --report "$RUNNER_TEMP/whitegram-source-validation.json"
 
-      - name: Run native Swift service, storage, history and voice tests
+      - name: Run native Swift suites
         run: |
           set -euo pipefail
           failed=0
@@ -107,6 +107,8 @@ jobs:
           python3 -B whitegram/tests/plugins/run_native.py || failed=1
           python3 -B whitegram/tests/history/run_native.py || failed=1
           python3 -B whitegram/tests/settings_transfer/run_native.py --assembled-source /Users/Shared/telegram-ios || failed=1
+          python3 -B whitegram/tests/translation/run_native.py || failed=1
+          python3 -B whitegram/tests/media/run_native.py || failed=1
           python3 -B whitegram/tests/voice/run_native.py --require-swift || failed=1
           exit "$failed"
 

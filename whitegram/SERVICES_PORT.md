@@ -11,8 +11,11 @@ All paths in this table are relative to `whitegram/cleanroom/`.
 | File | Responsibility |
 | --- | --- |
 | `WhitegramAIService.swift` | Gemini/Groq request builders, response decoders, public AI client |
-| `WhitegramAISettingsController.swift` | Provider/model/key configuration, prompt composer, send/cancel, response viewer/copy |
-| `WhitegramVirusTotalService.swift` | Hash-only report request, typed statistics/engine results, unknown-report handling |
+| `WhitegramAISettingsController.swift` | Provider/model/key configuration, transcript, send/cancel/retry/clear, response viewer/copy |
+| `WhitegramAIConversation.swift` | Account/provider-scoped persistence, revision arbitration, multi-turn lifecycle |
+| `WhitegramVirusTotalService.swift` | Hash/URL/IP report requests, typed statistics/engine results, unknown-report handling |
+| `WhitegramVirusTotalTargets.swift` | Target normalization, validation and message-text/link extraction |
+| `WhitegramVirusTotalMessageContext.swift` | Native entity adapter and preference-aware target submission |
 | `WhitegramVirusTotalFileHasher.swift` | Security-scoped, coordinated, incremental SHA-256 file hashing |
 | `WhitegramVirusTotalController.swift` | Document picker, manual hash entry, lookup/cancel, statistics, engine results, report link |
 | `WhitegramServiceCore.swift` | Errors, limits, cancellation/completion arbitration, request gate/backoff |
@@ -22,7 +25,7 @@ All paths in this table are relative to `whitegram/cleanroom/`.
 
 ## Parent integration
 
-Install **all nine files** into the SettingsUI source target and route the appropriate menu/settings actions to:
+The assembler installs **all twelve files** into SettingsUI and routes the appropriate menu/settings actions to:
 
 ```swift
 public func whitegramAISettingsController(context: AccountContext) -> ViewController
@@ -92,17 +95,19 @@ public static func hash(
 | Gemini | `POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent` | `x-goog-api-key` header |
 | Groq | `POST https://api.groq.com/openai/v1/chat/completions` | `Authorization: Bearer …` header |
 
-Requests contain one user message with the **exact submitted text**, plus the chosen model/configuration. They do not collect account data, chat history, attachments or clipboard contents. Gemini gets `contents[].parts[].text` and `generationConfig.maxOutputTokens`. Groq gets `messages`, `model`, `max_completion_tokens` and `stream: false`.
+The low-level single-text API sends one user message. The conversation screen sends the **exact submitted text plus completed turns from that account/provider's local AI conversation**. It does not collect Telegram chats, account identifiers, attachments or clipboard contents. Gemini uses `user`/`model` roles in `contents`; Groq uses `user`/`assistant` roles in `messages`. Invalid role sequences and oversized encoded conversations are rejected before a request starts.
 
 Model IDs are editable strings. No model availability is fabricated and no fallback model is silently selected. Gemini accepts a bare model ID or the `models/` prefix; Groq accepts namespaced IDs. Unsupported IDs produce the real HTTP error. An unrecognized/empty provider preference requires an explicit provider selection.
 
 Gemini decoding selects candidate index 0 (or the first candidate if indices are absent), concatenates its text parts, excludes `thought` parts, and handles prompt/candidate blocking. Groq decoding selects one choice's `message.content`. Output-limit responses retain their text and are visibly marked partial. Missing text, tool-only output, malformed JSON, unsupported finish states, and invalid metadata produce errors. Token counts are displayed only when the provider supplies them.
 
-Prompts/results are in-memory screen state. Full results are selectable plain text, not HTML or executable Markdown. Copy is explicit, device-local (no Universal Clipboard), and expires after one hour. A key save does not claim successful authentication: connection status changes after an actual submitted request outcome.
+Conversation turns persist in account/provider-specific files, bounded to 100 turns and 8 MiB. Failed/cancelled prompts stay visible but are excluded from subsequent conversation context. Retry replaces the last unfinished turn. Clearing writes a new empty revision so another screen's stale response cannot restore cleared history. Full results are selectable plain text. Copy is explicit, device-local and expires after one hour. Original `wg_geminiChatHistory_v5`/`wg_groqChatHistory_v5` keys identify the recovered feature, but their backup format is not claimed compatible with this new store.
 
 ### VirusTotal
 
-`GET https://www.virustotal.com/api/v3/files/{sha256}`, authenticated with the `x-apikey` header, has **no request body**. There is no upload or scan-submission implementation.
+Read-only requests use `GET /api/v3/files/{sha256}`, `/urls/{base64url-id}` or `/ip_addresses/{address}` at `https://www.virustotal.com`, authenticated by `x-apikey`, with no request body. URL/IP reports share the file lookup's gate/backoff. There is no file-upload or scan-submission implementation.
+
+`service_patches.py` adds a message-context action for extracted HTTP(S) links, IPv4/IPv6 addresses and SHA-256 indicators. Telegram link entities take precedence over plain-text detection; indicators are deduplicated and bounded. The action opens a review/selection screen. Only an explicit Look Up sends the chosen indicator, including URL query parameters, to VirusTotal. Other message text is not sent. Secret-chat context actions are excluded.
 
 The native document picker opens one file without copying it into app storage. Hashing uses a background queue, a security-scoped URL, `NSFileCoordinator`, `FileHandle` reads and incremental `CryptoKit.SHA256`. It checks the size before/while reading, rejects directories/packages/symlinks, and checks descriptor/path identity, size and modification metadata after reading. File-provider materialization may occur through the system file provider; no file contents are sent to VirusTotal. Cancelling interrupts coordination and stops reading at a chunk boundary; completion can be delivered while system file-provider cancellation finishes.
 
@@ -140,7 +145,7 @@ VirusTotal's JSON `404 / NotFoundError` maps to `.notFound(sha256:)` and is disp
 | `geminiModelId`, `groqModelId` | Separate editable model strings |
 | `geminiApiKey`, `groqApiKey` | Legacy credential lookup keys and Keychain account names; new tokens are not saved in preferences |
 | `geminiUseProxy`, `groqUseProxy` | Unsupported legacy app-proxy flags; not applied and not exposed as working switches |
-| `virusTotalEnabled` | Enables hash HTTP lookups; local hashing can be used independently |
+| `virusTotalEnabled` | Enables hash/URL/IP HTTP lookups; local hashing can be used independently |
 | `virusTotalApiKey` | Legacy lookup key and Keychain account name |
 | `virusTotalConnectionStatus` | Timestamped string from the current controller's real request outcome; cleared when its key changes |
 
@@ -168,7 +173,7 @@ Service preferences/keys follow the existing app-wide Whitegram preferences scop
 
 ## Tests and verification
 
-`whitegram/tests/services/` contains **49 XCTest methods** against actual production builders, parsers, gates, tasks and credential policy, plus the actual URLSession transport through an intercepting URLProtocol. Apple hosts additionally exercise incremental file hashing and the redirect delegate.
+`whitegram/tests/services/` contains **56 XCTest methods** against actual production builders, parsers, gates, tasks, conversation persistence and credential policy, plus the actual URLSession transport through an intercepting URLProtocol. Apple hosts additionally exercise incremental file hashing and the redirect delegate.
 
 Run on a Swift-capable host:
 
@@ -176,9 +181,9 @@ Run on a Swift-capable host:
 python3 -B whitegram/tests/services/run_swift_tests.py
 ```
 
-The runner copies the six non-UI production files into an isolated, dependency-free SwiftPM host beneath `tests/services/.host-package`, records their SHA-256 digests, and keeps build/cache/temp artifacts beneath `tests/services/.host-artifacts`. It does not compile a substitute service implementation. It accepts `--swift <executable>` and `--filter <XCTest filter>`.
+The runner copies the eight non-UI production files into an isolated, dependency-free SwiftPM host beneath `tests/services/.host-package`, records their SHA-256 digests, and keeps build/cache/temp artifacts beneath `tests/services/.host-artifacts`. It does not compile a substitute service implementation. It accepts `--swift <executable>` and `--filter <XCTest filter>`.
 
-- macOS: all 49 methods are present, including known SHA-256 vectors, multiple chunk boundaries, oversized sparse files, symlinks, cancellation and real redirect-delegate behavior.
+- macOS: all 56 methods are present, including known SHA-256 vectors, multiple chunk boundaries, oversized sparse files, symlinks, cancellation, stale-conversation revisions, target extraction and real redirect-delegate behavior.
 - Linux: request/parsing/credential-policy/task tests and URLSession fixture tests are host-independent. The five CryptoKit/Darwin hash methods are excluded; the redirect test explicitly skips FoundationNetworking's unimplemented URLProtocol redirect callback.
 - No tests require real credentials or permit a request to reach a provider. URLSession tests install a URLProtocol that intercepts every URL; the other client tests inject a manual transport.
 - The native Security/TelegramCore adapter, settings UI, signing, native picker presentation and actual API access still need the app's Apple build/device verification.
@@ -189,14 +194,13 @@ Offline syntax/source-contract check used in this Windows workspace:
 C:\Users\Pisun4ik\AppData\Local\Temp\opencode\whitegram-check-env\Scripts\python.exe -B whitegram/tests/services/check_sources.py --target C:\Users\Pisun4ik\AppData\Local\Temp\opencode\whitegram-port-12.9.2
 ```
 
-This uses tree-sitter 0.25.2 / swift grammar 0.7.3 and checks the target controller signatures/import, endpoint/auth-storage invariants, masked editors and bounded file reads. It is **syntax/static validation, not Swift compilation or runtime verification**. All nine production and four test Swift files pass this check. The runtime test runner was invoked locally and reported that Swift is unavailable; no XCTest/device/provider execution is claimed.
+This uses tree-sitter 0.25.2 / swift grammar 0.7.3 and checks the target controller signatures/import, endpoint/auth-storage invariants, masked editors and bounded file reads. It is **syntax/static validation, not Swift compilation or runtime verification**. Twelve production and six test Swift files pass this check. The first 49 native tests passed in earlier macOS runs; the new conversation/target cases require the new revision's runner. No actual provider request or device execution is claimed.
 
 ## Remaining integration/unsupported features
 
-- Parent-owned menu/catalog/source-installation/build wiring and export filtering.
-- Parent-owned chat actions and plugin permission/binding work. The prefilled controllers and callback APIs are provided for this integration.
-- Streaming, multi-turn sessions, automatic translation, audio/image/file AI input, Gemini tuned/dynamic resource endpoints, model discovery, provider tool execution, and custom HTTP endpoints/proxies.
-- VirusTotal upload/reanalysis, automatic attachment scanning, paid intelligence APIs and verdict guarantees. This port fetches an existing hash report.
+- Streaming, audio/image/file AI input, Gemini tuned/dynamic resource endpoints, model discovery, provider tool execution and custom HTTP endpoints/proxies.
+- VirusTotal upload/reanalysis, automatic attachment scanning, paid intelligence APIs and verdict guarantees. This port fetches existing file/URL/IP reports.
+- Original persisted AI-history format migration and service plugin bindings beyond the existing explicit callback APIs.
 - UI copy is currently English; recovered localization strings were not invented.
 
 ### Official protocol references

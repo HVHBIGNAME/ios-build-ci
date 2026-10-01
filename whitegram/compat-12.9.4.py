@@ -14,6 +14,9 @@ from plugin_resources import install_plugin_resources
 from interface_patches import apply_interface_patches
 from history_patches import apply_history_patches
 from plugin_hook_patches import PLUGIN_HOOK_RUNTIME_FILES, apply_plugin_hook_patches
+from translation_patches import TRANSLATION_RUNTIME_FILES, apply_translation_patches
+from service_patches import apply_service_patches
+from media_camera_patches import MEDIA_RUNTIME_FILES, apply_media_camera_patches
 from swift_syntax_patches import apply_swift_syntax_patches
 from build_patches import apply_build_patches
 
@@ -168,6 +171,8 @@ cleanroom_files = {
 }
 cleanroom_files.update({"cleanroom/" + name: destination for name, destination in VOICE_RUNTIME_FILES.items()})
 cleanroom_files.update({"cleanroom/" + name: destination for name, destination in PLUGIN_HOOK_RUNTIME_FILES.items()})
+cleanroom_files.update({"cleanroom/" + name: destination for name, destination in TRANSLATION_RUNTIME_FILES.items()})
+cleanroom_files.update({"cleanroom/" + name: destination for name, destination in MEDIA_RUNTIME_FILES.items()})
 for name in (
     "WhitegramSettingsArchive.swift", "WhitegramSettingsArchiveJSON.swift",
     "WhitegramSettingsArchiveSchema.swift", "WhitegramSettingsArchiveMirrors.swift",
@@ -179,6 +184,7 @@ for name in (
     "WhitegramPluginRuntime.swift", "WhitegramPluginStorage.swift",
     "WhitegramPluginTelegram.swift", "WhitegramPluginUI.swift",
     "WhitegramAIService.swift", "WhitegramAISettingsController.swift",
+    "WhitegramAIConversation.swift", "WhitegramVirusTotalTargets.swift", "WhitegramVirusTotalMessageContext.swift",
     "WhitegramVirusTotalService.swift", "WhitegramVirusTotalFileHasher.swift",
     "WhitegramVirusTotalController.swift", "WhitegramServiceCore.swift",
     "WhitegramServiceHTTP.swift", "WhitegramServiceCredentials.swift", "WhitegramServiceUI.swift",
@@ -210,6 +216,9 @@ for source_name, target_name in cleanroom_files.items():
     target_path = source_root / target_name
     target_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source_path, target_path)
+
+if add_dep(source_root / "submodules/SettingsUI/BUILD", "//submodules/Camera:Camera"):
+    build_count += 1
 
 
 def patch_file(relative_path, anchor, replacement):
@@ -243,6 +252,9 @@ apply_interface_patches(source_root)
 apply_history_patches(source_root)
 apply_plugin_hook_patches(source_root)
 apply_appearance_extensions(source_root)
+apply_translation_patches(source_root)
+apply_service_patches(source_root)
+apply_media_camera_patches(source_root)
 apply_swift_syntax_patches(source_root)
 apply_voice_patches(source_root)
 install_plugin_resources(source_root, source_base)

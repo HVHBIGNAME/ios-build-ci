@@ -3,7 +3,7 @@ import Foundation
 import FoundationNetworking
 #endif
 
-public enum WhitegramAIProvider: String, CaseIterable {
+public enum WhitegramAIProvider: String, CaseIterable, Codable {
     case gemini
     case groq
 
@@ -28,7 +28,22 @@ public enum WhitegramAIProvider: String, CaseIterable {
     }
 }
 
-public struct WhitegramAIResponse: Equatable {
+public struct WhitegramAIMessage: Equatable, Codable {
+    public enum Role: String, Codable {
+        case user
+        case assistant
+    }
+
+    public let role: Role
+    public let text: String
+
+    public init(role: Role, text: String) {
+        self.role = role
+        self.text = text
+    }
+}
+
+public struct WhitegramAIResponse: Equatable, Codable {
     public let provider: WhitegramAIProvider
     public let model: String
     public let text: String
@@ -39,7 +54,7 @@ public struct WhitegramAIResponse: Equatable {
     public let totalTokens: Int?
 }
 
-/// Single-turn text generation. Only `text` is sent; no account, chat history or device identifiers are added.
+/// Sends only explicitly supplied text messages. Account identifiers and local history metadata are never sent.
 public final class WhitegramAIService {
     public static let shared = WhitegramAIService()
     private let transport: WhitegramServiceTransport
@@ -52,9 +67,14 @@ public final class WhitegramAIService {
 
     @discardableResult
     public func generate(text: String, provider: WhitegramAIProvider, model: String, apiKey: String, completion: @escaping (Result<WhitegramAIResponse, WhitegramServiceError>) -> Void) -> WhitegramServiceTask {
+        return self.generate(messages: [WhitegramAIMessage(role: .user, text: text)], provider: provider, model: model, apiKey: apiKey, completion: completion)
+    }
+
+    @discardableResult
+    public func generate(messages: [WhitegramAIMessage], provider: WhitegramAIProvider, model: String, apiKey: String, completion: @escaping (Result<WhitegramAIResponse, WhitegramServiceError>) -> Void) -> WhitegramServiceTask {
         let operation = WhitegramServiceOperation(completion: completion)
         let prepared = whitegramServiceResult { () -> URLRequest in
-            let request = try WhitegramAIWire.request(text: text, provider: provider, model: model, apiKey: apiKey)
+            let request = try WhitegramAIWire.request(messages: messages, provider: provider, model: model, apiKey: apiKey)
             try self.gate.begin()
             return request
         }
@@ -80,12 +100,13 @@ public final class WhitegramAIService {
 
 enum WhitegramAIWire {
     static func request(text: String, provider: WhitegramAIProvider, model: String, apiKey: String) throws -> URLRequest {
+        return try self.request(messages: [WhitegramAIMessage(role: .user, text: text)], provider: provider, model: model, apiKey: apiKey)
+    }
+
+    static func request(messages: [WhitegramAIMessage], provider: WhitegramAIProvider, model: String, apiKey: String) throws -> URLRequest {
         let key = try whitegramValidatedAPIKey(apiKey)
         let model = try provider.validatedModel(model)
-        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw WhitegramServiceError.emptyPrompt }
-        guard text.utf8.count <= WhitegramServiceLimits.maximumPromptBytes else { throw WhitegramServiceError.promptTooLarge }
         let address: String
-        let body: [String: Any]
         let header: String
         let headerValue: String
         switch provider {
@@ -93,23 +114,49 @@ enum WhitegramAIWire {
             address = "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent"
             header = "x-goog-api-key"
             headerValue = key
-            body = [
-                "contents": [["role": "user", "parts": [["text": text]]]],
-                "generationConfig": ["maxOutputTokens": WhitegramServiceLimits.maximumOutputTokens]
-            ]
         case .groq:
             address = "https://api.groq.com/openai/v1/chat/completions"
             header = "Authorization"
             headerValue = "Bearer " + key
+        }
+        guard let url = URL(string: address) else { throw WhitegramServiceError.invalidModel }
+        return try whitegramServiceRequest(url: url, method: "POST", apiKey: headerValue, header: header, body: self.requestBody(messages: messages, provider: provider, model: model))
+    }
+
+    static func requestBody(messages: [WhitegramAIMessage], provider: WhitegramAIProvider, model: String) throws -> Data {
+        let model = try provider.validatedModel(model)
+        guard !messages.isEmpty, messages.count % 2 == 1,
+              messages.count <= WhitegramServiceLimits.maximumAIConversationTurns * 2 + 1 else {
+            throw WhitegramServiceError.invalidConversation
+        }
+        for (index, message) in messages.enumerated() {
+            guard message.role == (index % 2 == 0 ? .user : .assistant) else { throw WhitegramServiceError.invalidConversation }
+            guard !message.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw message.role == .user ? WhitegramServiceError.emptyPrompt : WhitegramServiceError.invalidConversation
+            }
+            let limit = message.role == .user ? WhitegramServiceLimits.maximumPromptBytes : WhitegramServiceLimits.maximumAIResponseBytes
+            guard message.text.utf8.count <= limit else {
+                throw message.role == .user ? WhitegramServiceError.promptTooLarge : WhitegramServiceError.requestTooLarge
+            }
+        }
+        let body: [String: Any]
+        switch provider {
+        case .gemini:
+            body = [
+                "contents": messages.map { ["role": $0.role == .user ? "user" : "model", "parts": [["text": $0.text]]] },
+                "generationConfig": ["maxOutputTokens": WhitegramServiceLimits.maximumOutputTokens]
+            ]
+        case .groq:
             body = [
                 "model": model,
-                "messages": [["role": "user", "content": text]],
+                "messages": messages.map { ["role": $0.role.rawValue, "content": $0.text] },
                 "max_completion_tokens": WhitegramServiceLimits.maximumOutputTokens,
                 "stream": false
             ]
         }
-        guard let url = URL(string: address) else { throw WhitegramServiceError.invalidModel }
-        return try whitegramServiceRequest(url: url, method: "POST", apiKey: headerValue, header: header, body: JSONSerialization.data(withJSONObject: body))
+        let data = try JSONSerialization.data(withJSONObject: body)
+        guard data.count <= WhitegramServiceLimits.maximumRequestBytes else { throw WhitegramServiceError.requestTooLarge }
+        return data
     }
 
     static func response(_ response: WhitegramServiceHTTPResponse, provider: WhitegramAIProvider, model: String) throws -> WhitegramAIResponse {

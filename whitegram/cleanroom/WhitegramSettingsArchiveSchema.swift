@@ -82,6 +82,10 @@ enum WhitegramSettingsArchiveSchema {
         showRegistrationDateCard wideChannelPosts localPremium
         """
         for key in booleans.split(whereSeparator: { $0.isWhitespace }) { result[String(key)] = .boolean }
+        result["useTelegramCameraSettings"] = .boolean
+        for key in ["backCameraPreset", "frontCameraPreset"] { result[key] = .string(128) }
+        for key in ["backCameraFPS", "frontCameraFPS"] { result[key] = .integer(0...60) }
+        result["roundVideoBitrate"] = .choice(["", "500000", "1000000", "2000000", "4000000", "8000000"])
         for key in ["stickerSizeScale", "photoCompressionQuality", "deletedMessagesOpacity"] { result[key] = .number(0...1) }
         result["localStarsCount"] = .integer(0...Int64.max)
         result["videoMessageCamera"] = .integer(0...2)

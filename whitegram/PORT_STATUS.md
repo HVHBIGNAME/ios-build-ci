@@ -10,6 +10,8 @@ The build pipeline is `apply-public-overlay.sh` → `compat-12.9.4.py` → valid
 
 `compat-12.9.4.py` installs the clean-room implementations and applies the runtime, public API, appearance, interface, history, plugin-event, Swift syntax, voice and plugin-resource patches. Services and plugin UI implementations are installed under `SettingsUI/Sources/Whitegram/`. Preferences, history capture/storage, plugin event delivery, ghost controls and voice processing belong to TelegramCore; the fork bridge belongs to TelegramUIPreferences; font registration belongs to Display.
 
+The next increment also installs the translation, media/camera and service-message adapters. Their reconstructed behavior and remaining scope are documented in [TRANSLATION_PORT.md](TRANSLATION_PORT.md), [MEDIA_CAMERA_PORT.md](MEDIA_CAMERA_PORT.md) and [SERVICES_PORT.md](SERVICES_PORT.md).
+
 ## Integration completed
 
 ### Privacy and local state
@@ -59,13 +61,13 @@ A new detached worktree was created from the pinned Telegram commit, then proces
 | Separate build metadata | 13 entries handled outside the runtime overlay |
 | Fresh compatibility pass | 71 imports and 103 BUILD dependencies added |
 | Repeated compatibility pass | Completed successfully; no additional imports/dependencies |
-| Python appearance/history/public API/runtime integration | 84 passed, no skips |
+| Python appearance/history/public API/runtime/translation/media/service integration | 94 passed, no skips |
 | Python voice integration | 13 passed, no skips |
 | JavaScript SDK/bootstrap/hooks | 51 passed |
-| Full Swift syntax comparison | 210 files; zero additional parser diagnostics against target HEAD |
+| Full Swift syntax comparison | 237 files; zero additional parser diagnostics against target HEAD |
 | Plugin syntax check | 12 implementation/test files parsed |
 | Plugin/history patch composition | 16 event callsites; both application orders and repeat checks passed |
-| Service syntax/contracts | 9 production and 4 test files passed |
+| Service syntax/contracts | 12 production and 6 test files passed; 56 XCTest methods supplied |
 | Tracked patch whitespace | `git diff --check` passed |
 
 The final syntax pass uses tree-sitter 0.25.2 / tree-sitter-swift 0.7.3. `swift_syntax_patches.py` expresses the inherited Objective-C function casts using equivalent local type aliases and parenthesizes optional casts. Empty list-controller arguments use `NSNull()`. These forms avoid parser ambiguities without changing the callback signatures or optional defaults.
@@ -107,7 +109,15 @@ The downloaded unsigned IPA is `C:\coding\telegram\whitegram\build-0ff81e1\White
 
 The four settings backup/import actions are connected through the full/searchable catalog. Their explicit port-format archive validates fields before applying partial updates, excludes credentials/runtime state and refreshes public-fork mirrors. `localStarsCount` is corrected to the original `Int64` type with a read migration for earlier Boolean records. See [SETTINGS_TRANSFER_PORT.md](SETTINGS_TRANSFER_PORT.md).
 
-Ten production files and three native test files pass the local syntax/boundary checks. The 29 new settings-transfer XCTest cases require the next macOS run. They are not part of the already downloaded `0ff81e1` IPA.
+Revision **`91cae458864889ad72783774e5aca8c0d9e669a1`** successfully completed [run 36715343372](https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/36715343372), including the 29 settings-transfer XCTest cases, full build and packaged-IPA verification. Its downloaded IPA is `C:\coding\telegram\whitegram\build-91cae45\WhiteGram.ipa`, 73,162,152 bytes, SHA-256 `eafd2f0b2b9be2ac5a54eb0737ca7a5a48c64d1ce40b2744a76e59493243b9ac`.
+
+### Translation, services and media increment
+
+- Native global target-language and review-before-send translation are wired into the composer, translation sheet and automatic chat translation. Stale callbacks, changed replies/context and leaving the chat invalidate pending translation.
+- AI conversations persist separately per account/provider, send completed turns as context and support retry/cancellation/clearing with revision protection.
+- VirusTotal handles URL/IP/hash targets and opens a review screen from message context menus.
+- Native photo quality/dimensions/HD, temporary-file metadata cleaning, single-camera capture settings, round-video bitrate and remembered camera selection have connected consumers and a settings screen.
+- The fully assembled sources pass the 94 local integration checks and 237-file syntax comparison. Five new Foundation translation tests, three media/ImageIO tests and seven additional service tests are scheduled in CI. Full compilation/device verification of this increment is separate from the successful `91cae45` artifact.
 
 `.github/workflows/build.yml` runs the Python/JavaScript/source checks and native service, plugin storage/HTTP/preferences/event-hub, history, and voice runners before building the IPA. Every native runner executes even if another fails, then the stage fails if any failed. The Foundation plugin host uses separate TelegramCore and SettingsUI targets to retain the production import boundary. Missing Swift fails the native stage. The source-validation JSON is uploaded as a separate artifact; Bazel outputs are cached across runs.
 

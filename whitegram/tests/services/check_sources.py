@@ -43,11 +43,13 @@ def contracts(files, target):
     for endpoint in (
         "https://generativelanguage.googleapis.com/v1beta/models/",
         "https://api.groq.com/openai/v1/chat/completions",
-        "https://www.virustotal.com/api/v3/files/",
+        "https://www.virustotal.com/api/v3/",
     ):
         check(endpoint in combined, f"Missing official endpoint: {endpoint}")
     check(not re.search(r"\b(?:print|NSLog|os_log|debugPrint|dump)\s*\(", combined), "Service code must not log credentials, prompts, or responses")
     check("connectionProxyDictionary" not in combined, "Services must use system-configured networking")
+    for resource in ('"files/"', '"urls/"', '"ip_addresses/"'):
+        check(resource in text["WhitegramVirusTotalTargets.swift"], "Missing VirusTotal target route: " + resource)
     check("Data(contentsOf:" not in text["WhitegramVirusTotalFileHasher.swift"], "Hashing must not load an entire file into memory")
     check("read(upToCount: WhitegramServiceLimits.fileChunkBytes)" in combined, "Hashing must read bounded chunks")
     check("field.isSecureTextEntry = secure" in combined and combined.count("secure: true") == 2, "Both API key editors must be masked")

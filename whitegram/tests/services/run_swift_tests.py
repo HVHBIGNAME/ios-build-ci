@@ -17,7 +17,9 @@ CORE = (
     "WhitegramServiceHTTP.swift",
     "WhitegramServiceCredentials.swift",
     "WhitegramAIService.swift",
+    "WhitegramAIConversation.swift",
     "WhitegramVirusTotalService.swift",
+    "WhitegramVirusTotalTargets.swift",
     "WhitegramVirusTotalFileHasher.swift",
 )
 

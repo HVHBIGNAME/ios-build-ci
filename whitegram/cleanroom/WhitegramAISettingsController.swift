@@ -12,24 +12,30 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
     private var observers: [NSObjectProtocol] = []
     private var prompt: String
     private var openInitialComposer: Bool
-    private var response: WhitegramAIResponse?
-    private var request: WhitegramServiceTask?
-    private var requestId: UUID?
+    private let historyDirectory: URL
+    private let accountId: Int64
+    private var drafts: [WhitegramAIProvider: String] = [:]
+    private var historyProvider: WhitegramAIProvider?
+    private var hasLoadedHistory = false
+    private var historyStore: WhitegramAIConversationStore?
+    private var history: WhitegramAIConversationSession?
+    private var historyLoadError: WhitegramServiceError?
     private var configuration: [String]?
     private var refreshing = false
     private var status = ""
     private var connection = "Not checked. Send a prompt to check the configured model."
 
-    init(text: String?) {
+    init(context: AccountContext, text: String?) {
         self.prompt = text ?? ""
         self.openInitialComposer = text != nil
+        self.accountId = context.account.id.int64
+        self.historyDirectory = URL(fileURLWithPath: context.account.basePath, isDirectory: true).appendingPathComponent("whitegram-ai-v1", isDirectory: true)
         self.presenter.changed = { [weak self] in self?.refresh() }
         self.observers.append(whitegramServiceObserve(WhitegramPreferences.updatedNotification) { [weak self] _ in self?.refresh() })
         self.observers.append(whitegramServiceObserve(WhitegramServiceCredential.updatedNotification) { [weak self] notification in
-            guard let self = self, let credential = notification.object as? WhitegramServiceCredential, credential != .virusTotal else { return }
+            guard let self = self, let credential = notification.object as? WhitegramServiceCredential, credential == self.historyProvider?.credential else { return }
             self.cancel(message: "API key changed. Request cancelled.")
             self.connection = "Not checked for this API key."
-            self.response = nil
             self.refresh()
         })
         self.observers.append(whitegramServiceObserve(UIApplication.didEnterBackgroundNotification) { [weak self] _ in self?.cancel() })
@@ -38,11 +44,12 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
     }
 
     deinit {
-        self.request?.cancel()
+        self.history?.changed = nil
         self.observers.forEach { NotificationCenter.default.removeObserver($0) }
     }
 
     func appeared() {
+        if self.history?.isRequesting != true { self.loadHistory() }
         self.refresh()
         if self.openInitialComposer {
             self.openInitialComposer = false
@@ -59,6 +66,20 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
         self.refreshing = true
         defer { self.refreshing = false }
         let provider = WhitegramAIProvider.configured
+        if !self.hasLoadedHistory || self.historyProvider != provider {
+            self.history?.changed = nil
+            self.history?.cancel()
+            if self.hasLoadedHistory {
+                if let previous = self.historyProvider { self.drafts[previous] = self.prompt }
+                self.prompt = provider.flatMap { self.drafts[$0] } ?? ""
+                self.status = ""
+                self.connection = "Not checked for this provider."
+            }
+            self.hasLoadedHistory = true
+            self.historyProvider = provider
+            self.historyStore = provider.map { WhitegramAIConversationStore(directory: self.historyDirectory, accountId: self.accountId, provider: $0) }
+            self.loadHistory()
+        }
         let enabled = WhitegramPreferences.bool("geminiEnabled")
         let model = provider.map { WhitegramPreferences.string($0.modelPreference) } ?? ""
         var keyAvailable = false
@@ -71,10 +92,12 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
         if let previous = self.configuration, previous != configuration {
             self.cancel(message: "Configuration changed. Request cancelled.")
             self.connection = "Not checked for these settings."
-            self.response = nil
         }
         self.configuration = configuration
-        let idle = self.request == nil && !self.presenter.isPresenting
+        let requesting = self.history?.isRequesting == true
+        let idle = !requesting && !self.presenter.isPresenting
+        let historyError = self.historyLoadError ?? self.history?.storageError
+        let canSend = idle && enabled && provider != nil && keyAvailable && !model.isEmpty && self.history != nil && historyError == nil
         var rows: [WhitegramServiceEntry] = []
         func add(_ id: String, _ section: Int32, _ content: WhitegramServiceEntry.Content) {
             rows.append(WhitegramServiceEntry(stableId: id, order: rows.count, section: section, content: content))
@@ -86,32 +109,57 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
         add("removeKey", 0, .action("Remove This Provider's API Key", idle && provider != nil && (keyAvailable || credentialError != nil)))
         if let error = credentialError { add("credentialError", 0, .text(error.localizedDescription)) }
         add("modelInfo", 0, .text("Enter a text-capable model ID available to your provider account. Each provider keeps its own model ID and API key. Keys are stored in this device's Keychain."))
-        add("network", 0, .text("Official Gemini and Groq APIs via Apple URLSession and system network settings. Requests are single-turn text with a 4,096-token output limit."))
+        add("network", 0, .text("Official Gemini and Groq APIs via Apple URLSession and system network settings. Replies have a 4,096-token output limit."))
         add("promptHeader", 1, .header("PROMPT"))
         add("compose", 1, .action("Compose Prompt…", idle))
         add("prompt", 1, .text(self.prompt.isEmpty ? "Write or paste the text you want to send." : String(self.prompt.prefix(500)) + (self.prompt.count > 500 ? "…" : "")))
-        add("promptPrivacy", 1, .text("Send Prompt sends only the text you entered to the selected provider. The prompt and response stay in memory while this screen is open."))
-        add("send", 1, .action("Send Prompt", idle && enabled && provider != nil && keyAvailable && !model.isEmpty && !self.prompt.isEmpty))
-        if self.request != nil { add("cancel", 1, .action("Cancel Request", true)) }
+        add("promptPrivacy", 1, .text("Send Prompt sends your text and all completed turns in this provider's conversation. History is saved on this device separately for each Telegram account and provider. Failed or cancelled prompts are not sent as context. Clear History starts a new conversation."))
+        add("send", 1, .action("Send Prompt", canSend && !self.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
+        if self.history?.canRetry == true { add("retry", 1, .action("Retry Last Prompt", canSend)) }
+        if requesting { add("cancel", 1, .action("Cancel Request", true)) }
         add("connection", 1, .text("Connection: " + self.connection))
         if !self.status.isEmpty { add("status", 1, .text(self.status)) }
-        if let response = self.response {
-            add("responseHeader", 2, .header("RESPONSE"))
-            add("response", 2, .text(String(response.text.prefix(800)) + (response.text.count > 800 ? "…" : "")))
-            add("viewResponse", 2, .action("View Full Response", idle))
-            add("copyResponse", 2, .action("Copy Response", idle))
-            if response.isTruncated { add("truncated", 2, .text("The provider reached the output limit. This response is partial.")) }
+        add("historyHeader", 2, .header((provider?.title.uppercased() ?? "AI") + " CONVERSATION"))
+        if let error = historyError {
+            add("historyError", 2, .text(error.localizedDescription + " Any reply shown after a save failure is available to copy but may not be saved."))
+            add("reloadHistory", 2, .action("Reload Saved History", idle))
+        }
+        let turns = self.history?.snapshot.turns ?? []
+        if turns.isEmpty { add("emptyHistory", 2, .text("No saved conversation for this account and provider.")) }
+        for turn in turns.suffix(8) {
+            let prefix = "turn:" + turn.id.uuidString
+            add(prefix + ":user", 2, .text("You · " + whitegramServiceDate(turn.date) + "\n" + whitegramAIPreview(turn.prompt, limit: 500)))
+            if let response = turn.response {
+                add(prefix + ":reply", 2, .text(response.provider.title + " · " + response.model + "\n" + whitegramAIPreview(response.text, limit: 800)))
+                if response.isTruncated { add(prefix + ":partial", 2, .text("The provider reached the output limit. This reply is partial.")) }
+            } else {
+                let state: String
+                switch turn.state {
+                case .pending: state = requesting ? "Waiting for a reply…" : "Interrupted. Retry Last Prompt resubmits it explicitly."
+                case .cancelled: state = "Cancelled. No reply was saved."
+                case .failed: state = "Request failed. No reply was saved."
+                case .answered: state = "Reply unavailable."
+                }
+                add(prefix + ":state", 2, .text(state))
+            }
+        }
+        if turns.count > 8 { add("moreHistory", 2, .text("Showing the latest 8 of \(turns.count) turns. View Full Transcript includes all saved turns.")) }
+        add("viewHistory", 2, .action("View Full Transcript", idle && !turns.isEmpty))
+        add("clearHistory", 2, .action("Clear This Provider's History…", !self.presenter.isPresenting && self.historyStore != nil))
+        if let response = turns.last?.response {
+            add("viewResponse", 2, .action("View Last Reply", idle))
+            add("copyResponse", 2, .action("Copy Last Reply", idle))
             var usage: [String] = []
             if let input = response.inputTokens { usage.append("Input: \(input)") }
             if let output = response.outputTokens { usage.append("Output: \(output)") }
             if let total = response.totalTokens { usage.append("Total: \(total)") }
-            if !usage.isEmpty { add("usage", 2, .text("Provider-reported tokens — " + usage.joined(separator: " · "))) }
+            if !usage.isEmpty { add("usage", 2, .text("Last reply's provider-reported tokens — " + usage.joined(separator: " · "))) }
         }
         self.entries.set(rows)
     }
 
     func setEnabled(_ enabled: Bool) {
-        guard self.request == nil, !self.presenter.isPresenting else { return }
+        guard self.history?.isRequesting != true, !self.presenter.isPresenting else { return }
         self.save(["geminiEnabled": enabled])
     }
 
@@ -126,23 +174,32 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
 
     func perform(_ id: String) {
         if id == "cancel" { self.cancel(); return }
-        guard self.request == nil, !self.presenter.isPresenting else { return }
+        if id == "clearHistory", !self.presenter.isPresenting { self.clearHistory(); return }
+        guard self.history?.isRequesting != true, !self.presenter.isPresenting else { return }
         switch id {
         case "provider": self.chooseProvider()
         case "model": self.editModel()
         case "key": self.editKey()
         case "removeKey": self.removeKey()
         case "compose":
+            let provider = self.historyProvider
             self.checkPresentation(self.presenter.showText(title: "AI Prompt", text: self.prompt, editable: true, saved: { [weak self] text in
-                self?.prompt = text
-                self?.status = "Prompt ready. Tap Send Prompt to submit it."
-                self?.refresh()
+                guard let self = self, self.historyProvider == provider else { return }
+                self.prompt = text
+                self.status = "Prompt ready. Tap Send Prompt to submit it."
+                self.refresh()
             }))
-        case "send": self.send()
+        case "send": self.send(retry: false)
+        case "retry": self.send(retry: true)
+        case "reloadHistory": self.loadHistory(); self.refresh()
+        case "viewHistory":
+            if let history = self.history {
+                self.checkPresentation(self.presenter.showText(title: history.provider.title + " Conversation", text: whitegramAITranscript(history.snapshot.turns)))
+            }
         case "viewResponse":
-            if let response = self.response { self.checkPresentation(self.presenter.showText(title: response.provider.title + " Response", text: response.text)) }
+            if let response = self.history?.snapshot.turns.last?.response { self.checkPresentation(self.presenter.showText(title: response.provider.title + " Response", text: response.text)) }
         case "copyResponse":
-            if let response = self.response {
+            if let response = self.history?.snapshot.turns.last?.response {
                 whitegramServiceCopy(response.text)
                 self.status = "Response copied to this device's clipboard for one hour."
                 self.refresh()
@@ -197,20 +254,27 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
         self.refresh()
     }
 
-    private func send() {
-        let id = UUID()
-        self.requestId = id
-        self.response = nil
-        self.status = "Sending your prompt…"
-        self.request = whitegramGenerateAIText(self.prompt) { [weak self] result in
-            guard let self = self, self.requestId == id else { return }
-            self.request = nil
-            self.requestId = nil
+    private func loadHistory() {
+        guard self.history?.isRequesting != true else { return }
+        self.history?.changed = nil
+        self.history = nil
+        self.historyLoadError = nil
+        guard let store = self.historyStore, let provider = self.historyProvider else { return }
+        do {
+            let history = try WhitegramAIConversationSession(provider: provider, storage: store)
+            history.changed = { [weak self] in self?.historyChanged() }
+            self.history = history
+        } catch {
+            self.historyLoadError = error as? WhitegramServiceError ?? .conversationStorage
+        }
+    }
+
+    private func historyChanged() {
+        if let result = self.history?.lastResult {
             switch result {
             case let .success(response):
-                self.response = response
                 self.connection = "Response received from \(response.provider.title) (\(response.model)) at \(whitegramServiceDate(Date()))."
-                self.status = "Response received."
+                self.status = self.history?.storageError == nil ? "Reply received and saved." : "Reply received but could not be saved."
             case let .failure(error):
                 self.status = error.localizedDescription
                 switch error {
@@ -221,16 +285,65 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
                 default: break
                 }
             }
-            self.refresh()
         }
         self.refresh()
     }
 
+    private func send(retry: Bool) {
+        guard let history = self.history, let provider = self.historyProvider else { return }
+        let sender: WhitegramAIConversationSession.Sender = { messages, model, completion in
+            do {
+                guard WhitegramPreferences.bool("geminiEnabled") else { throw WhitegramServiceError.disabled }
+                guard WhitegramAIProvider.configured == provider else { throw WhitegramServiceError.invalidProvider }
+                guard let key = try WhitegramServiceCredentials.vault.token(for: provider.credential) else { throw WhitegramServiceError.missingAPIKey }
+                return WhitegramAIService.shared.generate(messages: messages, provider: provider, model: model, apiKey: key, completion: completion)
+            } catch {
+                let operation = WhitegramServiceOperation(completion: completion)
+                operation.finish(.failure(error as? WhitegramServiceError ?? .preferences))
+                return operation.task
+            }
+        }
+        do {
+            let model = WhitegramPreferences.string(provider.modelPreference)
+            if retry {
+                try history.retry(model: model, sender: sender)
+            } else {
+                try history.send(text: self.prompt, model: model, sender: sender)
+                self.prompt = ""
+            }
+            self.status = "Sending this prompt with the completed conversation…"
+        } catch {
+            let error = error as? WhitegramServiceError ?? .conversationStorage
+            self.status = error == .requestTooLarge ? "The complete conversation exceeds the 256 KiB request limit. Clear History to start a new conversation. No request was sent." : error.localizedDescription
+        }
+        self.refresh()
+    }
+
+    private func clearHistory() {
+        guard let provider = self.historyProvider, let store = self.historyStore else { return }
+        let alert = UIAlertController(title: "Clear \(provider.title) History?", message: "Deletes this provider's local conversation for the current Telegram account and cancels its active reply. It cannot remove text already received by the provider.", preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: { [weak self] _ in self?.presenter.close() }))
+        alert.addAction(UIAlertAction(title: "Clear History", style: .destructive, handler: { [weak self] _ in
+            guard let self = self else { return }
+            self.presenter.close()
+            guard self.historyProvider == provider else { return }
+            do {
+                if let history = self.history { try history.clear() } else { _ = try store.clear() }
+                self.prompt = ""
+                self.drafts[provider] = nil
+                self.loadHistory()
+                self.status = "History cleared. Your next prompt starts a new conversation."
+            } catch {
+                self.status = (error as? WhitegramServiceError ?? .conversationStorage).localizedDescription
+            }
+            self.refresh()
+        }))
+        self.checkPresentation(self.presenter.present(alert))
+    }
+
     private func cancel(message: String = "Request cancelled.") {
-        guard let request = self.request else { return }
-        self.requestId = nil
-        self.request = nil
-        request.cancel()
+        guard self.history?.isRequesting == true else { return }
+        self.history?.cancel()
         self.status = message
         self.refresh()
     }
@@ -240,13 +353,30 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
     }
 }
 
+private func whitegramAIPreview(_ text: String, limit: Int) -> String {
+    let preview = String(text.prefix(limit))
+    return preview + (preview.endIndex == text.endIndex ? "" : "…")
+}
+
+private func whitegramAITranscript(_ turns: [WhitegramAIConversationTurn]) -> String {
+    return turns.map { turn in
+        var text = "You · " + whitegramServiceDate(turn.date) + "\n" + turn.prompt
+        if let response = turn.response {
+            text += "\n\n" + response.provider.title + " · " + response.model + (response.isTruncated ? " (partial)" : "") + "\n" + response.text
+        } else {
+            text += "\n\n[" + (turn.state == .pending ? "interrupted" : turn.state.rawValue) + "]"
+        }
+        return text
+    }.joined(separator: "\n\n──────────\n\n")
+}
+
 public func whitegramAISettingsController(context: AccountContext) -> ViewController {
     return whitegramAISettingsController(context: context, text: nil)
 }
 
 /// Prefills the composer with selected message text. Nothing is submitted until the user taps Send Prompt.
 public func whitegramAISettingsController(context: AccountContext, text: String?) -> ViewController {
-    let coordinator = WhitegramAICoordinator(text: text)
+    let coordinator = WhitegramAICoordinator(context: context, text: text)
     let controller = whitegramServiceListController(context: context, title: "AI", entries: coordinator.entries.get(), actions: coordinator)
     coordinator.presenter.controller = controller
     controller.didAppear = { [coordinator] _ in coordinator.appeared() }

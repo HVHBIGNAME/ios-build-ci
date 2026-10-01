@@ -143,9 +143,9 @@ public func whitegramMainMenuController(context: AccountContext) -> ViewControll
         case "tabs":
             pushController?(whiteGramTabsSettingsController(context: context))
         case "camera":
-            pushController?(whiteGramChatSettingsController(context: context))
+            pushController?(whitegramMediaSettingsController(context: context))
         case "translation":
-            pushController?(whiteGramOtherSettingsController(context: context))
+            pushController?(whitegramTranslationSettingsController(context: context))
         case "sessions":
             pushController?(whitegramAccountsSettingsController(context: context))
         case "search":

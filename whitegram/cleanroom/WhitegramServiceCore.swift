@@ -8,7 +8,12 @@ public enum WhitegramServiceError: Error, Equatable, LocalizedError {
     case invalidModel
     case emptyPrompt
     case promptTooLarge
+    case invalidConversation
+    case conversationStorage
+    case conversationChanged
+    case conversationFull
     case invalidHash
+    case invalidTarget
     case busy
     case rateLimited(seconds: Int)
     case httpStatus(Int)
@@ -38,7 +43,12 @@ public enum WhitegramServiceError: Error, Equatable, LocalizedError {
         case .invalidModel: return "Enter a valid model ID from your provider. Model IDs may contain letters, numbers, dots, hyphens and underscores; Groq IDs can also contain slashes."
         case .emptyPrompt: return "Enter the text you want to send."
         case .promptTooLarge: return "The prompt exceeds the 32 KiB UTF-8 text limit. Shorten it before sending."
+        case .invalidConversation: return "The conversation does not contain a valid sequence of user messages and replies."
+        case .conversationStorage: return "Could not read or save this conversation. Reload it or clear its history before sending again."
+        case .conversationChanged: return "This conversation changed in another screen. Reload it before sending again."
+        case .conversationFull: return "This conversation has reached its local history limit. Clear its history to start a new conversation."
         case .invalidHash: return "A SHA-256 hash must contain exactly 64 hexadecimal characters."
+        case .invalidTarget: return "Enter an HTTP(S) URL without a username or password, a valid IPv4/IPv6 address, or a SHA-256 hash."
         case .busy: return "A request is already running. Wait for it or cancel it."
         case let .rateLimited(seconds): return "Request limit reached. Try again in \(seconds) seconds. Requests are not retried automatically."
         case let .httpStatus(status):
@@ -75,6 +85,9 @@ public enum WhitegramServiceLimits {
     public static let maximumPromptBytes = 32 * 1024
     public static let maximumRequestBytes = 256 * 1024
     public static let maximumAIResponseBytes = 2 * 1024 * 1024
+    public static let maximumAIConversationTurns = 100
+    public static let maximumAIHistoryBytes = 8 * 1024 * 1024
+    public static let maximumVirusTotalTargetBytes = 8192
     public static let maximumVirusTotalResponseBytes = 4 * 1024 * 1024
     public static let maximumOutputTokens = 4096
     public static let maximumFileBytes: Int64 = 512 * 1024 * 1024

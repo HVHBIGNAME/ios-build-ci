@@ -12,8 +12,10 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
     let presenter = WhitegramServicePresenter()
     private var observers: [NSObjectProtocol] = []
     private var sha256: String
+    private var target: WhitegramVirusTotalTarget?
+    private let messageTargets: [WhitegramVirusTotalTarget]
     private var file: WhitegramVirusTotalFileHash?
-    private var result: WhitegramVirusTotalLookupResult?
+    private var result: WhitegramVirusTotalTargetLookupResult?
     private var task: WhitegramServiceTask?
     private var taskId: UUID?
     private var configuration: [Bool]?
@@ -21,9 +23,19 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
     private var status = ""
     private var connection = "Not checked in this session."
 
-    init(sha256: String?) {
+    init(sha256: String? = nil, targets: [WhitegramVirusTotalTarget] = []) {
         self.sha256 = sha256 ?? ""
+        var seen = Set<WhitegramVirusTotalTarget>()
+        self.messageTargets = Array(targets.compactMap { try? $0.validated() }.filter { seen.insert($0).inserted }.prefix(WhitegramVirusTotalTargets.maximumTargets))
+        if let sha256 = sha256 {
+            self.target = try? WhitegramVirusTotalTarget.file(sha256: sha256).validated()
+        } else {
+            self.target = self.messageTargets.first
+            if case let .file(hash)? = self.target { self.sha256 = hash }
+        }
         super.init()
+        if sha256 != nil && self.target == nil { self.status = WhitegramServiceError.invalidHash.localizedDescription }
+        if !self.messageTargets.isEmpty { self.status = "Review the selected target, then tap Look Up to send it to VirusTotal." }
         self.presenter.changed = { [weak self] in self?.refresh() }
         self.observers.append(whitegramServiceObserve(WhitegramPreferences.updatedNotification) { [weak self] _ in self?.refresh() })
         self.observers.append(whitegramServiceObserve(WhitegramServiceCredential.updatedNotification) { [weak self] notification in
@@ -73,19 +85,23 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
         add("key", 0, .disclosure("API Key", keyAvailable ? "•••••••• · Keychain" : "Not set", idle))
         add("removeKey", 0, .action("Remove API Key", idle && (keyAvailable || credentialError != nil)))
         if let error = credentialError { add("credentialError", 0, .text(error.localizedDescription)) }
-        add("network", 0, .text("Queries https://www.virustotal.com/api/v3/files/{sha256} using system network settings. Lookups are spaced at least 15 seconds apart. Your account's daily or other API quotas still apply."))
-        add("hashHeader", 1, .header("FILE HASH"))
+        add("network", 0, .text("Queries VirusTotal's official API v3 file, URL and IP address reports using system network settings. All target types share the 15-second request spacing and your account's API quotas."))
+        add("hashHeader", 1, .header("TARGET"))
         add("chooseFile", 1, .action("Choose File to Hash…", idle))
         add("editHash", 1, .action("Enter SHA-256…", idle))
+        add("editTarget", 1, .action("Enter URL or IP Address…", idle))
+        if self.messageTargets.count > 1 { add("chooseTarget", 1, .disclosure("Message Targets", "\(self.messageTargets.count)", idle)) }
         add("hashInfo", 1, .text("A selected file is read locally in 1 MiB chunks, up to 512 MiB. Look Up SHA-256 sends only its hash. File contents and the local filename are never uploaded."))
+        add("targetPrivacy", 1, .text("URL/IP lookup sends the selected indicator, including URL query parameters, to VirusTotal. VirusTotal may retain or analyze queried indicators. Review it before sending. Other message text is not sent."))
         if let file = self.file {
             add("file", 1, .text(String(file.fileName.prefix(256)) + " · " + ByteCountFormatter.string(fromByteCount: file.byteCount, countStyle: .file)))
         }
-        if !self.sha256.isEmpty {
-            add("hash", 1, .text("SHA-256\n" + String(self.sha256.prefix(128))))
-            add("copyHash", 1, .action("Copy SHA-256", idle))
+        if let target = self.target {
+            add("target", 1, .text(target.title + "\n" + String(target.value.prefix(500)) + (target.value.count > 500 ? "…" : "")))
+            add("reviewTarget", 1, .action("Review Full Target", idle))
+            if case .file = target { add("copyHash", 1, .action("Copy SHA-256", idle)) }
         }
-        add("lookup", 1, .action("Look Up SHA-256", idle && enabled && keyAvailable && !self.sha256.isEmpty))
+        add("lookup", 1, .action("Look Up " + (self.target?.title ?? "Report"), idle && enabled && keyAvailable && self.target != nil))
         if self.task != nil { add("cancel", 1, .action("Cancel Operation", true)) }
         add("connection", 1, .text("Connection: " + self.connection))
         if !self.status.isEmpty { add("status", 1, .text(self.status)) }
@@ -93,7 +109,7 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
             add("reportHeader", 2, .header("EXISTING REPORT"))
             switch result {
             case .notFound:
-                add("unknown", 2, .text("Unknown — VirusTotal has no report for this hash (HTTP 404). The file has not been classified as clean or submitted for analysis."))
+                add("unknown", 2, .text("Unknown — VirusTotal returned no report for this target (HTTP 404). This is not a clean verdict."))
             case let .found(report):
                 add("summary", 2, .text(report.summary))
                 add("analysisDate", 2, .text(report.analysisDate.map { "Last analysis: " + whitegramServiceDate($0) } ?? "Last analysis date was not provided."))
@@ -129,6 +145,10 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
             self.refresh()
         case "chooseFile": self.chooseFile()
         case "editHash": self.editHash()
+        case "editTarget": self.editTarget()
+        case "chooseTarget": self.chooseTarget()
+        case "reviewTarget":
+            if let target = self.target { self.checkPresentation(self.presenter.showText(title: target.title + " to Look Up", text: target.value)) }
         case "copyHash": whitegramServiceCopy(self.sha256); self.status = "Hash copied for one hour."; self.refresh()
         case "lookup": self.lookup()
         case "engines":
@@ -139,7 +159,7 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
     }
 
     private func editKey() {
-        self.checkPresentation(self.presenter.editValue(title: "VirusTotal API Key", message: "Paste a new API key. It is stored in this device's Keychain. A hash lookup is required to check API access.",
+        self.checkPresentation(self.presenter.editValue(title: "VirusTotal API Key", message: "Paste a new API key. It is stored in this device's Keychain. An explicit target lookup checks API access.",
             placeholder: "API key", secure: true, saved: { [weak self] value in
                 do { try WhitegramServiceCredentials.vault.save(value, for: .virusTotal); self?.status = "API key saved in Keychain." }
                 catch { self?.status = (error as? WhitegramServiceError ?? .preferences).localizedDescription }
@@ -151,15 +171,48 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
         self.checkPresentation(self.presenter.editValue(title: "SHA-256", message: "Enter a 64-character hexadecimal SHA-256 hash. This does not submit a file.",
             value: self.sha256, placeholder: "SHA-256", saved: { [weak self] value in
                 do {
-                    self?.sha256 = try WhitegramVirusTotalWire.validatedHash(value)
-                    self?.file = nil
-                    self?.result = nil
-                    self?.status = "Hash ready. Tap Look Up SHA-256 to query VirusTotal."
+                    self?.select(try WhitegramVirusTotalTarget.file(sha256: value).validated())
                 } catch {
                     self?.status = (error as? WhitegramServiceError ?? .invalidHash).localizedDescription
                 }
                 self?.refresh()
             }))
+    }
+
+    private func editTarget() {
+        let value: String
+        switch self.target {
+        case let .url(url)?, let .ipAddress(url)?: value = url
+        default: value = ""
+        }
+        self.checkPresentation(self.presenter.editValue(title: "URL or IP Address", message: "Enter an explicit http:// or https:// URL, IPv4 or IPv6 address. Credentials in URLs and IPv6 zone identifiers are not accepted. URL fragments are omitted. Nothing is sent until Look Up is tapped.",
+            value: value, placeholder: "https://example.com/ or 203.0.113.1", saved: { [weak self] value in
+                do { self?.select(try WhitegramVirusTotalTarget.parse(value)) }
+                catch { self?.status = (error as? WhitegramServiceError ?? .invalidTarget).localizedDescription }
+                self?.refresh()
+            }))
+    }
+
+    private func chooseTarget() {
+        let alert = UIAlertController(title: "Message Targets", message: "Choose one target to review. Each lookup is a separate explicit action.", preferredStyle: .alert)
+        for target in self.messageTargets {
+            alert.addAction(UIAlertAction(title: target.title + ": " + String(target.value.prefix(100)), style: .default, handler: { [weak self] _ in
+                self?.presenter.close()
+                self?.select(target)
+                self?.refresh()
+            }))
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: { [weak self] _ in self?.presenter.close() }))
+        self.checkPresentation(self.presenter.present(alert))
+    }
+
+    private func select(_ target: WhitegramVirusTotalTarget) {
+        self.target = target
+        self.sha256 = ""
+        if case let .file(hash) = target { self.sha256 = hash }
+        self.file = nil
+        self.result = nil
+        self.status = "Target ready. Tap Look Up " + target.title + " to query VirusTotal."
     }
 
     private func chooseFile() {
@@ -187,6 +240,7 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
         let id = UUID()
         self.taskId = id
         self.sha256 = ""
+        self.target = nil
         self.file = nil
         self.result = nil
         self.status = "Reading the selected file and computing SHA-256…"
@@ -202,6 +256,7 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
             case let .success(file):
                 self.file = file
                 self.sha256 = file.sha256
+                self.target = .file(sha256: file.sha256)
                 self.status = "SHA-256 computed locally. Tap Look Up SHA-256 to query the report."
             case let .failure(error): self.status = error.localizedDescription
             }
@@ -211,11 +266,12 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
     }
 
     private func lookup() {
+        guard let target = self.target else { return }
         let id = UUID()
         self.taskId = id
         self.result = nil
-        self.status = "Looking up the existing hash report…"
-        self.task = whitegramLookupVirusTotalHash(self.sha256) { [weak self] result in
+        self.status = "Looking up the selected " + target.title.lowercased() + " report…"
+        self.task = whitegramLookupVirusTotalTarget(target) { [weak self] result in
             guard let self = self, self.taskId == id else { return }
             self.task = nil
             self.taskId = nil
@@ -227,8 +283,8 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
                     self.status = "Existing report received."
                     self.recordConnection("Report received")
                 case .notFound:
-                    self.status = "Unknown hash. No file was uploaded."
-                    self.recordConnection("VirusTotal responded: hash not found (HTTP 404)")
+                    self.status = "Unknown target. No report was returned."
+                    self.recordConnection("VirusTotal responded: target not found (HTTP 404)")
                 }
             case let .failure(error):
                 self.status = error.localizedDescription
@@ -272,8 +328,8 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
     }
 }
 
-private func whitegramVirusTotalReportText(_ report: WhitegramVirusTotalReport) -> String {
-    var lines = [report.summary, "SHA-256: " + report.sha256]
+private func whitegramVirusTotalReportText(_ report: WhitegramVirusTotalTargetReport) -> String {
+    var lines = [report.summary, report.target.title + ": " + report.target.value]
     if let date = report.analysisDate { lines.append("Last analysis: " + whitegramServiceDate(date)) }
     lines.append("\nStatistics")
     if let statistics = report.statistics, !statistics.isEmpty {
@@ -302,6 +358,16 @@ public func whitegramVirusTotalController(context: AccountContext) -> ViewContro
 /// Opens a prefilled hash for review; a lookup still requires the user's explicit tap.
 public func whitegramVirusTotalController(context: AccountContext, sha256: String?) -> ViewController {
     let coordinator = WhitegramVirusTotalCoordinator(sha256: sha256)
+    return whitegramVirusTotalController(context: context, coordinator: coordinator)
+}
+
+/// Reviews extracted targets. Opening this screen and choosing a target never submits a lookup.
+public func whitegramVirusTotalController(context: AccountContext, targets: [WhitegramVirusTotalTarget]) -> ViewController {
+    let coordinator = WhitegramVirusTotalCoordinator(targets: targets)
+    return whitegramVirusTotalController(context: context, coordinator: coordinator)
+}
+
+private func whitegramVirusTotalController(context: AccountContext, coordinator: WhitegramVirusTotalCoordinator) -> ViewController {
     let controller = whitegramServiceListController(context: context, title: "VirusTotal", entries: coordinator.entries.get(), actions: coordinator)
     coordinator.presenter.controller = controller
     controller.didAppear = { [coordinator] _ in coordinator.refresh() }
