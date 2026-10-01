@@ -56,11 +56,23 @@ final class WhitegramTranslationTests: XCTestCase {
 
     func testUTF16EntityRangesRejectSplitSurrogatesAndOutOfBounds() {
         let text = "a😀b"
-        XCTAssertTrue(WhitegramTranslationTextRules.validRange(1..<3, in: text))
-        XCTAssertFalse(WhitegramTranslationTextRules.validRange(1..<2, in: text))
-        XCTAssertFalse(WhitegramTranslationTextRules.validRange(-1..<1, in: text))
-        XCTAssertFalse(WhitegramTranslationTextRules.validRange(0..<5, in: text))
-        XCTAssertFalse(WhitegramTranslationTextRules.validRange(1..<1, in: text))
+        for range in [0..<1, 1..<3, 3..<4, 0..<4] {
+            XCTAssertTrue(WhitegramTranslationTextRules.validRange(range, in: text), "\(range)")
+        }
+        for range in [0..<2, 1..<2, 2..<3, 2..<4, -1..<1, 0..<5, 1..<1, 4..<4, 0..<Int.max, Int.min..<Int.max] {
+            XCTAssertFalse(WhitegramTranslationTextRules.validRange(range, in: text), "\(range)")
+        }
+        XCTAssertFalse(WhitegramTranslationTextRules.validRange(0..<1, in: ""))
         XCTAssertFalse(WhitegramTranslationTextRules.hasText(" \n\t"))
+    }
+
+    func testUTF16EntityRangesAcceptScalarBoundariesWithinGraphemes() {
+        let text = "e\u{301}👩\u{200d}💻🇺🇦"
+        for range in [0..<1, 1..<2, 2..<4, 4..<5, 5..<7, 7..<9, 9..<11, 0..<11] {
+            XCTAssertTrue(WhitegramTranslationTextRules.validRange(range, in: text), "\(range)")
+        }
+        for range in [2..<3, 3..<4, 5..<6, 6..<7, 7..<8, 8..<9, 9..<10, 10..<11] {
+            XCTAssertFalse(WhitegramTranslationTextRules.validRange(range, in: text), "\(range)")
+        }
     }
 }
