@@ -54,7 +54,7 @@ struct WhitegramTranslationDraftSnapshot: Equatable {
 final class WhitegramTranslationSendCoordinator {
     private let draftGuard = WhitegramTranslationDraftGuard<WhitegramTranslationDraftSnapshot>()
     private let disposable = MetaDisposable()
-    private var progress: OverlayStatusController?
+    private var progress: ViewController?
     private var prompt: ViewController?
     private var promptId: UUID?
     private var readCurrent: (() -> ChatPresentationInterfaceState?)?
