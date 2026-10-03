@@ -60,3 +60,13 @@ The remaining assertion was checked against original Core `0x2d6d48...0x2d7044`:
 The follow-up prepends a comma-terminated dependency instead of relying on a trailing comma in upstream lists. Tests exercise empty lists, optional commas, comments, shorthand labels, replay and all modified assembled BUILD files. The release build now uses `--continueOnError` to collect failures from independent Bazel targets in one pass; build failures still return a nonzero status.
 
 Local follow-up: compatibility replay and all 219 top-level Python tests passed. The scanner reported only the three existing CLI progress `print()` calls in `compat-12.9.4.py`; these are intentional command output, not debug logging. Swift remains outside that scanner's coverage.
+
+## Sixth integrated run: TelegramCore integration
+
+- Commit: `28cc236f8c0a9cde24ad44060511312dfd8a5b0d`.
+- Run: https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/37098034833.
+- Source checks, native suites and Bazel analysis passed. Release compilation reached TelegramCore and reported two API integration errors.
+- `MTRpcError.errorDescription` is an Objective-C implicitly unwrapped optional; assigning it to a local inferred `String?`, which cannot be used for migration-prefix parsing without unwrapping.
+- Pinned `messages.readSavedHistory` requires `parentPeer: Api.InputPeer`, not an optional parent.
+
+The follow-up rejects missing RPC descriptions as `.network` and accepts optional descriptions in the shared authorization-error mapper, with nil/empty regression cases. Read actions use the existing `apiInputPeerOrSelf(_:accountPeerId:)` helper and pass its concrete parent to `readSavedHistory`, covering Saved Messages without requiring a self access hash. Full application compilation remains the integration check for these adapters.

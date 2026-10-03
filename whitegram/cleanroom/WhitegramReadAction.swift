@@ -28,11 +28,11 @@ public enum WhitegramReadAction {
                 let request: Signal<Never, MTRpcError>
                 if let inputSecretChat = apiInputSecretChat(peer), threadId == nil {
                     request = account.network.request(Api.functions.messages.readEncryptedHistory(peer: inputSecretChat, maxDate: index.timestamp)) |> ignoreValues
-                } else if let inputPeer = apiInputPeer(peer) {
+                } else if let inputPeer = apiInputPeerOrSelf(peer, accountPeerId: account.peerId) {
                     if let threadId {
                         if peer.id == account.peerId || peer.isMonoForum {
                             guard let subPeer, let inputSubPeer = apiInputPeer(subPeer) else { return .complete() }
-                            request = account.network.request(Api.functions.messages.readSavedHistory(parentPeer: peer.id == account.peerId ? nil : inputPeer, peer: inputSubPeer, maxId: index.id.id)) |> ignoreValues
+                            request = account.network.request(Api.functions.messages.readSavedHistory(parentPeer: inputPeer, peer: inputSubPeer, maxId: index.id.id)) |> ignoreValues
                         } else {
                             guard let threadId = Int32(exactly: threadId), threadId > 0 else { return .complete() }
                             request = account.network.request(Api.functions.messages.readDiscussion(peer: inputPeer, msgId: threadId, readMaxId: index.id.id)) |> ignoreValues

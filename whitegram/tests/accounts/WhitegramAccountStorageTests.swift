@@ -232,6 +232,8 @@ final class WhitegramAccountStorageTests: XCTestCase {
         XCTAssertEqual(WhitegramSessionError.authorization("SESSION_PASSWORD_NEEDED"), .passwordRequired)
         XCTAssertEqual(WhitegramSessionError.authorization("ACCESS_TOKEN_EXPIRED"), .tokenExpired)
         XCTAssertEqual(WhitegramSessionError.authorization("SECRET_TEST_TOKEN"), .network)
+        XCTAssertEqual(WhitegramSessionError.authorization(nil), .network)
+        XCTAssertEqual(WhitegramSessionError.authorization(""), .network)
         XCTAssertEqual(WhitegramAccountUnavailableReason.rpcError("USER_DEACTIVATED_BAN"), .banned)
         XCTAssertNil(WhitegramAccountUnavailableReason.rpcError("INTERNAL_SERVER_ERROR"))
     }

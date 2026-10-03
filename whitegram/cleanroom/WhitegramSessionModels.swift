@@ -40,7 +40,8 @@ public enum WhitegramSessionError: Error, Equatable, LocalizedError {
         }
     }
 
-    public static func authorization(_ description: String) -> WhitegramSessionError {
+    public static func authorization(_ description: String?) -> WhitegramSessionError {
+        guard let description else { return .network }
         if description.hasPrefix("FLOOD_WAIT_"), let seconds = Int32(description.dropFirst(11)), seconds >= 0 {
             return .floodWait(seconds)
         }

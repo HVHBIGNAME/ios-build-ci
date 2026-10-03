@@ -184,7 +184,7 @@ private func whitegramAuthorizeBot(accountManager: AccountManager<TelegramAccoun
         return .single(WhitegramVerifiedAccount(id: account.id, postbox: account.postbox, apiUser: data.user, masterDatacenterId: account.masterDatacenterId, appVersion: account.networkArguments.appVersion, keepAlive: account))
     }
     |> `catch` { error -> Signal<WhitegramVerifiedAccount, WhitegramSessionError> in
-        let description = error.errorDescription
+        guard let description = error.errorDescription else { return .fail(.network) }
         for prefix in ["USER_MIGRATE_", "PHONE_MIGRATE_", "NETWORK_MIGRATE_"] {
             if description.hasPrefix(prefix), let dc = Int32(description.dropFirst(prefix.count)), (1...5).contains(dc), !identity.testingEnvironment || dc <= 3 {
                 return account.changedMasterDatacenterId(accountManager: accountManager, masterDatacenterId: dc)
