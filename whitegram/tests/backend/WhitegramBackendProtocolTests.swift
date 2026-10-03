@@ -83,11 +83,15 @@ final class WhitegramBackendProtocolTests: XCTestCase {
         let decoded = try JSONDecoder().decode(WhitegramBackendSessionResponse.self, from: good)
         XCTAssertEqual(try decoded.session(for: 42, now: Date(timeIntervalSince1970: 100)).expiresAt, Date(timeIntervalSince1970: 400))
         XCTAssertThrowsError(try decoded.session(for: 43, now: Date())) { XCTAssertEqual($0 as? WhitegramBackendError, .accountMismatch) }
-        for body in [#"{"access_token":"fixture","expires_in":0,"user":{"id":42}}"#,
-                     #"{"access_token":"fixture","expires_in":300,"user":{"id":42},"session_key":"not-base64"}"#,
-                     #"{"access_token":"bad\r\ntoken","expires_in":300,"user":{"id":42}}"#] {
+        for (name, body) in [
+            ("zero expiry", #"{"access_token":"fixture","expires_in":0,"user":{"id":42}}"#),
+            ("malformed key", #"{"access_token":"fixture","expires_in":300,"user":{"id":42},"session_key":"not-base64"}"#),
+            ("CR token", #"{"access_token":"bad\rtoken","expires_in":300,"user":{"id":42}}"#),
+            ("LF token", #"{"access_token":"bad\ntoken","expires_in":300,"user":{"id":42}}"#),
+            ("CRLF token", #"{"access_token":"bad\r\ntoken","expires_in":300,"user":{"id":42}}"#)
+        ] {
             let response = try JSONDecoder().decode(WhitegramBackendSessionResponse.self, from: Data(body.utf8))
-            XCTAssertThrowsError(try response.session(for: 42, now: Date()))
+            XCTAssertThrowsError(try response.session(for: 42, now: Date()), name)
         }
     }
 

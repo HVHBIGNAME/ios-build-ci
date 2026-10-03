@@ -158,14 +158,25 @@ private func dictionaryCacheAndCancellation() throws {
 
 @main
 private struct WhitegramVoiceProtocolTests {
-    static func main() throws {
-        try requestContract()
-        print("PASS: original direct/proxy request contract")
-        try transportAndCancellation()
-        print("PASS: fixture HTTP, decoding and cancellation")
-        try selectiveBleep()
-        print("PASS: original profanity intervals and selective PCM masking")
-        try dictionaryCacheAndCancellation()
-        print("PASS: original dictionary persistence, freshness and cancellation")
+    static func main() {
+        let tests: [(String, () throws -> Void)] = [
+            ("original direct/proxy request contract", requestContract),
+            ("fixture HTTP, decoding and cancellation", transportAndCancellation),
+            ("original profanity intervals and selective PCM masking", selectiveBleep),
+            ("original dictionary persistence, freshness and cancellation", dictionaryCacheAndCancellation),
+        ]
+        var failures = 0
+        for (name, run) in tests {
+            FileHandle.standardOutput.write(Data("RUN: \(name)\n".utf8))
+            do {
+                try run()
+                FileHandle.standardOutput.write(Data("PASS: \(name)\n".utf8))
+            } catch {
+                failures += 1
+                FileHandle.standardError.write(Data("FAIL: \(name): \(error)\n".utf8))
+            }
+        }
+        print("\(tests.count - failures)/\(tests.count) native voice protocol test groups passed")
+        if failures > 0 { exit(1) }
     }
 }

@@ -139,7 +139,7 @@ struct WhitegramBackendSession: Codable, Equatable {
 
     func validate(userId: Int64, now: Date) throws {
         guard self.userId == userId, userId > 0 else { throw WhitegramBackendError.accountMismatch }
-        guard !token.isEmpty, token.utf8.count <= 16384, !token.contains("\r"), !token.contains("\n"),
+        guard !token.isEmpty, token.utf8.count <= 16384, !token.utf8.contains(13), !token.utf8.contains(10),
               expiresAt.timeIntervalSince1970.isFinite, expiresAt > now,
               sessionKey.map({ !$0.isEmpty && $0.count <= 128 }) ?? true else { throw WhitegramBackendError.missingSession }
     }

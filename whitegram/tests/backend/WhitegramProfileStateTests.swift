@@ -63,9 +63,16 @@ final class WhitegramProfileStateTests: XCTestCase {
     }
 
     func testStrictModelValidationRejectsSurrogateSplitsAndDuplicateWallIds() throws {
-        let entity = WhitegramProfileTextEntity(offset: 1, length: 1, type: "bold", url: nil, documentId: nil)
-        XCTAssertFalse(entity.isValid(in: "😀"))
-        XCTAssertTrue(WhitegramProfileTextEntity(offset: 0, length: 2, type: "bold", url: nil, documentId: nil).isValid(in: "😀"))
+        for (text, offset, length, valid) in [
+            ("😀", 1, 1, false), ("😀", 0, 1, false), ("😀", 0, 2, true),
+            ("a😀b", 1, 2, true), ("a😀b", 3, 1, true),
+            ("e\u{301}", 1, 1, true), ("text", 4, 1, false),
+            ("text", -1, 1, false), ("text", 0, 0, false),
+            ("text", 1, Int.max, false), ("text", Int.max, 1, false)
+        ] {
+            let entity = WhitegramProfileTextEntity(offset: offset, length: length, type: "bold", url: nil, documentId: nil)
+            XCTAssertEqual(entity.isValid(in: text), valid, "Unexpected UTF-16 range validation at \(offset), length \(length), in \(text)")
+        }
         let malformed = Data(#"{"enabled":true,"text":"😀","entities":[{"offset":1,"length":1,"type":"bold"}]}"#.utf8)
         XCTAssertThrowsError(try WhitegramBackendDecoding.decode(WhitegramProfileAbout.self, from: malformed))
         let message = WhitegramProfileWallMessage(id: "same", wallOwnerId: 42, authorId: 43, authorName: "Fixture", text: "Message", entities: [], timestamp: 1700000000, editedAt: nil)

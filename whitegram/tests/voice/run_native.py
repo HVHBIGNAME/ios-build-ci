@@ -32,7 +32,7 @@ def main() -> int:
         "-o", str(executable),
     ]
     subprocess.run(command, check=True, cwd=directory)
-    subprocess.run([str(executable), str(directory / "original_audio_fixture.json")], check=True, cwd=directory)
+    dsp_result = subprocess.run([str(executable), str(directory / "original_audio_fixture.json")], check=False, cwd=directory)
     protocol_executable = output / ("WhitegramVoiceProtocolTests.exe" if sys.platform == "win32" else "WhitegramVoiceProtocolTests")
     protocol_command = [compiler, "-parse-as-library", "-O", "-warnings-as-errors"]
     if args.sanitize_address:
@@ -47,8 +47,8 @@ def main() -> int:
         "-o", str(protocol_executable),
     ]
     subprocess.run(protocol_command, check=True, cwd=directory)
-    subprocess.run([str(protocol_executable)], check=True, cwd=directory)
-    return 0
+    protocol_result = subprocess.run([str(protocol_executable)], check=False, cwd=directory)
+    return 1 if dsp_result.returncode or protocol_result.returncode else 0
 
 
 if __name__ == "__main__":

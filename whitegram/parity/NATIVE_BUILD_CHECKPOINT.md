@@ -15,3 +15,16 @@ The reported compilation failures were:
 3. The empty audio-buffer test needed an `Int16` element type after the new Float overload was introduced.
 
 These are addressed in the follow-up commit; its native results must be checked separately. No device or authenticated-service pass is implied.
+
+## Second integrated run
+
+- Commit: `a534d9d10b889edfb4902004389f58380d74a81a`.
+- Run: https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/37093619445.
+- Source integration and the native localization suite passed; the initial compilation failures were resolved.
+- The backend suite executed 38 tests with three assertion failures in two cases: a CRLF-containing session token was accepted, and a profile entity splitting an emoji's UTF-16 surrogate pair was accepted by both the range validator and response decoder.
+- The voice DSP executable compiled, then exited with `SIGTRAP` without an assertion message. Its buffered output did not identify the failing group, and the voice protocol executable was not reached.
+- All other scheduled native suites passed. The IPA build was not reached.
+
+The next revision checks session-token line breaks as UTF-8 bytes and profile entity boundaries as UTF-16 scalar boundaries. Regression cases cover CR, LF, CRLF, both halves of a surrogate pair, combining scalars and overflowing ranges. Voice test executables now report each group and caught failure immediately; both DSP and protocol executables run before their combined failure status is returned.
+
+Local follow-up checks: 14 backend source/evidence/composition tests and 22 voice source/adapter tests passed. Native confirmation remains pending in CI.

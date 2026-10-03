@@ -326,7 +326,7 @@ private func stereoAndFloatAdapters() throws {
 
 @main
 private struct WhitegramVoiceDSPTests {
-    static func main() throws {
+    static func main() {
         let tests: [(String, () throws -> Void)] = [
             ("disabled/neutral/unsupported bit identity", disabledIdentity),
             ("finite controls, enum validation and UI bounds", finiteAndConstrainedControls),
@@ -344,10 +344,18 @@ private struct WhitegramVoiceDSPTests {
             ("original IPA preset coefficients", originalPresetParameters),
             ("stereo, planar, Float and invalid frame adapters", stereoAndFloatAdapters),
         ]
+        var failures = 0
         for (name, run) in tests {
-            try run()
-            print("PASS: \(name)")
+            FileHandle.standardOutput.write(Data("RUN: \(name)\n".utf8))
+            do {
+                try run()
+                FileHandle.standardOutput.write(Data("PASS: \(name)\n".utf8))
+            } catch {
+                failures += 1
+                FileHandle.standardError.write(Data("FAIL: \(name): \(error)\n".utf8))
+            }
         }
-        print("PASS: \(tests.count) native DSP test groups (production Swift implementation)")
+        print("\(tests.count - failures)/\(tests.count) native DSP test groups passed (production Swift implementation)")
+        if failures > 0 { exit(1) }
     }
 }

@@ -8,9 +8,14 @@ struct WhitegramProfileTextEntity: Codable, Equatable {
     let documentId: Int64?
 
     func isValid(in text: String) -> Bool {
-        let count = text.utf16.count
+        let utf16 = text.utf16
+        let count = utf16.count
         guard offset >= 0 && length > 0 && offset <= count && length <= count - offset else { return false }
-        return Range(NSRange(location: offset, length: length), in: text) != nil
+        for boundary in [offset, offset + length] where boundary < count {
+            let index = utf16.index(utf16.startIndex, offsetBy: boundary)
+            guard !(0xdc00...0xdfff).contains(utf16[index]) else { return false }
+        }
+        return true
     }
 }
 
