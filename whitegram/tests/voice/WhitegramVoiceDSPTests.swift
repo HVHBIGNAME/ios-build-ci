@@ -114,7 +114,7 @@ private func fixedCountAndBufferOwnership() throws {
     storage.withUnsafeMutableBufferPointer { buffer in
         processor.process(UnsafeMutableBufferPointer(start: buffer.baseAddress?.advanced(by: 1), count: 960))
     }
-    processor.process(UnsafeMutableBufferPointer(start: nil, count: 0))
+    processor.process(UnsafeMutableBufferPointer<Int16>(start: nil, count: 0))
     try expect(storage.count == count, "Processing changed sample count")
     try expect(storage.first == 12345 && storage.last == -23456, "Processing wrote outside the borrowed sample range")
     // Releasing one input and processing another detects retained input pointers

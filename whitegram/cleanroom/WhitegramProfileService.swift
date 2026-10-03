@@ -105,12 +105,12 @@ final class WhitegramProfileService {
                     let value = try WhitegramBackendDecoding.decode(T.self, from: response.data)
                     if let wall = value as? WhitegramProfileWallState, !wall.messages.allSatisfy({ $0.wallOwnerId == userId }) { throw WhitegramBackendError.invalidResponse }
                     if let self {
-                        guard try client.sessions.load(userId: client.userId) == startingSession else { throw WhitegramBackendError.sessionChanged }
-                        lock.lock()
-                        guard epoch == cacheEpoch else { lock.unlock(); throw WhitegramBackendError.staleResponse }
-                        if cache.count >= 128, let oldest = cache.min(by: { $0.value.date < $1.value.date })?.key { cache.removeValue(forKey: oldest) }
-                        cache[key] = CacheEntry(data: response.data, date: now(), session: startingSession)
-                        lock.unlock()
+                        guard try self.client.sessions.load(userId: self.client.userId) == startingSession else { throw WhitegramBackendError.sessionChanged }
+                        self.lock.lock()
+                        guard epoch == self.cacheEpoch else { self.lock.unlock(); throw WhitegramBackendError.staleResponse }
+                        if self.cache.count >= 128, let oldest = self.cache.min(by: { $0.value.date < $1.value.date })?.key { self.cache.removeValue(forKey: oldest) }
+                        self.cache[key] = CacheEntry(data: response.data, date: self.now(), session: startingSession)
+                        self.lock.unlock()
                     }
                     return .success(value)
                 } catch { return .failure(error as? WhitegramBackendError ?? .invalidResponse) }
@@ -123,7 +123,7 @@ final class WhitegramProfileService {
         do {
             return client.raw(path: path, method: "POST", body: try WhitegramProfileRequests.encoded(value)) { [weak self] result in
                 if case .success = result, let self {
-                    didMutate()
+                    self.didMutate()
                 }
                 completion(result.map { _ in Void() })
             }

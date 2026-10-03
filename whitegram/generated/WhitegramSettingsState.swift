@@ -249,6 +249,8 @@ public struct WhitegramSettingsState: Codable, Equatable {
     public var wideChannelPosts: Bool = false
     public var localPremium: Bool = false
 
+    public init() {}
+
     public static let storageKey = "WhitegramSettingsState.v1"
     public static let updatedNotification = Notification.Name("WhitegramSettingsStateUpdated")
 
