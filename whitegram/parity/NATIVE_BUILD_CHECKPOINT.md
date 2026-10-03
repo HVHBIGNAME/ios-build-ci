@@ -28,3 +28,14 @@ These are addressed in the follow-up commit; its native results must be checked 
 The next revision checks session-token line breaks as UTF-8 bytes and profile entity boundaries as UTF-16 scalar boundaries. Regression cases cover CR, LF, CRLF, both halves of a surrogate pair, combining scalars and overflowing ranges. Voice test executables now report each group and caught failure immediately; both DSP and protocol executables run before their combined failure status is returned.
 
 Local follow-up checks: 14 backend source/evidence/composition tests and 22 voice source/adapter tests passed. Native confirmation remains pending in CI.
+
+## Third integrated run
+
+- Commit: `b3dd6f37fb31885543df5ef550b4beec57bac300`.
+- Run: https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/37095028960.
+- All 38 backend XCTest cases passed, including expanded token and entity regressions.
+- Voice protocol checks compiled and all four groups passed.
+- Voice DSP passed its first eight groups, then terminated inside the fixed-duration pitch-frequency test before reaching a catchable assertion. The remaining DSP groups were not reached.
+- Every other scheduled native suite and source validation passed. The IPA build was not reached.
+
+The pitch reader added the ring length to a negative floating-point position before converting it to an array index. At -12 semitones, frame 7776 produces position `-4.547473508864641e-13`; adding the 4320-sample ring length rounds to exactly `4320`, outside the array. The follow-up wraps the integer index after separating its fractional component. The existing 72000-sample octave-down test exercises this boundary; native confirmation is pending.

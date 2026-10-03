@@ -140,11 +140,12 @@ public final class WhitegramVoiceProcessor {
     }
 
     private func readPitch(_ delay: Double) -> Float {
-        var position = Double(self.pitchIndex) - delay
-        if position < 0 { position += Double(self.pitchSamples.count) }
-        let lower = Int(position)
-        let fraction = Float(position - floor(position))
-        return self.pitchSamples[lower] * (1 - fraction) + self.pitchSamples[(lower + 1) % self.pitchSamples.count] * fraction
+        let position = Double(self.pitchIndex) - delay
+        let lower = Int(floor(position))
+        let fraction = Float(position - Double(lower))
+        // Floating-point wrapping can round a tiny negative position to count.
+        let index = (lower + self.pitchSamples.count) % self.pitchSamples.count
+        return self.pitchSamples[index] * (1 - fraction) + self.pitchSamples[(index + 1) % self.pitchSamples.count] * fraction
     }
 
     private func bleep(_ mode: WhitegramVoiceBleepMode) -> Double {

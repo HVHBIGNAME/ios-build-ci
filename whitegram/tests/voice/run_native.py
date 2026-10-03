@@ -33,6 +33,8 @@ def main() -> int:
     ]
     subprocess.run(command, check=True, cwd=directory)
     dsp_result = subprocess.run([str(executable), str(directory / "original_audio_fixture.json")], check=False, cwd=directory)
+    if dsp_result.returncode:
+        print(f"Native DSP executable exited with status {dsp_result.returncode}", file=sys.stderr)
     protocol_executable = output / ("WhitegramVoiceProtocolTests.exe" if sys.platform == "win32" else "WhitegramVoiceProtocolTests")
     protocol_command = [compiler, "-parse-as-library", "-O", "-warnings-as-errors"]
     if args.sanitize_address:
@@ -48,6 +50,8 @@ def main() -> int:
     ]
     subprocess.run(protocol_command, check=True, cwd=directory)
     protocol_result = subprocess.run([str(protocol_executable)], check=False, cwd=directory)
+    if protocol_result.returncode:
+        print(f"Native voice protocol executable exited with status {protocol_result.returncode}", file=sys.stderr)
     return 1 if dsp_result.returncode or protocol_result.returncode else 0
 
 
