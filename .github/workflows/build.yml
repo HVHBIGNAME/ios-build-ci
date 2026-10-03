@@ -161,6 +161,7 @@ jobs:
             --bazelUserRoot="$bazel_user_root" \
             --cacheDir=/Users/Shared/whitegram-bazel-cache \
             build \
+            --continueOnError \
             --configurationPath=build-system/appstore-configuration.json \
             --codesigningInformationPath=build-system/fake-codesigning \
             --configuration=release_arm64 \

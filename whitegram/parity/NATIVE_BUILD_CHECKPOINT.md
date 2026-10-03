@@ -48,3 +48,15 @@ The pitch reader added the ring length to a negative floating-point position bef
 - All four voice protocol groups and all other scheduled native suites passed. Source validation passed; the IPA build was not reached.
 
 The remaining assertion was checked against original Core `0x2d6d48...0x2d7044`: its triangular two-head delay sweep produces a comb of neighboring spectral lines. The follow-up measures the strongest bin within the head-sweep frequency of the target, using the recovered delay span to bound the search. It still requires shifted power above `0.005`, suppression of the original fundamental by a factor of 30, and fixed output duration. Native confirmation is pending.
+
+## Fifth integrated run: native gate passed
+
+- Commit: `1bafbf9b2002a268ad43d175a9e9efbfca2a8bea`.
+- Run: https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/37096789202.
+- Source validation and every scheduled native Swift suite passed, including all 15 DSP and four voice protocol groups.
+- Release IPA compilation reached Bazel analysis, which rejected `TelegramCore/BUILD`: the dependency installer appended a new label after a final item without adding a separating comma.
+- A new assembled-BUILD token check reproduced this failure and found the same issue in `GiftItemComponent/BUILD` before Bazel reached it.
+
+The follow-up prepends a comma-terminated dependency instead of relying on a trailing comma in upstream lists. Tests exercise empty lists, optional commas, comments, shorthand labels, replay and all modified assembled BUILD files. The release build now uses `--continueOnError` to collect failures from independent Bazel targets in one pass; build failures still return a nonzero status.
+
+Local follow-up: compatibility replay and all 219 top-level Python tests passed. The scanner reported only the three existing CLI progress `print()` calls in `compat-12.9.4.py`; these are intentional command output, not debug logging. Swift remains outside that scanner's coverage.

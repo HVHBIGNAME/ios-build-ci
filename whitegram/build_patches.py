@@ -1,9 +1,24 @@
 """Adapt fork BUILD imports to the pinned Telegram Bazel toolchain."""
 
 import json
+import re
 from pathlib import Path
 
 from source_patches import SourcePatches
+
+
+def add_dep(build_path: Path, label: str) -> bool:
+    text = build_path.read_text(encoding="utf-8")
+    base_label = label.rsplit(":", 1)[0]
+    if f'"{label}"' in text or f'"{base_label}"' in text:
+        return False
+    match = re.search(r"(?m)^(?P<indent>[ \t]*)deps\s*=\s*\[", text)
+    if match is None:
+        return False
+    # Prepending also works when the existing final item has no trailing comma.
+    insertion = f'\n{match["indent"]}    "{label}",'
+    build_path.write_text(text[:match.end()] + insertion + text[match.end():], encoding="utf-8")
+    return True
 
 
 def apply_build_patches(root: Path) -> dict[str, list[str]]:

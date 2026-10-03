@@ -28,7 +28,7 @@ from transfer_patches import TRANSFER_RUNTIME_FILES, apply_transfer_patches
 from backend_patches import BACKEND_RUNTIME_FILES, apply_backend_patches
 from traffic_patches import TRAFFIC_RUNTIME_FILES, apply_traffic_patches
 from swift_syntax_patches import apply_swift_syntax_patches
-from build_patches import apply_build_patches
+from build_patches import add_dep, apply_build_patches
 
 source_root = Path(sys.argv[1]).resolve()
 public_root = Path(sys.argv[2]).resolve()
@@ -79,32 +79,6 @@ def nearest_build(path: Path) -> Path | None:
             return candidate
         current = current.parent
     return None
-
-
-def add_dep(build_path: Path, label: str) -> bool:
-    text = build_path.read_text(encoding="utf-8", errors="replace")
-    base_label = label.rsplit(":", 1)[0]
-    if label in text or f'"{base_label}"' in text:
-        return False
-    match = re.search(r"deps\s*=\s*\[", text)
-    if match is None:
-        return False
-    open_pos = text.find("[", match.start())
-    depth = 0
-    close_pos = -1
-    for index in range(open_pos, len(text)):
-        if text[index] == "[":
-            depth += 1
-        elif text[index] == "]":
-            depth -= 1
-            if depth == 0:
-                close_pos = index
-                break
-    if close_pos < 0:
-        return False
-    insertion = f'        "{label}",\n'
-    build_path.write_text(text[:close_pos] + insertion + text[close_pos:], encoding="utf-8")
-    return True
 
 
 def imports(text: str) -> set[str]:
