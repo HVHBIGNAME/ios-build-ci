@@ -30,4 +30,7 @@ def apply_build_patches(root: Path) -> dict[str, list[str]]:
         patches.replace("bazel8-native-rules", "Telegram/BUILD",
             f'load("@{repository}//{package}:{rule}.bzl", "{rule}")',
             f"# {rule} is supplied by the pinned Bazel 8 toolchain.")
+    patches.replace("audio-waveform-foundation-only", "submodules/AudioWaveform/BUILD",
+        '    deps = [\n    \t"//submodules/AsyncDisplayKit:AsyncDisplayKit",\n\t"//submodules/Display:Display",\n        "//submodules/LegacyComponents:LegacyComponents",\n    ],',
+        '    deps = [],')
     return patches.write()

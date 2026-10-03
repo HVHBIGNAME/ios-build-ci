@@ -201,16 +201,24 @@ def _chat_presentation_patches(patches: SourcePatches):
     anchor = "    return dateText\n"
     patches.replace("historyStatusLabel", STATUS, anchor, '''    return WhitegramHistoryRuntime.statusText(dateText, message: message._asMessage(), accountPeerId: context.account.peerId, russian: strings.baseLanguageCode.hasPrefix("ru"))
 ''')
+    if "validatedEntityRange(entity.range, in: originalText)" in patches.read(TEXT):
+        patches.replace("showEditedOriginalText", TEXT,
+            "let originalEntities = original.entities.filter { $0.range.lowerBound >= 0 && $0.range.upperBound <= original.text.utf16.count }",
+            "let originalEntities = original.entities.filter { WhitegramTranslationTextRules.validRange($0.range, in: original.text) }")
+        patches.replace("showEditedOriginalText", TEXT,
+            "if case let .CustomEmoji(_, fileId) = entity.type, let range = validatedEntityRange(entity.range, in: originalText) {",
+            "if case let .CustomEmoji(_, fileId) = entity.type, WhitegramTranslationTextRules.validRange(entity.range, in: originalText.string) {\n                            let range = NSRange(location: entity.range.lowerBound, length: entity.range.count)")
     anchor = "                var customTruncationToken: ((UIFont, Bool) -> NSAttributedString?)?\n"
     patches.replace("showEditedOriginalText", TEXT, anchor, '''                var whitegramCanShowOriginal = !item.presentationData.isPreview && item.attributes.updatingMedia == nil && invoice == nil && story == nil && !isUnsupportedMedia
                 if let subject = item.associatedData.subject, case .messageOptions = subject { whitegramCanShowOriginal = false }
                 if whitegramCanShowOriginal, let original = WhitegramHistoryRuntime.originalForDisplay(item.message, accountPeerId: item.context.account.peerId) {
                     let originalFont = textFont.withSize(textFont.pointSize * 0.85)
                     let originalColor = messageTheme.primaryTextColor.withAlphaComponent(0.7)
-                    let originalEntities = original.entities.filter { $0.range.lowerBound >= 0 && $0.range.upperBound <= original.text.utf16.count }
+                    let originalEntities = original.entities.filter { WhitegramTranslationTextRules.validRange($0.range, in: original.text) }
                     let originalText = NSMutableAttributedString(attributedString: stringWithAppliedEntities(original.text, entities: originalEntities, strings: item.presentationData.strings, dateTimeFormat: item.presentationData.dateTimeFormat, baseColor: originalColor, linkColor: messageTheme.linkTextColor.withAlphaComponent(0.7), baseFont: originalFont, linkFont: originalFont, boldFont: item.presentationData.messageBoldFont.withSize(originalFont.pointSize), italicFont: item.presentationData.messageItalicFont.withSize(originalFont.pointSize), boldItalicFont: item.presentationData.messageBoldItalicFont.withSize(originalFont.pointSize), fixedFont: item.presentationData.messageFixedFont.withSize(originalFont.pointSize), blockQuoteFont: item.presentationData.messageBlockQuoteFont.withSize(originalFont.pointSize), message: item.message))
                     for entity in originalEntities {
-                        if case let .CustomEmoji(_, fileId) = entity.type, let range = validatedEntityRange(entity.range, in: originalText) {
+                        if case let .CustomEmoji(_, fileId) = entity.type, WhitegramTranslationTextRules.validRange(entity.range, in: originalText.string) {
+                            let range = NSRange(location: entity.range.lowerBound, length: entity.range.count)
                             originalText.addAttribute(ChatTextInputAttributes.customEmoji, value: ChatTextInputTextCustomEmojiAttribute(interactivelySelectedFromPackId: nil, fileId: fileId, file: item.message.associatedMedia[EngineMedia.Id(namespace: Namespaces.Media.CloudFile, id: fileId)] as? TelegramMediaFile), range: range)
                         }
                     }

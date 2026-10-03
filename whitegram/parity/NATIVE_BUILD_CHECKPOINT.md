@@ -70,3 +70,13 @@ Local follow-up: compatibility replay and all 219 top-level Python tests passed.
 - Pinned `messages.readSavedHistory` requires `parentPeer: Api.InputPeer`, not an optional parent.
 
 The follow-up rejects missing RPC descriptions as `.network` and accepts optional descriptions in the shared authorization-error mapper, with nil/empty regression cases. Read actions use the existing `apiInputPeerOrSelf(_:accountPeerId:)` helper and pass its concrete parent to `readSavedHistory`, covering Saved Messages without requiring a self access hash. Full application compilation remains the integration check for these adapters.
+
+## Seventh integrated run: framework linking and history rendering
+
+- Commit: `679b90b69495e0246cb05dc66e4f74f4439867d5`.
+- Run: https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/37121455210.
+- All validation suites passed and TelegramCore compiled. The full build collected two remaining failures before reaching application packaging.
+- TelegramCoreFramework linked LegacyComponents through AudioWaveform's unused AsyncDisplayKit/Display/LegacyComponents dependencies, introducing unresolved `AVCaptureEventInteraction` and `MPVolumeView` symbols. The pinned AudioWaveform target's sole Swift source imports only Foundation.
+- The inline original-message renderer called `validatedEntityRange`, which does not exist in the pinned source tree.
+
+The follow-up removes AudioWaveform's unused UI dependencies and verifies its Foundation-only source contract. History rendering uses the existing public UTF-16 scalar-boundary validator before formatting and before applying custom-emoji attributes. The installer upgrades the previously emitted history block on replay instead of inserting a duplicate.

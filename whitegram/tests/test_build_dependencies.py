@@ -4,6 +4,7 @@ import ast
 import io
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -50,6 +51,19 @@ class BuildDependencyTests(unittest.TestCase):
 
 @unittest.skipUnless(os.environ.get("WHITEGRAM_ASSEMBLED_SOURCE"), "Set WHITEGRAM_ASSEMBLED_SOURCE")
 class AssembledBuildTests(unittest.TestCase):
+    def test_audio_waveform_model_has_no_ui_dependencies(self):
+        root = Path(os.environ["WHITEGRAM_ASSEMBLED_SOURCE"]) / "submodules/AudioWaveform"
+        source_files = list((root / "Sources").rglob("*.swift"))
+        self.assertTrue(source_files)
+        for source in source_files:
+            imports = set(re.findall(r"(?m)^import (\w+)", source.read_text(encoding="utf-8")))
+            self.assertEqual(imports, {"Foundation"}, f"Review AudioWaveform dependencies for {source.name}")
+        build = ast.parse((root / "BUILD").read_text(encoding="utf-8"))
+        target = next(node.value for node in build.body if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call)
+                      and isinstance(node.value.func, ast.Name) and node.value.func.id == "swift_library")
+        deps = ast.literal_eval(next(keyword.value for keyword in target.keywords if keyword.arg == "deps"))
+        self.assertEqual(deps, [], "AudioWaveform must not pull UI libraries into TelegramCoreFramework")
+
     def test_modified_build_files_have_no_implicit_string_concatenation(self):
         root = Path(os.environ["WHITEGRAM_ASSEMBLED_SOURCE"])
         paths = subprocess.check_output(["git", "-C", str(root), "diff", "--name-only", "HEAD", "--", "*BUILD", "*BUILD.bazel"], text=True).splitlines()

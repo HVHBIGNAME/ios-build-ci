@@ -323,8 +323,8 @@ class HistoryPatchTests(unittest.TestCase):
         self.assertIn("whitegramHistorySettingsSignal()", root.text(LIST))
         self.assertIn("didSet {", root.text(ITEM))
         self.assertIn("self.alpha = 1.0", root.text(ITEM))
-        self.assertIn("original.text.utf16.count", root.text(TEXT))
-        self.assertIn("validatedEntityRange(entity.range, in: originalText)", root.text(TEXT))
+        self.assertIn("WhitegramTranslationTextRules.validRange($0.range, in: original.text)", root.text(TEXT))
+        self.assertIn("WhitegramTranslationTextRules.validRange(entity.range, in: originalText.string)", root.text(TEXT))
         self.assertNotIn("withUpdatedText", root.text(TEXT))
 
 
