@@ -39,3 +39,12 @@ Local follow-up checks: 14 backend source/evidence/composition tests and 22 voic
 - Every other scheduled native suite and source validation passed. The IPA build was not reached.
 
 The pitch reader added the ring length to a negative floating-point position before converting it to an array index. At -12 semitones, frame 7776 produces position `-4.547473508864641e-13`; adding the 4320-sample ring length rounds to exactly `4320`, outside the array. The follow-up wraps the integer index after separating its fractional component. The existing 72000-sample octave-down test exercises this boundary; native confirmation is pending.
+
+## Fourth integrated run
+
+- Commit: `58f857db0becc7ac687123a30c580c7ffb70c18c`.
+- Run: https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/37095904673.
+- The pitch reader no longer trapped. All 15 DSP groups ran: 14 passed and the fixed-duration pitch test reported insufficient energy at exactly 250 Hz for the octave-down case.
+- All four voice protocol groups and all other scheduled native suites passed. Source validation passed; the IPA build was not reached.
+
+The remaining assertion was checked against original Core `0x2d6d48...0x2d7044`: its triangular two-head delay sweep produces a comb of neighboring spectral lines. The follow-up measures the strongest bin within the head-sweep frequency of the target, using the recovered delay span to bound the search. It still requires shifted power above `0.005`, suppression of the original fundamental by a factor of 30, and fixed output duration. Native confirmation is pending.

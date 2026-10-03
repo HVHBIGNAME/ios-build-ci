@@ -200,11 +200,16 @@ private func pitchMovesFrequencyWithoutChangingDuration() throws {
         try expect(output.count == input.count, "Pitch changed duration/playback sample rate")
         try expect(abs(processor.pitchDelayUpperBound - 0.0756) < 0.000001, "Pitch delay differs from the recovered 90 ms buffer / 84% read bound")
         let settled = Array(output[9600 ..< 57600])
-        let target = 500.0 * pow(2.0, semitones / 12.0)
-        let shiftedPower = tonePower(settled, frequency: target)
+        let ratio = pow(2.0, semitones / 12.0)
+        let target = 500.0 * ratio
+        // The original two-head sweep creates sidebands, not a single coherent tone.
+        let sweepFrequency = abs(1.0 - ratio) / (0.09 * (0.84 - 0.16))
+        let shiftedPower = stride(from: floor(target - sweepFrequency), through: ceil(target + sweepFrequency), by: 1.0).reduce(0.0) {
+            max($0, tonePower(settled, frequency: $1))
+        }
         let originalPower = tonePower(settled, frequency: 500.0)
-        try expect(shiftedPower > 0.005, "No significant energy at the requested pitch (\(semitones) st)")
-        try expect(shiftedPower > originalPower * 30.0, "Pitch retained the original fundamental (\(semitones) st)")
+        try expect(shiftedPower > 0.005, "No significant energy near the requested pitch (\(semitones) st): \(shiftedPower)")
+        try expect(shiftedPower > originalPower * 30.0, "Pitch retained the original fundamental (\(semitones) st): shifted \(shiftedPower), original \(originalPower)")
     }
 }
 
