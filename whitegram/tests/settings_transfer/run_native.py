@@ -16,6 +16,7 @@ OVERLAY = HERE.parents[1]
 CORE = (
     "WhitegramPreferences.swift", "WhitegramSettingsArchive.swift", "WhitegramSettingsArchiveJSON.swift",
     "WhitegramSettingsArchiveSchema.swift", "WhitegramSettingsArchiveMirrors.swift", "WhitegramSettingsArchiveStore.swift",
+    "WhitegramMediaSettings.swift",
 )
 FOUNDATION_UI = ("WhitegramSettingsArchiveKeychain.swift", "WhitegramSettingsTransferDocuments.swift")
 PUBLIC = (

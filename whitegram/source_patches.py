@@ -17,8 +17,15 @@ class SourcePatches:
             self.pending[path] = self.original[path]
         return self.pending[path]
 
-    def replace(self, feature: str, path: str, before: str, after: str, count: int = 1):
+    def replace(self, feature: str, path: str, before: str, after: str, count: int = 1, *, accepted_after: tuple[str, ...] = ()):
         value = self.read(path)
+        for installed in accepted_after:
+            if installed in value:
+                normalized = value.replace(installed, after)
+                if value.count(installed) != count or normalized.count(after) != count or before in normalized.replace(after, ""):
+                    raise ValueError(f"{feature}: {path}: ambiguous upgraded patch")
+                self.features.setdefault(feature, set()).add(path)
+                return
         if value.count(after) == count:
             self.features.setdefault(feature, set()).add(path)
             return
@@ -28,7 +35,7 @@ class SourcePatches:
         self.pending[path] = value.replace(before, after)
         self.features.setdefault(feature, set()).add(path)
 
-    def guard_requests(self, feature: str, path: str, request: str, condition: str, count: int):
+    def guard_requests(self, feature: str, path: str, request: str, condition: str, count: int, *, accepted_conditions: tuple[str, ...] = ()):
         value = self.read(path)
         pattern = re.compile(r"^(?P<indent>[ \t]*)(?P<request>let _ = " + re.escape(request) + r"[^\n]*)$", re.MULTILINE)
         matches = list(pattern.finditer(value))
@@ -37,8 +44,12 @@ class SourcePatches:
         for match in reversed(matches):
             indent = match["indent"]
             preceding = value[:match.start()].splitlines()
-            if preceding and preceding[-1].strip() == f"if {condition} {{":
-                continue
+            if preceding:
+                guard = preceding[-1].strip()
+                if guard in {f"if {item} {{" for item in (condition, *accepted_conditions)}:
+                    continue
+                if guard.startswith("if ") and "WhitegramGhost." in guard:
+                    raise ValueError(f"{feature}: {path}: unrecognized privacy guard")
             block = f"{indent}if {condition} {{\n{indent}    {match['request']}\n{indent}}}"
             value = value[:match.start()] + block + value[match.end():]
         self.pending[path] = value

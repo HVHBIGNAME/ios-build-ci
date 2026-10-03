@@ -8,6 +8,7 @@ public struct WhitegramBubbleAppearance: Equatable {
     public let fillOpacity: CGFloat
     public let borderEnabled: Bool
     public let borderRGB: UInt32?
+    public let glass: WhitegramGlassSettings
 
     private static let outlines: NSCache<NSString, UIImage> = {
         let cache = NSCache<NSString, UIImage>()
@@ -15,8 +16,9 @@ public struct WhitegramBubbleAppearance: Equatable {
         return cache
     }()
 
-    public init(settings: WhitegramAppearanceSettings) {
-        self.fillOpacity = CGFloat(settings.bubbleFillOpacity)
+    public init(settings: WhitegramAppearanceSettings, glass: WhitegramGlassSettings = .current) {
+        self.glass = glass
+        self.fillOpacity = self.glass.hasBubbleSurface ? 0.0 : CGFloat(settings.bubbleFillOpacity)
         self.borderEnabled = settings.isEnabled(.messageBorderEnabled)
         self.borderRGB = settings.borderRGB
     }

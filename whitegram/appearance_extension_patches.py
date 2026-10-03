@@ -5,6 +5,13 @@ from pathlib import Path
 from source_patches import SourcePatches
 
 
+APPEARANCE_EXTENSION_RUNTIME_FILES = {
+    "WhitegramAppearanceSettings.swift": "submodules/TelegramCore/Sources/Settings/WhitegramAppearanceSettings.swift",
+    "WhitegramBubbleAppearance.swift": "submodules/TelegramPresentationData/Sources/WhitegramBubbleAppearance.swift",
+    "WhitegramAppearanceController.swift": "submodules/SettingsUI/Sources/WhitegramAppearanceController.swift",
+}
+
+
 BACKGROUND = "submodules/ChatMessageBackground/Sources/ChatMessageBackground.swift"
 GRAPHICS = "submodules/TelegramPresentationData/Sources/PresentationThemeEssentialGraphics.swift"
 CHAT = "submodules/TelegramUI/Components/Chat/"

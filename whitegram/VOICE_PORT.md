@@ -1,149 +1,141 @@
-# Whitegram local voice effects
+# Whitegram voice effects and adapters
 
-Runtime copying, recorder patching and main-menu routing are connected. The macOS workflow now invokes the native harness; its execution remains pending. See [PORT_STATUS.md](PORT_STATUS.md).
+Current implementation: local PCM effects, selective Apple Speech bleeping, ElevenLabs conversion, video-note audio replacement, file conversion/export, and outgoing shared-device call PCM. Source checks run against the ready, read-only `C:/coding/telegram/whitegram/source-12.9.2` baseline. Native Swift/codec/device validation remains pending. The machine-readable handoff is [parity/audio.json](parity/audio.json); music is covered in [PLAYER_PORT.md](PLAYER_PORT.md).
 
-## Integration handoff
+## Installation
 
-The implementation processes the microphone's **48 kHz, mono, signed Int16 PCM before Telegram's existing Ogg Opus encoder**. It includes duration-preserving pitch, tone controls, all eleven recovered preset selections, and explicitly opted-in whole-message beep/silence replacement. The UI entrypoint is:
+`voice_patches.py` exports the complete **17-file** `VOICE_RUNTIME_FILES` map. All source basenames below are under `whitegram/cleanroom/`.
+
+| Destination directory | Source basenames |
+| --- | --- |
+| `submodules/TelegramCore/Sources/` | `WhitegramVoiceSettings.swift`, `WhitegramVoiceDSP.swift`, `WhitegramVoiceBleep.swift`, `WhitegramVoiceProfanityStore.swift`, `WhitegramVoiceCredentials.swift`, `WhitegramVoiceRemote.swift`, `WhitegramVoiceHTTP.swift`, `WhitegramVoiceAudioFile.swift`, `WhitegramVoiceSpeech.swift`, `WhitegramVoicePostprocessor.swift`, `WhitegramVoiceVideo.swift` |
+| `submodules/TelegramUI/Sources/` | `WhitegramVoiceChat.swift` |
+| `submodules/TelegramVoip/Sources/` | `WhitegramVoiceCallProcessor.swift` |
+| `submodules/SettingsUI/Sources/` | `WhitegramVoiceSliderItem.swift`, `WhitegramVoiceSettingsController.swift`, `WhitegramVoiceRemoteSettingsController.swift`, `WhitegramVoiceFileController.swift` |
+
+Copy the files, then invoke `apply_voice_patches(root) -> dict[str, list[str]]`. For a larger atomic transaction, call `voice_patches(patches: SourcePatches)` and let the parent write once. `apply_voice_pcm_patches(root)` remains the narrow, backwards-compatible recorder-only API used by the baseline regressions.
+
+The full transform stages these features before writing:
+
+1. `voice-message-local-pcm`: recorder construction, complete-packet processing, resume reset.
+2. `voice-selective-bleep-and-remote-send`: Opus channel-count accessor; immediate audio send and draft send.
+3. `voice-outgoing-call-pcm`: Swift shared audio device and both Objective-C++ outgoing transport overloads.
+4. `voice-video-note-audio`: video-note processing, cancellation and live-upload eligibility.
+
+SettingsUI entrypoints:
 
 ```swift
-public func whitegramVoiceSettingsController(context: AccountContext) -> ViewController
+whitegramVoiceSettingsController(context: AccountContext) -> ViewController
+whitegramVoiceRemoteSettingsController(context: AccountContext) -> ViewController
+WhitegramVoiceFileController(context: AccountContext)
 ```
 
-It belongs to **SettingsUI**. Opening the screen reads settings only; listening uses Telegram's normal recording preview. The parent should route the `voiceChanger` menu entry to this function.
+The first screen connects the other two. Key entry is secure; available voices are fetched only on the user's connection-check action. Selecting a voice saves its ID and display name together. Connection status is the result of that request, not a persisted success flag.
 
-Copy these files from `whitegram/cleanroom/` before building:
+### Dependencies and parent integration
 
-| File | Destination |
+- TelegramCore needs `//submodules/OpusBinding:OpusBinding` and `//submodules/AudioWaveform:AudioWaveform`. SDK imports include AVFoundation, Speech and Security. The pure settings/DSP/matcher remain Foundation/CoreFoundation code.
+- TelegramUI's adapter explicitly imports AccountContext, **ChatInterfaceState**, ChatPresentationInterfaceState, AudioWaveform, Display, SwiftSignalKit, TelegramCore and **PresentationDataUtils**.
+- SettingsUI uses its existing AccountContext/Display/ItemListUI/SwiftSignalKit/TelegramCore/TelegramPresentationData/PresentationDataUtils/AsyncDisplayKit dependencies. The file controller uses UIKit.
+- TelegramVoip needs TelegramCore, already present in the reference. The native hook uses the existing TgVoipWebrtc target.
+- `VideoMessageCameraScreen` already depends on TelegramCore and PresentationDataUtils; no reverse dependency on TelegramUI is introduced.
+- **Add/verify `NSSpeechRecognitionUsageDescription` in the application plist.** The runtime refuses to request authorization when it is missing. The original microphone permission is still used for recording.
+- Parent owns generic preference/archive/generated-state integration. Reconcile generated `voiceChangerUseProxy` to **true**, and include `voiceChangerVoiceId`/`voiceChangerVoiceName` as strings. The absent-value proxy default is proved at Core `0x20b954`.
+- Keychain item: generic password, service `Whitegram.Voice.ElevenLabs`, account `api-key`, accessibility `AfterFirstUnlockThisDeviceOnly`. The runtime migrates a canonical legacy `voiceChangerApiKey` value and clears it only after saving the Keychain item. Parent archive integration must include this item if credential transfer is enabled. Importing original raw `wg_*` settings into canonical preferences remains a parent migration responsibility.
+
+#### Backend hooks
+
+```swift
+WhitegramVoiceRuntime.configureProxyRequest(requestBuilder, session: pinnedSession)
+WhitegramVoiceProfanityStore.shared.configure(loader: profanityLoader)
+```
+
+`requestBuilder` receives `(path, method, optionalProviderKey, accept)` and must create the original authenticated/signed Whitegram request for provider **`elevenlabs`**. The supplied URLSession must enforce the parent's pinning, redirect, response-transfer bounds and account/session policy. Both builder and session are required for actual proxy traffic. Missing integration returns `proxyUnavailable`; it never silently sends directly. Direct traffic uses a serial delegate with a 64 MiB incremental body limit and rejects redirects.
+
+`profanityLoader` takes a completion `(Result<Data, Error>) -> Void`, fetches signed **`GET /v1/config/profanity`**, and returns a `WhitegramVoiceTask` whose cancellation cancels that request. Response fields are `roots: [String]` and optional `prefixes: [String]`. The store validates before replacing the original `wg_profanityRoots_v2`, `wg_profanityPrefixes_v2`, and `wg_profanityRootsUpdatedAt_v2` cache. The recovered freshness interval is **86400 seconds** and the speech pipeline waits at most **4 seconds** for refresh; cached or original bundled roots remain available on failure.
+
+## Original evidence
+
+Evidence root: `C:/coding/telegram/whitegram/whitegram-rebuild`. Current focused exports: `C:/coding/telegram/whitegram/recovery_20261002/campaign/audio/`. Original IPA SHA-256:
+
+`bd6d3a13046d5857c1389e2d794c4c2ca44cee89bb22880004bd77f84fe29837`
+
+- Core/image 46: preset IDs `0...10` at `0x2d6264/0x2d626c`; configuration gate `0x2d7a6c`; parameter dispatch `0x2d672c`; constant tables `0xd68800...0xd68a50`.
+- Core processing: pitch `0x2d6d48`, warm-up/order/limiter `0x2d69f0`, tone `0x2d7044`, modulation/noise/distortion `0x2d7388`, echo `0x2d75e8`.
+- Core profanity matching `0x27f4e8`, refresh `0x27fd08`, response/cache `0x280258`. Bounds for timbre/clarity are recovered through `0x212884/0x213060`: −100...100, nonfinite to zero.
+- UI/image 55: bleep word intervals `0x5a423c`; tone/silence renderer `0x5a44e0`; Apple Speech adapter `0x5a4994`; remote multipart request `0xdc821c`; `changeVoice` `0xdc9f38`; `changeVideoAudio` `0xdcbca0`.
+
+`tests/voice/recover_original.py` verifies the IPA hash and decodes the actual jump-table/constant-pool preset values. `original_audio_fixture.json` is the verified native-test fixture. This is evidence for coefficients and protocol, not an assertion that Apple codecs or output samples have already been compared on device.
+
+## Settings and processing contracts
+
+| Key | Default / behavior |
 | --- | --- |
-| `WhitegramVoiceSettings.swift` | `submodules/TelegramCore/Sources/WhitegramVoiceSettings.swift` |
-| `WhitegramVoiceDSP.swift` | `submodules/TelegramCore/Sources/WhitegramVoiceDSP.swift` |
-| `WhitegramVoiceSliderItem.swift` | `submodules/SettingsUI/Sources/WhitegramVoiceSliderItem.swift` |
-| `WhitegramVoiceSettingsController.swift` | `submodules/SettingsUI/Sources/WhitegramVoiceSettingsController.swift` |
+| `voiceChangerEnabled` | false; local DSP also requires local mode and a known preset |
+| `voiceChangerMode` | 0 = ElevenLabs; 1 = local; unknown values inactive |
+| `voiceChangerPreset` | 0 = Custom; then Echo, Child, Adult, Robot, Helium, Monster, Radio, Whisper, Alien, Cavern |
+| `voiceChangerPitch` | 0; −12...12 semitones; half-semitone UI steps |
+| `voiceChangerTimbre`, `voiceChangerClarity` | 0; −100...100 percent |
+| `voiceChangerEcho` | 0; 0...100 percent |
+| `voiceBleepEnabled`, `voiceBleepMode` | false; 0 = beep, 1 = silence; selective word censoring unless whole-recording opt-in is set |
+| `voiceBleepWholeRecording` | existing port-only default-false opt-in; never inferred from the original selective-bleep flag |
+| `voiceChangerVoiceId`, `voiceChangerVoiceName` | empty strings until selected |
+| `voiceChangerApiKey` | migrated to the Keychain item above; empty direct key is an error |
+| `voiceChangerUseProxy` | **true when absent**; explicit false selects direct ElevenLabs |
+| `voiceChangerInCalls` | false; local effects only on the shared outgoing audio device |
 
-The same mapping is exported as `VOICE_RUNTIME_FILES` by `whitegram/voice_patches.py`. Parent integration calls `apply_voice_patches(root: Path) -> dict[str, list[str]]` after runtime copying. It uses the parent's `SourcePatches.replace(..., count=1)` and `write()`, with all anchors validated before writes. Its report key is `voice-message-local-pcm`.
+Recovered local preset controls, in pitch/timbre/echo/clarity order:
 
-### Dependencies
-
-- **TelegramCore runtime:** Foundation and CoreFoundation only. `WhitegramVoiceSettings(values:)` accepts a primitive dictionary; DSP does not import TelegramUIPreferences, Display, UIKit, AVFoundation, Accelerate, or a network client.
-- **SettingsUI:** AccountContext, Display, ItemListUI, SwiftSignalKit, TelegramCore, TelegramPresentationData; the slider also uses UIKit and AsyncDisplayKit. All module dependencies already exist in the examined `SettingsUI/BUILD`. Its recursive Swift source glob includes the new files.
-- **TelegramUI hook:** existing `import TelegramCore` and existing Bazel dependency suffice. The Core classes/methods used across the boundary are public.
-- **Preferences:** the screen uses the parent's `WhitegramPreferences.values()`, `update(_:) -> Bool`, and `updatedNotification`. It reports save failures and refreshes external changes. The recorder takes a single dictionary snapshot at context construction. Primitive mirroring to `wg_<key>` is handled by the parent preferences implementation.
-- **Frameworks/build:** Foundation/CoreFoundation/UIKit are SDK frameworks. No extra third-party library, audio engine, framework declaration, build target, microphone permission, or plist entry is introduced by these files.
-
-## Source paths examined
-
-Authoritative source: `C:\Users\Pisun4ik\AppData\Local\Temp\opencode\whitegram-port-12.9.2`.
-Additional compatibility target: `C:\Users\Pisun4ik\AppData\Local\Temp\wg`.
-
-1. `submodules/TelegramUI/Sources/ManagedAudioRecorder.swift`
-   - `rendererInputProc` allocates the incoming AudioBuffer and schedules `processAndDisposeAudioBuffer` on the recorder's serial `Queue`.
-   - `audioRecorderNativeStreamDescription` specifies one channel and packed signed 16-bit samples. `setupAudioUnit()` explicitly requests **48000 Hz**.
-   - `processAndDisposeAudioBuffer` copies PCM into an owned encoder packet and retains incomplete input in `audioBuffer`. Only the complete-packet branch is hooked.
-2. `submodules/OpusBinding/Sources/opusenc/opusenc.m` and its public `TGOggOpusWriter.h`
-   - The writer initializes `rate = 48000`, `coding_rate = 48000`, `frame_size = 960` and calls `opus_encode` with signed Int16 PCM.
-   - The recorder's misleading `16000 / 1000 * 60 * 2` arithmetic also produces **1920 bytes = 960 samples = 20 ms at 48 kHz**. It is not a 16 kHz DSP input.
-   - `encodedDuration` comes from `total_samples / coding_rate`; the new code never changes these values or frame sizes.
-3. `submodules/TelegramUI/Sources/Chat/ChatControllerMediaRecording.swift`
-   - `requestAudioRecorder` obtains the managed recorder via `mediaManager.audioRecorder`.
-   - Both preview/pause and immediate-send paths store `data.compressedData` from `takenRecordedData()`.
-   - Preview-send uses the same resource (or the existing trim path). Messages retain `audio/ogg`, `.Audio(isVoice: true, ...)`, existing duration, and the generated waveform.
-
-Consequently the processed samples feed **waveform, recording preview, draft resource, immediate send, and preview send** through the existing encoder/resource path. This is not a playback-rate effect or a second send-time transcoder.
-
-## Recovered settings and behavior
-
-Evidence inspected under `C:\coding\telegram\whitegram\whitegram-rebuild\recovered-3.1.1\native`, with menu evidence in the sibling `whitegram-rebuild\menu-cases-3.1.1` directory:
-
-- `TelegramCoreFramework-0/types.json`: `WGVoiceEffectPreset` has `custom, echo, child, adult, robot, helium, monster, radio, whisper, alien, cavern` in that order. Its raw-value accessor at `0x2d6264` returns the case byte; the initializer at `0x2d626c` accepts `0..<11`.
-- `TelegramCoreFramework-0/assembly/002d7a6c-bb707db036.asm`: `SGSettings.voiceChangerConfiguration` enables local processing only when `voiceChangerEnabled` is true and `voiceChangerMode == 1`.
-- `0020bd34-bf4eb24635.asm` explicitly bounds pitch to **−12…+12**. `0020c0a8-a99db092c6.asm` bounds echo to **0…100**. Timbre/clarity getters call a shared clamp helper, and the active-configuration predicate treats both as signed controls. This port uses documented **−100…+100** ranges; the shared helper's numeric limits were not independently recovered.
-- `TelegramUIFramework-0/symbols.json` exposes `WGVoiceBleepProcessor.transcribeAndBleep(samples:sampleRate:appLocale:completion:)` and `process(oggPath:appLocale:completion:)`. This is evidence of word/transcription-based postprocessing, not a constant tone added to microphone audio.
-- `menu-cases-3.1.1/menu-cases.json` identifies the ElevenLabs mode label and beep/silence selector labels. The two bleep selector labels appear in beep-then-silence order; `0 = beep, 1 = silence` is the port's corresponding selector mapping.
-
-Preset names, selection IDs, key names and the local-mode gate match this evidence. **Filter coefficients, preset sounds, pitch algorithm, and signed-percentage UI are functional reimplementations**, not claims of identical IPA audio output or visuals.
-
-| Key | Local implementation |
-| --- | --- |
-| `voiceChangerEnabled` | Gates local effects together with `voiceChangerMode == 1`. The local switch explicitly selects mode 1 when enabled. |
-| `voiceChangerMode` | `0`: remote/ElevenLabs, unavailable; `1`: on-device. Unknown values are inactive rather than silently converted to a working mode. |
-| `voiceChangerPreset` | IDs `0…10` listed below. Unknown IDs are inactive. Presets use fixed coefficients; Custom uses the four stored controls. |
-| `voiceChangerPitch` | −12…+12 semitones, UI step 0.5; actual fractional-delay pitch processing at fixed sample rate/count. |
-| `voiceChangerTimbre` | −100…+100%, UI step 1; negative values darken and positive values brighten a 900 Hz low/high split. This is tone EQ, not independent vocal-formant shifting. |
-| `voiceChangerEcho` | 0…100%, UI step 1; 180 ms feedback delay for Custom, bounded feedback up to 0.5. |
-| `voiceChangerClarity` | −100…+100%, UI step 1; negative smooths around 1.6 kHz, positive reduces rumble around 100 Hz and increases presence above 2.5 kHz. No speech denoiser is claimed. |
-| `voiceBleepEnabled` / `voiceBleepMode` | Whole-message replacement is available only with the new explicit opt-in below. Otherwise a recovered automatic-word-bleep request is inactive and explained in the UI. |
-| `voiceBleepWholeRecording` | Additional default-false port marker. The clearly labeled “Replace Entire Voice Message” switch writes this with `voiceBleepEnabled`. `0 = beep` produces a 1 kHz tone at 0.16 peak with a 5 ms initial attack; `1 = silence` writes exact zero. It replaces all audio, including pauses, and takes precedence over local presets. |
-| `voiceChangerInCalls` | Read for status only. The call control always displays **off and unavailable**, even if the saved request is true. |
-
-Controls reject booleans/strings as numbers; NaN/infinities become neutral; finite out-of-range values are clamped. Enum decoding requires an exactly representable integer. Opening settings does not rewrite invalid/imported values. Failed preference saves do not optimistically enable an effect.
-
-### Local presets
-
-| ID | Name | Implemented operations |
+| Preset | Controls | Other operations |
 | --- | --- | --- |
-| 0 | Custom | Stored pitch/timbre/echo/clarity; all-zero Custom is bit-identical bypass |
-| 1 | Echo | 55% echo, 180 ms delay |
-| 2 | Child | +5 st, brighter timbre and presence |
-| 3 | Adult | −3 st, warmer timbre |
-| 4 | Robot | 65 Hz ring modulation, mix 0.85, tone/presence shaping |
-| 5 | Helium | +9 st, brighter timbre/presence |
-| 6 | Monster | −8 st, dark timbre, 32 Hz modulation and echo |
-| 7 | Radio | Approximately 300–3400 Hz shaping and soft saturation |
-| 8 | Whisper | Noise shaped by the voice envelope, mixed with 10% voice; a breathy effect, not linguistic resynthesis |
-| 9 | Alien | +4 st, 110 Hz modulation, bright timbre and echo |
-| 10 | Cavern | −1 st, smoothing, 80% echo with 300 ms delay |
+| Echo | 0 / 0 / 72 / 12 | — |
+| Child | 6.2 / 56 / 4 / 35 | — |
+| Adult | −3.8 / −34 / 3 / −8 | — |
+| Robot | −0.7 / 24 / 10 / 36 | 74 Hz ring; 0.34 distortion |
+| Helium | 9 / 72 / 2 / 44 | — |
+| Monster | −8 / −76 / 18 / −32 | 0.27 distortion |
+| Radio | 0 / 78 / 2 / 70 | 0.18 distortion |
+| Whisper | 0 / 62 / 3 / 40 | 0.82 envelope-shaped noise mix |
+| Alien | 4.8 / 38 / 28 / 20 | 31 Hz ring; 0.12 distortion |
+| Cavern | −1.3 / −25 / 90 / −20 | — |
 
-## PCM operations and lifetime
+### Local recording and calls
 
-The patch inserts three operations into `ManagedAudioRecorderContext`:
+The recorder still processes only its owned **960-sample, 48 kHz, mono Int16** packet before waveform generation and the existing Opus writer. The apparent `16000 / 1000 * 60 * 2` expression is 1920 bytes at 48 kHz, not a 16 kHz input. Partial-buffer ownership and timing are preserved; reset runs before resume/trim.
 
-1. Construct one `WhitegramVoiceProcessor` using `WhitegramPreferences.values()` and 48000 Hz beside the recorder's packet buffer property.
-2. Borrow the **complete, already-owned** packet through `UnsafeMutableBufferPointer<Int16>` and process it immediately before `processWaveformPreview` and `oggWriter.writeFrame`.
-3. Reset DSP state at the beginning of `resume()`, before trimming/restarting. This prevents an echo or delayed pitch sample from replaying a removed segment.
+DSP order is pitch → 55 ms startup blend → timbre/clarity → ring/noise/distortion → echo → soft-knee limiting. Pitch uses the recovered 90 ms history, triangular two-head weights and 16...84% read bounds (75.6 ms maximum delay at 48 kHz). Echo delay is `0.16 + amount * 0.22` seconds, with feedback `0.18 + amount * 0.48`. No effect tails or padding are added by local DSP. Neutral, disabled and unknown selections preserve PCM bit-for-bit.
 
-Local effect order: normalized PCM → pitch (if nonzero) → timbre/clarity → preset radio shaping → ring modulation/noise envelope where selected → echo → rounded, saturating Int16. Explicit whole-message masking short-circuits this chain and reads no microphone samples.
+The mono API supports 8...192 kHz. Interleaved/planar Int16 and Float adapters preserve independent channel state. The call adapter preallocates mono/stereo processors for 8/16/32/44.1/48/96 kHz, snapshots changes outside the callback, and processes a bounded owned native copy. The existing device mutex plus the processor lock serialize reconfiguration. Bleep and remote conversion are excluded from live calls. Device deactivation resets the histories.
 
-- DSP is confined to the existing serial recorder queue, **not the AudioUnit render callback**. Processing does not read preferences, allocate buffers, acquire locks, change sessions, perform I/O, or retain incoming pointers.
-- The caller's existing `malloc`, packet copies, partial-packet staging and both `defer/free` blocks retain ownership. The processor writes only within the borrowed count and never calls `free`.
-- Delay buffers are instance-owned and allocated at construction. At 48 kHz, the largest preset uses about 128 KiB of sample history. Ring indices/phases stay bounded over long recordings.
-- Disabled, neutral and unknown/remote local-effect selections bypass PCM before any floating-point conversion, unless explicitly opted-in bleep is active independently. Invalid sample rates bypass both effects and bleep.
-- Echo/pitch/filter/noise state survives arbitrary packet boundaries. Pause/resume deliberately starts a fresh effect segment. A persisted draft reopened as a **new recorder** takes current settings for newly appended audio; previously encoded audio is not transformed again. An existing recorder retains its original configuration snapshot.
-- No effect tails or synthetic padding packets are appended. The existing treatment of a final incomplete recorder packet is retained. Effects preserve the number of samples passed to the encoder.
-- Pitch is a complementary-Hann two-head fractional-delay effect, with ratio `2^(semitones/12)` and a 40 ms moving window. It has a variable delay of at most **40 ms + 2 samples** (about 40.042 ms at 48 kHz), startup history filling, possible grain/modulation artifacts, and a truncated delayed tail at stop/reset. Upward shifts use a two-stage input low-pass to reduce high-frequency aliasing; this is not a studio-quality, formant-preserving or perfect anti-aliasing pitch processor.
-- API accepts mono rates from 8–192 kHz with finite validation; the actual recorder hook is guarded to **48 kHz**. No stereo/planar/call adapter is supplied.
+### Send-time processing
 
-## Validation
+- Pause/preview retains the original resumable Ogg. Local effects are already audible there; remote conversion and selective bleeping run on send, after trimming.
+- Immediate-send and draft-send postprocessors are cancellable. Failure retains the recording/draft and presents an error. Changed/deleted/trimmed drafts reject stale results. The draft send hook runs after slow-mode eligibility and forwards scheduling, silent posting, repeat period, view-once, effect and postpone arguments.
+- Voice/privacy composition is tested in **both orders**, including replay. Audio changes only the function parameter list; privacy independently inserts its record-once eligibility check. The processed-audio retry still passes through that eligibility check.
+- Bleep uses Apple Speech word timestamps, original roots/prefixes, `ё → е`, and letter-containing `*` masks. It retains the first 30% and last 35% of each matching word, at least 10 ms per edge. Missing/very short durations use 300 ms. Overlapping intervals are merged. Beep is 1 kHz, 9000 Int16 peak, with 5 ms ramps; silence is exact zero. Whole-recording masking retains its separate 0.16-peak tone behavior.
+- Direct conversion: `POST https://api.elevenlabs.io/v1/speech-to-speech/{voiceId}?output_format=mp3_44100_128`, `xi-api-key`, `Accept: audio/mpeg`; multipart `model_id=eleven_multilingual_sts_v2`, `file_format=other`, `audio=voice.wav`. Voice list: `GET /v1/voices`. HTTP/decoding failures are errors, not successful empty results. Direct sessions are ephemeral and reject redirects.
+- Video notes snapshot settings at camera-screen creation and disable live upload when audio processing is requested. They concatenate/trim recorded segments, process audio, encode AAC, and remux with passthrough video. Failure restores send eligibility and the preview. Original view-once/schedule behavior composes with the audio hook and camera transform.
+- File conversion uses coordinated/security-scoped import and uniquely owned staging. Audio exports Ogg; video exports MP4. Cancellation/generation checks reject stale callbacks and staging survives until its last asynchronous user finishes.
 
-From the parent repository root, Python checks use in-memory file objects around the **real** `SourcePatches`; neither examined source checkout is patched on disk:
+## Checks and remaining validation
 
 ```powershell
-$env:WHITEGRAM_VOICE_SOURCE = 'C:\Users\Pisun4ik\AppData\Local\Temp\opencode\whitegram-port-12.9.2'
-$env:WHITEGRAM_VOICE_PUBLIC_SOURCE = 'C:\Users\Pisun4ik\AppData\Local\Temp\wg'
-& 'C:\Users\Pisun4ik\AppData\Local\Temp\opencode\whitegram-check-env\Scripts\python.exe' -B -m unittest discover -s whitegram/tests/voice -p 'test_*.py' -v
+$env:WHITEGRAM_VOICE_SOURCE = 'C:\coding\telegram\whitegram\source-12.9.2'
+& 'C:\coding\telegram\whitegram\whitegram-check-env\Scripts\python.exe' -B -m unittest discover -s whitegram/tests/voice -p 'test_*.py' -v
+& 'C:\coding\telegram\whitegram\whitegram-rebuild\.venv\Scripts\python.exe' -B whitegram/tests/voice/recover_original.py 'C:\coding\telegram\whitegram\whitegram-rebuild' --verify-fixture whitegram/tests/voice/original_audio_fixture.json
 ```
 
-**Observed: 13 Python tests pass** against both roots. Checks cover packet-hook ordering, resume placement, atomic anchor rejection, rate/channel/sample-width/encoder drift, unchanged source bytes, idempotence, CRLF handling, existing Bazel dependencies, and actual ItemList API signatures. Tree-sitter **0.25.2 + tree-sitter-swift 0.7.3** parses all four runtime files, the native harness, and patched full recorder source. Parsing is not Swift typechecking.
+The source suite checks all runtime files, Swift syntax, real ItemList/BUILD contracts, complete adapter replay, fail-before-write, packet-format drift, both privacy orders and both camera orders. It never writes the reference. See `parity/audio.json` for the final measured results.
 
-The native harness compiles **the production settings and DSP files**, without a Python DSP clone or UIKit/Telegram stubs:
+On the parent's macOS/Swift host:
 
 ```sh
 python3 -B whitegram/tests/voice/run_native.py --require-swift
-# On a Swift toolchain with AddressSanitizer:
 python3 -B whitegram/tests/voice/run_native.py --require-swift --sanitize-address
 ```
 
-It uses `swiftc -parse-as-library -O -warnings-as-errors` and writes build output only under `whitegram/tests/voice/.native/`. Thirteen native groups check exhaustive Int16 disabled identity, finite/bounded controls, borrowed-buffer boundaries and lifetime, sample-count and packet-partition invariance, echo delay/decay/persistence, reset equivalence, full-scale saturation without wraparound, audible presets/silent input, pitch-frequency movement at unchanged duration, tone spectral balance, independent simultaneous processors, bleep opt-in/tone/masking/reset, and invalid rates/immutable snapshots. Frequency tests use a Goertzel analyzer of the real output.
+The harness compiles production code: **15 DSP groups** (including original preset coefficients and stereo/Float adapters), plus **4 protocol/matcher/cache groups** using a local URLProtocol fixture. No live provider requests are made by these tests.
 
-**Observed native result: SKIP — `swiftc` is unavailable on this host. No native DSP assertions, iOS typecheck, Opus round-trip, acoustic-quality test, or device performance measurement has run here.** `--require-swift` turns a missing compiler into a CI failure rather than a pass. Parent validation still needs the native harness and an actual Telegram build/device recording-preview-send test, including pause/trim/resume and a restored draft.
+**No Swift executable, iOS typecheck, codec round-trip, Speech run, live call, or device audio check ran on Windows.** Required remaining checks: native harness; full Xcode build/Objective-C bridging; Opus partial-final-frame duration/waveform; Speech authorization/locale/cancellation; video trim/AAC remux and A/V timing; call route/mute/interruption behavior; and recorded output against the original IPA.
 
-## Unsupported / exact remaining limits
-
-- Automatic word/profanity detection and selective word bleeping from the recovered transcription pipeline are **not implemented**. Whole-message replacement is deliberately a separate opt-in with explicit semantics; it is not presented as automatic censoring.
-- Remote ElevenLabs/API voice conversion/cloning is unavailable. No guessed endpoint, request format, API-key input, proxy promise or success status is supplied.
-- Calls/RTP/VoIP, video messages and existing imported audio are not connected to this PCM adapter.
-- The UI uses functional ItemList controls and English labels; exact recovered visuals/localization and a standalone microphone/audio-preview UI are outside this slice. Telegram's normal voice-message preview hears the encoded effect.
-
-## Files in this slice
-
-Four `cleanroom/WhitegramVoice*.swift` runtime files, `voice_patches.py`, this document, and `tests/voice/{test_voice_patches.py,run_native.py,WhitegramVoiceDSPTests.swift}`. Runtime copying, main-menu routing, and invoking the modular patcher are parent integration steps.
+Known limits: processing is bounded to 20 minutes and file input/output to 256 MiB; remote responses to 64 MiB. Video segments with incompatible transforms are rejected. Converted audio is clipped/padded to the original picture duration rather than retiming the picture; remote-service duration drift needs lip-sync validation. The legacy non-shared call-device path, exact voice-picker preview UX, original full visual layout, and complete localization of explanatory text are not claimed as restored. Proxy authentication/pinning and signed profanity refresh require the parent hooks above.

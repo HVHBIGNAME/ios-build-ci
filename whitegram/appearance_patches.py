@@ -3,6 +3,17 @@
 from pathlib import Path
 
 from source_patches import SourcePatches
+from appearance_parity_patches import replace
+
+
+APPEARANCE_RUNTIME_FILES = {
+    "WhitegramFontRegistry.swift": "submodules/Display/Source/WhitegramFontRegistry.swift",
+    "WhitegramFontHistory.swift": "submodules/Display/Source/WhitegramFontHistory.swift",
+    "WhitegramFontArchivePlan.swift": "submodules/SettingsUI/Sources/WhitegramFontArchivePlan.swift",
+    "WhitegramFontArchiveImport.swift": "submodules/SettingsUI/Sources/WhitegramFontArchiveImport.swift",
+    "WhitegramFontsController.swift": "submodules/SettingsUI/Sources/WhitegramFontsController.swift",
+    "WhitegramIconsController.swift": "submodules/SettingsUI/Sources/WhitegramIconsController.swift",
+}
 
 
 FONT_PATH = "submodules/Display/Source/Font.swift"
@@ -25,7 +36,7 @@ CONVENIENCE_FONTS = (
 
 def apply_appearance_patches(root: Path) -> dict[str, list[str]]:
     patches = SourcePatches(root)
-    patches.replace("customFonts", FONT_PATH, FONT_WITH, FONT_WITH + FONT_HOOK)
+    replace(patches, "customFonts", FONT_PATH, FONT_WITH, FONT_WITH + FONT_HOOK)
     for name, weight, traits in CONVENIENCE_FONTS:
         signature = f"    public static func {name}(_ size: CGFloat) -> UIFont {{\n"
         hook = (
@@ -34,6 +45,6 @@ def apply_appearance_patches(root: Path) -> dict[str, list[str]]:
             "            return customFont\n"
             "        }\n"
         )
-        patches.replace("customFonts", FONT_PATH, signature, signature + hook)
+        replace(patches, "customFonts", FONT_PATH, signature, signature + hook)
     # heavy already delegates to with; leave that route and every original fallback intact.
     return patches.write()

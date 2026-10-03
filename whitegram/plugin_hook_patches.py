@@ -12,6 +12,10 @@ from source_patches import SourcePatches
 PLUGIN_HOOK_RUNTIME_FILES = {
     "WhitegramPluginEventHub.swift": "submodules/TelegramCore/Sources/WhitegramPluginEventHub.swift",
     "WhitegramPluginHooks.swift": "submodules/TelegramCore/Sources/WhitegramPluginHooks.swift",
+    "WhitegramPluginInterception.swift": "submodules/TelegramCore/Sources/WhitegramPluginInterception.swift",
+    "WhitegramPluginNativeInterception.swift": "submodules/TelegramCore/Sources/WhitegramPluginNativeInterception.swift",
+    "WhitegramPluginArchive.swift": "submodules/SettingsUI/Sources/Whitegram/WhitegramPluginArchive.swift",
+    "WhitegramPluginContributions.swift": "submodules/TelegramCore/Sources/WhitegramPluginContributions.swift",
 }
 
 
@@ -44,6 +48,16 @@ def plugin_hook_patches(patches: SourcePatches) -> None:
 ''')
 
     enqueue = "submodules/TelegramCore/Sources/PendingMessages/EnqueueMessage.swift"
+    anchor = "public func enqueueMessages(account: Account, peerId: PeerId, messages: [EnqueueMessage]) -> Signal<[MessageId?], NoError> {\n"
+    _replace(patches, "pluginSendInterception", enqueue, anchor, anchor + '''    return WhitegramPluginNativeInterception.outgoing(account: account, peerId: peerId, messages: messages)
+    |> mapToSignal { accepted -> Signal<[MessageId?], NoError> in
+        guard let accepted = accepted else { return .single(Array(repeating: nil, count: messages.count)) }
+        return whitegramPluginEnqueueAcceptedMessages(account: account, peerId: peerId, messages: accepted)
+    }
+}
+
+private func whitegramPluginEnqueueAcceptedMessages(account: Account, peerId: PeerId, messages: [EnqueueMessage]) -> Signal<[MessageId?], NoError> {
+''')
     anchor = "        return messageIds\n    } else {\n        return []\n    }\n"
     _replace(patches, "pluginOutgoingEvents", enqueue, anchor, '''        WhitegramPluginHooks.enqueued(postbox: account.postbox, transaction: transaction, ids: messageIds)
 ''' + anchor)
@@ -93,6 +107,51 @@ def plugin_hook_patches(patches: SourcePatches) -> None:
     anchor = "    deinit {\n"
     _replace(patches, "pluginChatEvents", chat, anchor, anchor + '''        WhitegramPluginHooks.chatClosed(postbox: self.context.account.postbox, token: self.whitegramPluginChatToken)
 ''')
+
+    network = "submodules/TelegramCore/Sources/Network/Network.swift"
+    for signature, result in [
+        ("requestWithAdditionalInfo<T>(_ data: (FunctionDescription, Buffer, DeserializeFunctionResponse<T>), info: NetworkRequestAdditionalInfo", "NetworkRequestResult<T>"),
+        ("request<T>(_ data: (FunctionDescription, Buffer, DeserializeFunctionResponse<T>)", "T"),
+    ]:
+        anchor = f"    public func {signature}, tag: NetworkRequestDependencyTag? = nil, automaticFloodWait: Bool = true, onFloodWaitError: ((String) -> Void)? = nil) -> Signal<{result}, MTRpcError> {{\n        let requestService = self.requestService\n"
+        _replace(patches, "pluginRequestInterception", network, anchor, anchor + f'''        return WhitegramPluginNativeInterception.request(network: self, description: data.0)
+        |> mapToSignal {{ _ -> Signal<{result}, MTRpcError> in
+''')
+    anchor = "                requestService?.removeRequest(byInternalId: internalId)\n            }\n        }\n    }\n"
+    _replace(patches, "pluginRequestInterception", network, anchor, anchor.replace("\n        }\n    }\n", "\n        }\n        }\n    }\n"), count=2)
+    anchor = "            request.completed = { (boxedResponse, timestamp, error) -> () in\n"
+    _replace(patches, "pluginRequestEvents", network, anchor, anchor + '''                WhitegramPluginNativeInterception.response(network: self, description: data.0, error: error)
+''', count=2)
+
+    root_controller = "submodules/TelegramUI/Sources/TelegramRootController.swift"
+    anchor = "    required public init(coder aDecoder: NSCoder) {\n"
+    _replace(patches, "pluginAutostart", root_controller, anchor, '''    override public func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        whitegramBootstrapPlugins(context: self.context, navigation: self)
+    }
+
+''' + anchor)
+
+    menu = "submodules/TelegramUI/Sources/ChatInterfaceStateContextMenus.swift"
+    anchor = "        return ContextController.Items(content: .list(actions), tip: nil)\n"
+    _replace(patches, "pluginMessageMenu", menu, anchor, '''        if message.id.namespace == Namespaces.Message.Cloud,
+           [Namespaces.Peer.CloudUser, Namespaces.Peer.CloudGroup, Namespaces.Peer.CloudChannel].contains(message.id.peerId.namespace) {
+            let pluginItems = WhitegramPluginContributions.shared.messageMenu(scope: context.account.postbox)
+            if !pluginItems.isEmpty { actions.append(.separator) }
+            for item in pluginItems {
+                actions.append(.action(ContextMenuActionItem(text: item.title, icon: { theme in
+                    return UIImage(systemName: item.icon)?.withTintColor(theme.contextMenu.primaryColor, renderingMode: .alwaysOriginal)
+                }, action: { _, f in
+                    f(.dismissWithoutContent)
+                    WhitegramPluginContributions.shared.activate(scope: context.account.postbox, token: item.token, payload: [
+                        "id": item.id, "peerId": String(message.id.peerId.toInt64()), "messageId": message.id.id,
+                        "text": String(decoding: message.text.utf8.prefix(16384), as: UTF8.self),
+                        "namespace": message.id.namespace, "scope": "messageMenu"
+                    ])
+                })))
+            }
+        }
+''' + anchor)
 
 
 def apply_plugin_hook_patches(root: Path) -> dict[str, list[str]]:

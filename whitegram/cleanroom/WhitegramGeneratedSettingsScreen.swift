@@ -14,15 +14,15 @@ private final class WhitegramSettingsCoordinator {
     var query = ""
     weak var controller: ViewController?
     private var revision = 0
-    private var observer: NSObjectProtocol?
+    private var observers: [NSObjectProtocol] = []
 
     init(context: AccountContext) {
         self.context = context
-        self.observer = NotificationCenter.default.addObserver(forName: WhitegramPreferences.updatedNotification, object: nil, queue: nil) { [weak self] _ in
-            DispatchQueue.main.async { self?.changed() }
+        for name in [WhitegramPreferences.updatedNotification, WhitegramLocalizationStore.changedNotification] {
+            observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in self?.changed() })
         }
     }
-    deinit { if let observer { NotificationCenter.default.removeObserver(observer) } }
+    deinit { for observer in observers { NotificationCenter.default.removeObserver(observer) } }
     func changed() { self.revision += 1; self.updates.set(self.revision) }
 
     func update(_ id: String, value: Bool) {
@@ -38,11 +38,23 @@ private final class WhitegramSettingsCoordinator {
         guard let screen = WhitegramPortCapabilities.screens[id] else { return }
         let target: ViewController
         switch screen {
+        case "localization": target = whitegramLocalizationController(context: self.context)
+        case "keychainAccounts": target = whitegramKeychainAccountsController(context: self.context)
+        case "accountTransfer": target = whitegramAccountTransferController(context: self.context)
+        case "botAccounts": target = whitegramBotAccountsController(context: self.context)
+        case "player": target = whitegramPlayerSettingsController(context: self.context)
+        case "equalizer": target = whitegramPlayerEqualizerController(context: self.context)
+        case "appearanceControls": target = whitegramAppearanceControlsController(context: self.context)
+        case "localStars": target = whitegramLocalStarsController(context: self.context)
+        case "glass": target = whitegramGlassController(context: self.context)
+        case "iconPacks": target = whitegramIconPacksController(context: self.context)
         case "media": target = whitegramMediaSettingsController(context: self.context)
         case "translation": target = whitegramTranslationSettingsController(context: self.context)
         case "settingsTransfer": target = whitegramSettingsTransferController(context: self.context, action: WhitegramSettingsTransferAction(rawValue: id))
         case "appearanceExtensions": target = whitegramAppearanceController(context: self.context)
-        case "history": target = whitegramHistoryController(context: self.context)
+        case "history":
+            guard let action = WhitegramHistoryAction(rawValue: id) else { return }
+            target = whitegramHistoryActionController(context: self.context, action: action)
         case "chats": target = whiteGramChatSettingsController(context: self.context)
         case "tabs": target = whiteGramTabsSettingsController(context: self.context)
         case "fonts": target = whitegramFontsController(context: self.context)
@@ -99,14 +111,14 @@ public func whitegramGeneratedSettingsController(context: AccountContext, sectio
     let signal = combineLatest(context.sharedContext.presentationData, coordinator.updates.get())
     |> deliverOnMainQueue
     |> map { presentationData, _ -> (ItemListControllerState, (ItemListNodeState, Any)) in
-        let russian = presentationData.strings.baseLanguageCode.hasPrefix("ru")
+        let russian = WhitegramLocalization.selectedLanguage(baseLanguage: presentationData.strings.baseLanguageCode) == "ru"
         let rows = WhitegramSettingsCatalog.rows.compactMap { descriptor -> WhitegramSettingsRow? in
             if let sections, !sections.contains(descriptor.section) { return nil }
             let supported = WhitegramPortCapabilities.booleans[descriptor.id] != nil || WhitegramPortCapabilities.screens[descriptor.id] != nil
             if availableOnly && !supported { return nil }
-            let rowTitle = WhitegramPortCapabilities.title(descriptor, russian: russian)
+            let rowTitle = WhitegramPortCapabilities.title(descriptor, baseLanguage: presentationData.strings.baseLanguageCode)
             if !coordinator.query.isEmpty && !rowTitle.localizedCaseInsensitiveContains(coordinator.query) && !descriptor.id.localizedCaseInsensitiveContains(coordinator.query) { return nil }
-            let value = WhitegramPortCapabilities.booleans[descriptor.id].map { WhitegramPreferences.bool($0) }
+            let value = WhitegramPortCapabilities.booleanValue(descriptor.id)
             return WhitegramSettingsRow(descriptor: descriptor, title: rowTitle, value: value, russian: russian)
         }
         let state = ItemListControllerState(presentationData: ItemListPresentationData(presentationData), title: .text(title), leftNavigationButton: nil, rightNavigationButton: ItemListNavigationButton(content: .icon(.search), style: .regular, enabled: true, action: { coordinator.search() }), backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back), animateChanges: false)

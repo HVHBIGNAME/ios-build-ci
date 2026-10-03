@@ -1,12 +1,15 @@
 """Run production media settings and ImageIO metadata cleaning on an Apple host."""
 
 from pathlib import Path
+import platform
 import shutil
 import subprocess
 import tempfile
 
 
 def main() -> int:
+    if platform.system() != "Darwin":
+        raise SystemExit("Native media tests require macOS with Apple's Foundation, CoreGraphics and ImageIO")
     swift = shutil.which("swift")
     if swift is None:
         raise SystemExit("Swift is required for native media tests")
@@ -26,11 +29,12 @@ let package = Package(name: "WhitegramMediaChecks", platforms: [.macOS(.v12)], t
     .testTarget(name: "MediaTests", dependencies: ["TelegramCore", "LocalMediaResources"])
 ])
 ''', encoding="utf-8")
-        for name in ("WhitegramPreferences.swift", "WhitegramMediaSettings.swift"):
+        for name in ("WhitegramPreferences.swift", "WhitegramMediaSettings.swift", "WhitegramTransferSettings.swift"):
             shutil.copyfile(overlay / "cleanroom" / name, core / name)
         shutil.copyfile(overlay / "generated/WhitegramSettingsState.swift", core / "WhitegramSettingsState.swift")
         shutil.copyfile(overlay / "cleanroom/WhitegramPhotoMetadata.swift", resources / "WhitegramPhotoMetadata.swift")
-        shutil.copyfile(here / "WhitegramMediaTests.swift", tests / "WhitegramMediaTests.swift")
+        for source in here.glob("*Tests.swift"):
+            shutil.copyfile(source, tests / source.name)
         return subprocess.run([swift, "test", "--package-path", str(root)], check=False).returncode
 
 

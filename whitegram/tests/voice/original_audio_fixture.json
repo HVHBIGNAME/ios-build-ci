@@ -1,0 +1,29 @@
+{
+  "ipa_sha256": "bd6d3a13046d5857c1389e2d794c4c2ca44cee89bb22880004bd77f84fe29837",
+  "voice_parameter_entrypoint": "46:0x2d672c",
+  "voice_parameter_order": ["pitch_semitones", "timbre_percent", "echo_percent", "clarity_percent", "ring_hz", "distortion", "noise_mix"],
+  "voice_presets": [
+    [0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 72, 12, 0, 0, 0],
+    [6.2, 56, 4, 35, 0, 0, 0],
+    [-3.8, -34, 3, -8, 0, 0, 0],
+    [-0.7, 24, 10, 36, 74, 0.34, 0],
+    [9, 72, 2, 44, 0, 0, 0],
+    [-8, -76, 18, -32, 0, 0.27, 0],
+    [0, 78, 2, 70, 0, 0.18, 0],
+    [0, 62, 3, 40, 0, 0, 0.82],
+    [4.8, 38, 28, 20, 31, 0.12, 0],
+    [-1.3, -25, 90, -20, 0, 0, 0]
+  ],
+  "equalizer_entrypoint": "55:0xcb0d30",
+  "equalizer_presets": {
+    "bass": [8, 6, 4, 2, 0, 0, 0, 0, 0, 0],
+    "treble": [-2, -2, 0, 0, 0, 2, 4, 6, 6, 6],
+    "pop": [-2, 0, 2, 4, 4, 2, 0, -2, -2, -2],
+    "rock": [4, 2, -2, -4, -2, 2, 4, 6, 6, 4],
+    "jazz": [2, 2, 0, -2, -2, 0, 2, 4, 4, 4],
+    "classical": [0, 0, 0, 0, 0, 0, -2, -4, -4, -4]
+  },
+  "bleep_entrypoints": ["55:0x5a423c", "55:0x5a44e0"],
+  "bleep_constants": {"minimum_word_duration": 0.02, "fallback_word_duration": 0.3, "left_edge_fraction": 0.3, "right_edge_fraction": 0.35, "minimum_edge_seconds": 0.01, "tone_hz": 1000, "tone_peak": 9000, "ramp_seconds": 0.005}
+}

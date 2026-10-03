@@ -12,6 +12,7 @@ final class WhitegramSettingsTransferStoreTests: XCTestCase {
         ownedKeys = [WhitegramPreferences.storageKey, "WhitegramPrivacySettings.v1", "WhitegramArchiveTest-Unrelated", "geminiApiKey", "wg_geminiApiKey", "wg_groqApiKey", "wg_virusTotalApiKey", "wg_voiceChangerApiKey"]
         ownedKeys.formUnion(WhitegramSettingsArchiveMirrors.bindings.map { $0.store })
         ownedKeys.formUnion(WhitegramSettingsArchiveSchema.rules.keys.map { "wg_" + $0 })
+        ownedKeys.insert("wg_activeWhitegramAccountId")
         for key in ownedKeys {
             if let value = UserDefaults.standard.object(forKey: key) { saved[key] = value }
             UserDefaults.standard.removeObject(forKey: key)
@@ -81,7 +82,7 @@ final class WhitegramSettingsTransferStoreTests: XCTestCase {
             "hideStories": true, "disableSwipeToRecordStory": true, "hideFavorites": true,
             "foldersAtBottom": true, "public.folders.openLastFolder": true,
             "public.other.translationService": "telegram", "forceDeviceMicrophone": true,
-            "musicEqualizerBands": [-2.5, 0.0, 1.25]
+            "musicEqualizerBands": [-2.5, 0.0, 1.25, 0, 0, 0, 0, 0, 0, 0]
         ])
         _ = try WhitegramSettingsArchiveStore.importSettings(archive)
         let currentChat = WhiteGramChatSettings.current
@@ -105,7 +106,7 @@ final class WhitegramSettingsTransferStoreTests: XCTestCase {
         XCTAssertEqual(WhiteGramOtherSettings.current.translationService, .telegram)
         XCTAssertTrue(WhiteGramOtherSettings.current.forceDeviceMicrophone)
         XCTAssertTrue(UserDefaults.standard.bool(forKey: "wg_showTimestampSeconds"))
-        XCTAssertEqual(UserDefaults.standard.array(forKey: "wg_musicEqualizerBands") as? [Double], [-2.5, 0, 1.25])
+        XCTAssertEqual(UserDefaults.standard.array(forKey: "wg_musicEqualizerBands") as? [Double], [-2.5, 0, 1.25, 0, 0, 0, 0, 0, 0, 0])
     }
 
     func testPublicOnlyImportPreservesCanonicalFlagsAndDoubleTapStaysCoherent() throws {
@@ -198,7 +199,7 @@ final class WhitegramSettingsTransferStoreTests: XCTestCase {
             UserDefaults.standard.removeObject(forKey: "wg_localStarsCount")
             try store(["localStarsCount": old, "ghostModeEnabled": true, "particleMode": 1.5, "fontHistory": true])
             let current = WhitegramSettingsState.current
-            XCTAssertEqual(current.localStarsCount, 0)
+            XCTAssertEqual(current.localStarsCount, 9999)
             XCTAssertTrue(current.ghostModeEnabled)
             XCTAssertEqual(current.particleMode, 0)
             XCTAssertEqual(current.fontHistory, [])
@@ -238,5 +239,80 @@ final class WhitegramSettingsTransferStoreTests: XCTestCase {
         let result = try WhitegramSettingsArchiveStore.importSettings(SettingsArchiveFixture.archive(["compactChatList": true]))
         XCTAssertTrue(result.restartRecommended)
         XCTAssertTrue(WhiteGramChatSettings.current.compactChatList)
+    }
+
+    func testFolderLocationBridgeIsBidirectionalWithoutLosingOtherFolderSettings() throws {
+        var folders = WhiteGramChatFolderSettings.defaultSettings
+        folders.lastFolderId = 42
+        folders.openLastFolder = true
+        UserDefaults.standard.set(try JSONEncoder().encode(folders), forKey: WhitegramSettingsArchiveMirrors.folders)
+        XCTAssertTrue(WhitegramPreferences.set(true, for: "foldersAtBottom"))
+        XCTAssertTrue(WhiteGramChatFolderSettings.current.foldersAtBottom)
+        var changed = WhiteGramChatFolderSettings.current
+        changed.foldersAtBottom = false
+        changed.save(notify: false)
+        XCTAssertFalse(WhitegramPreferences.bool("foldersAtBottom"))
+        XCTAssertEqual(WhiteGramChatFolderSettings.current.lastFolderId, 42)
+        XCTAssertTrue(WhiteGramChatFolderSettings.current.openLastFolder)
+    }
+
+    func testOptionalAccountIdentityNeverCoercesBooleanOrLosesOtherSettings() throws {
+        let invalidValues: [Any] = [true, false, "123", 1.5, UInt64.max]
+        for invalid in invalidValues {
+            try store(["activeWhitegramAccountId": invalid, "ghostModeEnabled": true])
+            XCTAssertNil(WhitegramSettingsState.current.activeWhitegramAccountId)
+            XCTAssertTrue(WhitegramSettingsState.current.ghostModeEnabled)
+        }
+        let exact: Int64 = 9007199254740993
+        UserDefaults.standard.set(exact, forKey: "wg_activeWhitegramAccountId")
+        try store(["activeWhitegramAccountId": false, "ghostModeEnabled": true])
+        XCTAssertEqual(WhitegramSettingsState.current.activeWhitegramAccountId, exact)
+        try store(["activeWhitegramAccountId": Int64.max, "ghostModeEnabled": true])
+        XCTAssertEqual(WhitegramSettingsState.current.activeWhitegramAccountId, Int64.max)
+        XCTAssertFalse(try WhitegramSettingsArchiveStore.exportSettings().archive.keys.contains("activeWhitegramAccountId"))
+    }
+
+    func testLegacyCameraSelectionSurvivesFirstPublicSettingsSave() throws {
+        UserDefaults.standard.set(1, forKey: "wg_videoMessageCamera")
+        let current = WhiteGramChatSettings.current
+        XCTAssertEqual(current.videoMessageCamera, .back)
+        WhitegramForkBridge.saveChat(current)
+        XCTAssertEqual(WhitegramPreferences.number("videoMessageCamera"), 1)
+        XCTAssertEqual(UserDefaults.standard.integer(forKey: "wg_videoMessageCamera"), 1)
+    }
+
+    func testTwoHundredPercentStickersSurviveImportAndPublicSettingsSave() throws {
+        _ = try WhitegramSettingsArchiveStore.importSettings(SettingsArchiveFixture.archive(["stickerSizeScale": 2.0]))
+        XCTAssertEqual(WhiteGramChatSettings.current.stickerSizePercent, 200)
+        WhitegramForkBridge.saveChat(WhiteGramChatSettings.current)
+        XCTAssertEqual(WhitegramPreferences.number("stickerSizeScale"), 2.0)
+        let exported = try WhitegramSettingsArchiveStore.exportSettings()
+        XCTAssertEqual(exported.archive.values["stickerSizeScale"] as? Double, 2.0)
+    }
+
+    func testLanguageImportUpdatesBothOriginalSelectorsAndRejectsConflicts() throws {
+        _ = try WhitegramSettingsArchiveStore.importSettings(SettingsArchiveFixture.archive(["menuLanguageCode": "uk"]))
+        XCTAssertEqual(WhitegramPreferences.number("menuLanguage"), 1)
+        XCTAssertEqual(UserDefaults.standard.integer(forKey: "wg_menuLanguage"), 1)
+        _ = try WhitegramSettingsArchiveStore.importSettings(SettingsArchiveFixture.archive(["menuLanguage": 2]))
+        XCTAssertEqual(WhitegramPreferences.string("menuLanguageCode"), "en")
+        XCTAssertEqual(UserDefaults.standard.string(forKey: "wg_menuLanguageCode"), "en")
+        XCTAssertThrowsError(try SettingsArchiveFixture.archive(["menuLanguage": 0, "menuLanguageCode": "uk"]))
+    }
+
+    func testOriginalVisibilityDoesNotOverwriteIndependentPublicChoices() throws {
+        _ = try WhitegramSettingsArchiveStore.importSettings(SettingsArchiveFixture.archive([
+            "hideReactions": true, "hideBottomTabBar": true,
+            "public.chat.channelPostReactions": true, "public.tabs.compactPanel": false
+        ]))
+        XCTAssertTrue(WhiteGramChatSettings.current.channelPostReactions)
+        XCTAssertFalse(WhiteGramTabSettings.current.compactPanel)
+        WhitegramForkBridge.saveChat(WhiteGramChatSettings.current)
+        WhitegramForkBridge.saveTabs(WhiteGramTabSettings.current)
+        XCTAssertTrue(WhitegramPreferences.bool("hideReactions"))
+        XCTAssertTrue(WhitegramPreferences.bool("hideBottomTabBar"))
+        let exported = try WhitegramSettingsArchiveStore.exportSettings().archive
+        XCTAssertEqual(exported.values["public.chat.channelPostReactions"] as? Bool, true)
+        XCTAssertEqual(exported.values["public.tabs.compactPanel"] as? Bool, false)
     }
 }

@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 import UIKit
 import CoreText
 
@@ -49,8 +50,16 @@ public final class WhitegramFontRegistry {
     private var activeName: String?
     private var unmirroredSelection: (enabled: Bool, name: String)?
     private var generation = 0
+    private var observer: NSObjectProtocol?
 
     private init() {
+        self.observer = NotificationCenter.default.addObserver(forName: Notification.Name("WhitegramSettingsStateUpdated"), object: nil, queue: nil) { [weak self] _ in
+            self?.invalidateCache()
+        }
+    }
+
+    deinit {
+        if let observer = self.observer { NotificationCenter.default.removeObserver(observer) }
     }
 
     public func library() -> (fonts: [WhitegramFontRecord], warnings: [String], revision: Int) {
@@ -95,7 +104,7 @@ public final class WhitegramFontRegistry {
 
     private func selectedNameLocked() -> String? {
         let defaults = UserDefaults.standard
-        let enabled = defaults.object(forKey: "wg_customFontEnabled") as? Bool
+        let enabled = defaults.object(forKey: "wg_customFontEnabled").map { Self.boolean($0) }
         let name = defaults.object(forKey: "wg_customFontName") as? String
         // An explicit off/reset always wins, even if the older snapshot had a selection.
         if enabled == false || name == "" {
@@ -108,7 +117,7 @@ public final class WhitegramFontRegistry {
             let saved = Self.fontSettings(defaults.data(forKey: "WhitegramSettingsState.v1"))
             let legacy = Self.fontSettings(defaults.data(forKey: "WhitegramPrivacySettings.v1"))
             self.unmirroredSelection = (
-                ((saved["customFontEnabled"] ?? legacy["customFontEnabled"]) as? Bool) ?? false,
+                Self.boolean(saved["customFontEnabled"] ?? legacy["customFontEnabled"]),
                 ((saved["customFontName"] ?? legacy["customFontName"]) as? String) ?? ""
             )
         }
@@ -130,6 +139,11 @@ public final class WhitegramFontRegistry {
         }
     }
 
+    private static func boolean(_ value: Any?) -> Bool {
+        guard let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() else { return false }
+        return number.boolValue
+    }
+
     public func previewFont(named name: String, size: CGFloat, weight: Font.Weight = .regular, traits: Font.Traits = []) -> UIFont? {
         self.lock.lock()
         defer { self.lock.unlock() }
@@ -139,36 +153,65 @@ public final class WhitegramFontRegistry {
 
     /// The caller retains security-scoped access while this synchronous operation runs.
     public func importFont(from source: URL) throws -> [WhitegramFontRecord] {
+        return try self.importFonts(from: [source])
+    }
+
+    public func importFonts(from sources: [URL]) throws -> [WhitegramFontRecord] {
         self.lock.lock()
         defer { self.lock.unlock() }
         self.prepareLocked()
-        let directory = try self.directory(create: true)
-        let fileName = UUID().uuidString + "." + source.pathExtension.lowercased()
-        let destination = directory.appendingPathComponent(fileName, isDirectory: false)
-        _ = try self.records(at: source)
-        try self.fileManager.copyItem(at: source, to: destination)
-        do {
-            let records = try self.records(at: destination)
-            for record in records {
-                if UIFont(name: record.name, size: 16.0) != nil {
-                    throw WhitegramFontRegistryError(message: "\(record.displayName) is already available. Choose it from the font list or the system font picker. If you just removed it, restart Whitegram before importing it again.")
-                }
-            }
-            try self.register(destination)
-            self.files[fileName] = records
-            self.registeredFiles.insert(fileName)
-            self.blockedNames.subtract(records.map { $0.name })
-            self.cache.removeAll()
-            self.generation += 1
-            return records
-        } catch {
-            do {
-                try self.fileManager.removeItem(at: destination)
-            } catch let cleanupError {
-                throw WhitegramFontRegistryError(message: "\(error.localizedDescription) The incomplete import could not be removed: \(cleanupError.localizedDescription)")
-            }
-            throw error
+        guard !sources.isEmpty, sources.count <= 512 else {
+            throw WhitegramFontRegistryError(message: "Choose between 1 and 512 font files.")
         }
+        let directory = try self.directory(create: true)
+        var pending: [(url: URL, records: [WhitegramFontRecord])] = []
+        var copied: [URL] = []
+        var registered: [URL] = []
+        do {
+            var names = Set<String>()
+            for source in sources {
+                _ = try self.records(at: source)
+                let fileName = UUID().uuidString + "." + source.pathExtension.lowercased()
+                let destination = directory.appendingPathComponent(fileName, isDirectory: false)
+                try self.fileManager.copyItem(at: source, to: destination)
+                copied.append(destination)
+                let records = try self.records(at: destination)
+                for record in records {
+                    if !names.insert(record.name).inserted || UIFont(name: record.name, size: 16.0) != nil {
+                        throw WhitegramFontRegistryError(message: "\(record.displayName) is already available or occurs twice in this import. Choose it from the font list or remove the duplicate file. If you just removed it, restart Whitegram before importing it again.")
+                    }
+                }
+                pending.append((destination, records))
+            }
+            for entry in pending {
+                try self.register(entry.url)
+                registered.append(entry.url)
+            }
+        } catch {
+            var cleanupIssues: [String] = []
+            for url in registered.reversed() {
+                var releaseError: Unmanaged<CFError>?
+                if !CTFontManagerUnregisterFontsForURL(url as CFURL, .process, &releaseError) {
+                    self.blockedNames.formUnion(pending.filter { $0.url == url }.flatMap { $0.records.map { $0.name } })
+                    cleanupIssues.append("iOS may retain an unused font until restart.")
+                }
+                if let releaseError { _ = releaseError.takeRetainedValue() }
+            }
+            for url in copied {
+                do { try self.fileManager.removeItem(at: url) }
+                catch { cleanupIssues.append(error.localizedDescription) }
+            }
+            if cleanupIssues.isEmpty { throw error }
+            throw WhitegramFontRegistryError(message: ([error.localizedDescription] + cleanupIssues).joined(separator: " "))
+        }
+        for entry in pending {
+            self.files[entry.url.lastPathComponent] = entry.records
+            self.registeredFiles.insert(entry.url.lastPathComponent)
+            self.blockedNames.subtract(entry.records.map { $0.name })
+        }
+        self.cache.removeAll()
+        self.generation += 1
+        return pending.flatMap { $0.records }
     }
 
     public func removeFont(fileName: String) throws -> WhitegramFontRemoval {
@@ -270,6 +313,7 @@ public final class WhitegramFontRegistry {
             return
         }
         self.prepared = true
+        self.recoverOriginalLibraryLocked()
         do {
             let directory = try self.directory(create: false)
             guard self.fileManager.fileExists(atPath: directory.path) else {
@@ -293,6 +337,29 @@ public final class WhitegramFontRegistry {
             }
         } catch {
             self.issues["library"] = error.localizedDescription
+        }
+    }
+
+    private func recoverOriginalLibraryLocked() {
+        let defaults = UserDefaults.standard
+        let values = Self.fontSettings(defaults.data(forKey: "WhitegramSettingsState.v1"))
+        let history = WhitegramFontHistory.read(values: values, defaults: defaults)
+        guard let documents = self.fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+        var fileNames = Set(history.compactMap { $0["fileName"] })
+        if values["fontHistory"] == nil, let selected = defaults.string(forKey: "wg_customFontFileName"), !selected.isEmpty {
+            fileNames.insert(selected)
+        }
+        for fileName in fileNames.sorted() where WhitegramFontHistory.isFontFileName(fileName) {
+            let source = documents.appendingPathComponent(fileName, isDirectory: false)
+            guard self.fileManager.fileExists(atPath: source.path) else { continue }
+            do {
+                let destination = try self.directory(create: true).appendingPathComponent(fileName, isDirectory: false)
+                guard !self.fileManager.fileExists(atPath: destination.path) else { continue }
+                _ = try self.records(at: source)
+                try self.fileManager.copyItem(at: source, to: destination)
+            } catch {
+                self.issues["legacy:" + fileName] = "Could not recover \(fileName): \(error.localizedDescription)"
+            }
         }
     }
 

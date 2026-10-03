@@ -18,6 +18,8 @@ OVERLAY = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(OVERLAY))
 
 from history_patches import apply_history_patches
+from history_patches import HISTORY_RUNTIME_FILES, DELETE_CORE, POSTBOX, ACCOUNT, ENTRIES, LIST, ITEM, STATUS, TEXT, _capture_patches, _message_menu_patch
+from source_patches import SourcePatches
 from validate_port import errors
 
 
@@ -27,8 +29,9 @@ STATE = "submodules/TelegramCore/Sources/State/AccountStateManagementUtils.swift
 DELETE = "submodules/TelegramCore/Sources/TelegramEngine/Messages/DeleteMessagesInteractively.swift"
 EDIT = "submodules/TelegramCore/Sources/PendingMessages/RequestEditMessage.swift"
 MENU = "submodules/TelegramUI/Sources/ChatInterfaceStateContextMenus.swift"
-PATHS = (STATE, DELETE, EDIT, MENU)
+PATHS = (STATE, DELETE, EDIT, MENU, DELETE_CORE, POSTBOX, ACCOUNT, ENTRIES, LIST, ITEM, STATUS, TEXT)
 MEDIA_GUARD = " || WhitegramHistoryStore.hasMediaChanges(previousMessage.media, updatedMedia)"
+ENTITY_GUARD = " || WhitegramHistoryRuntime.hasEntityChanges(previousMessage, message.attributes)"
 
 
 class MemoryFile:
@@ -115,13 +118,22 @@ class HistoryPatchTests(unittest.TestCase):
     def test_legacy_text_only_hooks_upgrade_without_duplicate_capture(self):
         root = MemoryRoot(self.pristine)
         apply_history_patches(root)
-        legacy = root.texts()
-        for path in (STATE, EDIT):
-            legacy[path] = legacy[path].replace(MEDIA_GUARD, "")
+        legacy_root = MemoryRoot(self.pristine)
+        patches = SourcePatches(legacy_root)
+        _capture_patches(patches)
+        _message_menu_patch(patches)
+        patches.write()
+        legacy = legacy_root.texts()
+        for path, media_box, expression in (
+            (STATE, "mediaBox.basePath", "message.withUpdatedLocalTags(updatedLocalTags).withUpdatedFlags(updatedFlags).withUpdatedAttributes(updatedAttributes).withUpdatedMedia(updatedMedia)"),
+            (EDIT, "postbox.mediaBox.basePath", "message.withUpdatedLocalTags(updatedLocalTags).withUpdatedFlags(updatedFlags).withUpdatedMedia(updatedMedia)"),
+        ):
+            wrapper = f"WhitegramHistoryRuntime.recordEdit(previous: previousMessage, updated: {expression}, accountPeerId: accountPeerId, mediaBoxPath: {media_box})"
+            legacy[path] = legacy[path].replace(wrapper, expression).replace(MEDIA_GUARD, "").replace(ENTITY_GUARD, "")
         upgraded = MemoryRoot(legacy)
         apply_history_patches(upgraded)
         self.assertEqual(upgraded.files, root.files)
-        self.assertEqual(set(upgraded.writes), {STATE, EDIT})
+        self.assertEqual(set(upgraded.writes), set(PATHS) - {MENU})
         assembled = MemoryRoot(self.assembled)
         apply_history_patches(assembled)
         self.assertEqual(assembled.text(EDIT).count("capture(previousMessage, event: .edited"), 4)
@@ -129,15 +141,16 @@ class HistoryPatchTests(unittest.TestCase):
     def test_upstream_mutation_and_resource_cleanup_code_is_preserved(self):
         root = MemoryRoot(self.pristine)
         apply_history_patches(root)
-        for path in PATHS:
+        for path in (STATE, DELETE, EDIT, DELETE_CORE):
             with self.subTest(path=path):
-                diff = difflib.SequenceMatcher(a=self.pristine[path].splitlines(), b=root.text(path).splitlines(), autojunk=False)
-                self.assertFalse([tag for tag, *_ in diff.get_opcodes() if tag in ("replace", "delete")])
+                for operation in ("mediaBox.removeCachedResources", "cloudChatAddRemoveMessagesOperation", "notifyDeletedMessages(", "transaction.setState(", "transaction.setPeerChatState("):
+                    self.assertEqual(root.text(path).count(operation), self.pristine[path].count(operation))
         state = root.text(STATE)
         deletion = state.split("case let .DeleteMessages(ids):", 1)[1].split("case let .DeleteMessagesWithGlobalIds(ids):", 1)[0]
         self.assertLess(deletion.index("WhitegramHistoryStore.capture"), deletion.index("_internal_deleteMessages("))
         global_deletion = state.split("case let .DeleteMessagesWithGlobalIds(ids):", 1)[1]
-        self.assertLess(global_deletion.index("WhitegramHistoryStore.capture"), global_deletion.index("var resourceIds"))
+        self.assertLess(global_deletion.index("WhitegramHistoryStore.capture"), global_deletion.index("WhitegramHistoryRuntime.prepareGlobalDeletion"))
+        self.assertLess(global_deletion.index("WhitegramHistoryRuntime.prepareGlobalDeletion"), global_deletion.index("transaction.deleteMessagesWithGlobalIds"))
         local = root.text(DELETE)
         self.assertLess(local.index("WhitegramHistoryStore.capture"), local.index("_internal_deleteMessages(transaction: transaction, mediaBox: postbox.mediaBox, ids: messageIds.map"))
 
@@ -149,6 +162,7 @@ class HistoryPatchTests(unittest.TestCase):
             with self.subTest(response=name):
                 block = value.split(f"case .{name}(let data):", 1)[1].split("return .update(", 1)[0]
                 self.assertIn(MEDIA_GUARD, block)
+                self.assertIn(ENTITY_GUARD, block)
                 self.assertIn("capture(previousMessage, event: .edited", block)
                 self.assertLess(block.index("updatedMedia = previousMessage.media"), block.index("capture(previousMessage, event: .edited"))
 
@@ -185,7 +199,7 @@ class HistoryPatchTests(unittest.TestCase):
         files = root.texts()
         files[EDIT] = files[EDIT].replace(MEDIA_GUARD, "", 1)
         root = MemoryRoot(files)
-        with self.assertRaisesRegex(ValueError, "expected 4 anchors"):
+        with self.assertRaisesRegex(ValueError, "unrecognized or partial native edit hooks"):
             apply_history_patches(root)
         self.assertEqual(root.writes, [])
         self.assertEqual(root.texts(), files)
@@ -237,12 +251,81 @@ class HistoryPatchTests(unittest.TestCase):
             "submodules/TelegramCore/Sources/SyncCore/SyncCore_TelegramMediaFile.swift": ("public let size: Int64?", "public var fileName: String?", "case Video(duration: Double, size: PixelDimensions, flags: TelegramMediaVideoFlags, preloadSize: Int32?, coverTime: Double?, videoCodec: String?)", "case Audio(isVoice: Bool, duration: Int, title: String?, performer: String?, waveform: Data?)", "case ImageSize(size: PixelDimensions)"),
             "submodules/TelegramCore/Sources/TelegramEngine/Peers/Peer.swift": ("public extension EnginePeer", "var debugDisplayTitle: String"),
             "submodules/ItemListUI/Sources/Items/ItemListDisclosureItem.swift": ("case multilineDetailText", "additionalDetailLabel: String? = nil"),
+            POSTBOX: ("public func withAllMessages(peerId: PeerId, namespace: MessageId.Namespace? = nil", "public func chatListGetAllPeerIds() -> [PeerId]", "public func getPreferencesEntry(key: ValueBoxKey)", "public func setPreferencesEntry(key: ValueBoxKey, value: PreferencesEntry?)"),
+            "submodules/Postbox/Sources/Message.swift": ("public func withUpdatedStableVersion(stableVersion: UInt32) -> Message", "public init(_ info: MessageForwardInfo)", "public protocol MessageAttribute: AnyObject, PostboxCoding"),
+            "submodules/Postbox/Sources/ValueBoxKey.swift": ("public init(_ value: String)",),
+            "submodules/TelegramCore/Sources/SyncCore/SyncCore_AuthorizedAccountState.swift": ("public let peerId: PeerId",),
+            "submodules/ItemListUI/Sources/ItemListController.swift": ("public var didAppear: ((Bool) -> Void)?",),
         }
         for path, signatures in paths.items():
             value = (self.source / path).read_text(encoding="utf-8")
             for signature in signatures:
                 with self.subTest(path=path, signature=signature):
                     self.assertIn(signature, value)
+
+    def test_retention_uses_native_ids_and_keeps_plugin_event_anchors(self):
+        root = MemoryRoot(self.pristine)
+        apply_history_patches(root)
+        core = root.text(DELETE_CORE)
+        self.assertIn("serverInitiated: Bool = true", core)
+        self.assertLess(core.index("WhitegramHistoryRuntime.deletableIds"), core.index("var resourceIds: [MediaResourceId]"))
+        self.assertIn("serverInitiated: false)", root.text(DELETE))
+        self.assertIn("transaction.deleteMessagesWithGlobalIds(ids, forEachMedia:", root.text(STATE))
+        self.assertIn("let removable = whitegramHistoryDeletableGlobalMessageIds(transaction: self, ids: messageIds)", root.text(POSTBOX))
+        self.assertIn("postbox.deleteMessages(removable, forEachMedia: forEachMedia)", root.text(POSTBOX))
+        self.assertEqual(core.count("WhitegramHistoryRuntime.observeBeforeClear("), 2)
+        self.assertIn("message.forwardInfo?.author?.id == forwardAuthorId", core)
+        self.assertIn("WhitegramHistoryRuntime.preserveMinimumAvailable(", root.text(STATE))
+
+    def test_history_and_plugin_hooks_compose_in_both_orders_and_replay(self):
+        from plugin_hook_patches import apply_plugin_hook_patches
+        files = dict(self.pristine)
+        for path in (
+            "submodules/TelegramCore/Sources/PendingMessages/EnqueueMessage.swift",
+            "submodules/TelegramCore/Sources/State/ApplyUpdateMessage.swift",
+            "submodules/TelegramCore/Sources/Network/Network.swift",
+            "submodules/TelegramUI/Sources/ChatController.swift",
+            "submodules/TelegramUI/Sources/TelegramRootController.swift",
+        ):
+            files[path] = subprocess.check_output(["git", "-C", str(self.source), "show", f"{PIN}:{path}"]).decode("utf-8")
+        outputs = []
+        for functions in ((apply_history_patches, apply_plugin_hook_patches), (apply_plugin_hook_patches, apply_history_patches)):
+            root = MemoryRoot(files)
+            for function in functions: function(root)
+            before = dict(root.files)
+            root.writes.clear()
+            for function in functions: function(root)
+            self.assertEqual(root.files, before)
+            self.assertEqual(root.writes, [])
+            state = root.text(STATE)
+            self.assertLess(state.index("WhitegramPluginHooks.deletingIds("), state.index("deletedMessageIds.append(contentsOf: ids.map { .messageId"))
+            self.assertEqual(state.count("WhitegramPluginHooks.deleted(postbox:"), 1)
+            outputs.append(before)
+        self.assertEqual(outputs[0], outputs[1])
+
+    def test_last_native_anchor_drift_aborts_all_source_writes(self):
+        files = dict(self.pristine)
+        anchor = "                var customTruncationToken: ((UIFont, Bool) -> NSAttributedString?)?\n"
+        files[TEXT] = files[TEXT].replace(anchor, "")
+        root = MemoryRoot(files)
+        before = dict(root.files)
+        with self.assertRaisesRegex(ValueError, "showEditedOriginalText"):
+            apply_history_patches(root)
+        self.assertEqual(root.files, before)
+        self.assertEqual(root.writes, [])
+
+    def test_inline_history_preserves_identity_and_refreshes_preferences(self):
+        root = MemoryRoot(self.pristine)
+        apply_history_patches(root)
+        entries = root.text(ENTRIES)
+        self.assertLess(entries.index("capture(entry.message"), entries.index("displayMessage(entry.message)"))
+        self.assertLess(entries.index("shouldDisplay(entry.message"), entries.index("if groupMessages || reverseGroupedMessages"))
+        self.assertIn("whitegramHistorySettingsSignal()", root.text(LIST))
+        self.assertIn("didSet {", root.text(ITEM))
+        self.assertIn("self.alpha = 1.0", root.text(ITEM))
+        self.assertIn("original.text.utf16.count", root.text(TEXT))
+        self.assertIn("validatedEntityRange(entity.range, in: originalText)", root.text(TEXT))
+        self.assertNotIn("withUpdatedText", root.text(TEXT))
 
 
 class HistorySourceTests(unittest.TestCase):
@@ -272,12 +355,34 @@ class HistorySourceTests(unittest.TestCase):
         self.assertIn("self.query.apply(to: self.records)", controller)
         self.assertIn("self?.store.clear(matching: query)", controller)
         self.assertIn("self.store.export(matching: query)", controller)
-        clear = controller.split("private func clear()", 1)[1].split("private func export()", 1)[0]
+        clear = controller.split("private func clear()", 1)[1].split("private func export(", 1)[0]
         self.assertLess(clear.index("let query = self.query"), clear.index("UIAlertController("))
         self.assertNotIn("self?.query", clear)
         self.assertNotIn("self.limit", clear)
         self.assertIn("whitegramMessageHistoryController(context: AccountContext, messageId: EngineMessage.Id)", controller)
-        self.assertIn("namespace: messageId.namespace, id: messageId.id", controller)
+        self.assertIn("whitegramNativeMessageHistoryController(context: context, messageId: messageId)", controller)
+
+    def test_all_runtime_files_and_menu_action_routes_are_owned_and_installable(self):
+        for name, target in HISTORY_RUNTIME_FILES.items():
+            self.assertTrue((OVERLAY / "cleanroom" / name).is_file(), name)
+            self.assertTrue(target.startswith("submodules/"), target)
+        controller = (OVERLAY / "cleanroom/WhitegramHistoryController.swift").read_text(encoding="utf-8")
+        for action in ("clearDeletedCache", "clearEditedCache", "clearSavedChatHistory", "restoreChatsView", "exportDeletedBackup", "importDeletedBackup"):
+            self.assertIn('"' + action + '"', controller)
+        self.assertIn("whitegramHistoryActionController(", controller)
+
+    def test_restore_has_account_validation_collision_checks_and_cancellation(self):
+        value = (OVERLAY / "cleanroom/WhitegramHistoryOperations.swift").read_text(encoding="utf-8")
+        self.assertIn("(transaction.getState() as? AuthorizedAccountState)?.peerId == accountPeerId", value)
+        self.assertIn('entry.textTruncated != true', value)
+        self.assertIn("if let current = transaction.getMessage(id)", value)
+        self.assertIn("result.skippedLive += 1", value)
+        self.assertIn("result.skippedExisting += 1", value)
+        self.assertIn("result.skippedUnavailable += 1", value)
+        self.assertIn("cancelled.swap(true); disposable.dispose()", value)
+        self.assertNotIn("network.request", value)
+        self.assertNotIn(".Unsent", value)
+        self.assertNotIn("enqueueMessage", value)
 
 
 if __name__ == "__main__":

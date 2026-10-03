@@ -30,6 +30,8 @@ enum WhitegramPluginPermission: String, CaseIterable {
     case network
     case settings
     case clipboard
+    case messageInterception = "messages.intercept"
+    case telegramInterception = "telegram.intercept"
 
     var title: String {
         switch self {
@@ -41,6 +43,8 @@ enum WhitegramPluginPermission: String, CaseIterable {
         case .network: return "HTTP requests"
         case .settings: return "Read and change Whitegram settings"
         case .clipboard: return "Read and write clipboard"
+        case .messageInterception: return "Change or cancel outgoing messages"
+        case .telegramInterception: return "Observe and cancel Telegram requests"
         }
     }
 
@@ -63,6 +67,10 @@ struct WhitegramPluginRecord: Codable, Equatable {
     let entry: String
     let permissions: [String]
     let installedAt: Date
+    var packageId: String? = nil
+    var author: String? = nil
+    var pluginDescription: String? = nil
+    var menuMode: String? = nil
 }
 
 // No caller-controlled path is passed to Foundation before lexical validation.
@@ -167,8 +175,23 @@ final class WhitegramPluginStorage {
         let version: String
         let entry: String
         let permissions: [String]
+        var metadata: [String: Any] = [:]
         var files: [String: Data] = [:]
-        if url.pathExtension.lowercased() == "js" {
+        if WhitegramPluginArchive.isZIP(data) {
+            guard ["plugin", "wgplugin", "zip"].contains(url.pathExtension.lowercased()) else {
+                throw WhitegramPluginError("INVALID_PACKAGE", "Import ZIP plugins with a .plugin, .wgplugin or .zip extension")
+            }
+            let package = try WhitegramPluginPackage.archive(data, name: url.deletingPathExtension().lastPathComponent)
+            metadata = package.metadata
+            guard let packageName = (metadata["name"] ?? metadata["displayName"]) as? String else { throw WhitegramPluginError("INVALID_PACKAGE", "Invalid package name") }
+            name = packageName
+            if let value = metadata["version"], !(value is String) { throw WhitegramPluginError("INVALID_PACKAGE", "version must be a string") }
+            if let value = metadata["permissions"], !(value is [String]) { throw WhitegramPluginError("INVALID_PACKAGE", "permissions must be an array of strings") }
+            version = (metadata["version"] as? String) ?? "1.0"
+            permissions = (metadata["permissions"] as? [String]) ?? []
+            entry = package.entry
+            files = package.files
+        } else if url.pathExtension.lowercased() == "js" {
             guard String(data: data, encoding: .utf8) != nil else { throw WhitegramPluginError("INVALID_PACKAGE", "JavaScript must be UTF-8") }
             name = url.deletingPathExtension().lastPathComponent
             version = "1.0"
@@ -195,6 +218,7 @@ final class WhitegramPluginStorage {
                 throw WhitegramPluginError("INVALID_PACKAGE", "permissions must be an array of strings")
             }
             name = packageName
+            metadata = package
             version = (package["version"] as? String) ?? "1.0"
             entry = packageEntry
             permissions = (package["permissions"] as? [String]) ?? []
@@ -208,8 +232,14 @@ final class WhitegramPluginStorage {
                 }
             }
         }
+        if let runtime = metadata["runtime"] {
+            guard let runtime = runtime as? String, ["javascript", "js"].contains(runtime.lowercased()) else {
+                throw WhitegramPluginError("UNSUPPORTED_LANGUAGE", "This package requires a language runtime that is not installed")
+            }
+        }
+        guard entry.lowercased().hasSuffix(".js") else { throw WhitegramPluginError("UNSUPPORTED_LANGUAGE", "Entry \(entry) requires an unbundled compiler or language runtime") }
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, name.utf8.count <= 512, version.utf8.count <= 128,
-              entry.hasSuffix(".js"), let source = files[entry], String(data: source, encoding: .utf8) != nil else {
+              let source = files[entry], String(data: source, encoding: .utf8) != nil else {
             throw WhitegramPluginError("INVALID_PACKAGE", "A nonempty name and UTF-8 JavaScript entry are required")
         }
         guard permissions.allSatisfy({ WhitegramPluginPermission(rawValue: $0) != nil }) else {
@@ -232,7 +262,18 @@ final class WhitegramPluginStorage {
                 throw WhitegramPluginError("INVALID_PACKAGE", "A package file cannot also be a directory")
             }
         }
-        let record = WhitegramPluginRecord(id: UUID().uuidString.lowercased(), name: name, version: version, entry: entry, permissions: permissions, installedAt: Date())
+        var record = WhitegramPluginRecord(id: UUID().uuidString.lowercased(), name: name, version: version, entry: entry, permissions: permissions, installedAt: Date())
+        for key in ["id", "author", "description", "menuMode"] {
+            if let value = metadata[key] {
+                guard let value = value as? String, value.utf8.count <= 4096 else {
+                    throw WhitegramPluginError("INVALID_PACKAGE", "Invalid manifest \(key)")
+                }
+            }
+        }
+        record.packageId = metadata["id"] as? String
+        record.author = metadata["author"] as? String
+        record.pluginDescription = metadata["description"] as? String
+        record.menuMode = metadata["menuMode"] as? String
         let destination = try self.pluginRoot(record.id)
         let directory = try WhitegramPluginPath.url(root: self.root, path: ".install-" + record.id)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)

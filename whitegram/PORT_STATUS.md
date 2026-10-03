@@ -1,5 +1,7 @@
 # Integrated Whitegram source port
 
+Latest local integration verification: [2026-10-03 parent checkpoint](parity/PARENT_CHECKPOINT.md). It covers the newly assembled working tree, including complete installer replay and the current source-test results. Native build/artifact checkpoints below apply to their named revisions.
+
 ## Inputs
 
 - Telegram source: `release-12.9.2`, commit `6ad963e5b62d354da79040f388ae2b9132fb17b8`.
@@ -88,8 +90,10 @@ $env:WHITEGRAM_PUBLIC_SOURCE = "<public-checkout>"
 $env:WHITEGRAM_APPEARANCE_SOURCE = $env:WHITEGRAM_ASSEMBLED_SOURCE
 $env:WHITEGRAM_VOICE_SOURCE = $env:WHITEGRAM_ASSEMBLED_SOURCE
 $env:WHITEGRAM_VOICE_PUBLIC_SOURCE = $env:WHITEGRAM_PUBLIC_SOURCE
+$env:WHITEGRAM_PLAYER_SOURCE = $env:WHITEGRAM_ASSEMBLED_SOURCE
 python -B -m unittest discover -s whitegram/tests -p "test_*.py" -v
 python -B -m unittest discover -s whitegram/tests/voice -p "test_*.py" -v
+python -B -m unittest discover -s whitegram/tests/player -p "test_*.py" -v
 node --test whitegram/tests/plugins/bootstrap.test.cjs whitegram/tests/plugins/hooks.test.cjs
 python -B whitegram/tests/plugins/check_swift_syntax.py
 python -B whitegram/tests/plugins/check_hook_patches.py "$env:WHITEGRAM_ASSEMBLED_SOURCE"

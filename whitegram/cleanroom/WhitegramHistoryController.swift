@@ -21,6 +21,8 @@ private final class WhitegramHistoryCoordinator: NSObject, UIDocumentPickerDeleg
     var limit = 100
     private var generation = 0
     private var observer: NSObjectProtocol?
+    private let operation = MetaDisposable()
+    private var operationInProgress = false
 
     var strings: WhitegramHistoryPresentation { return WhitegramHistoryPresentation(self.context.sharedContext.currentPresentationData.with { $0 }) }
     var matchingEntries: [WhitegramHistoryEntry] { return self.query.apply(to: self.records) }
@@ -35,7 +37,10 @@ private final class WhitegramHistoryCoordinator: NSObject, UIDocumentPickerDeleg
         self.reload()
     }
 
-    deinit { if let observer { NotificationCenter.default.removeObserver(observer) } }
+    deinit {
+        self.operation.dispose()
+        if let observer { NotificationCenter.default.removeObserver(observer) }
+    }
     func changed() { self.generation += 1; self.revision.set(self.generation) }
 
     func reload() {
@@ -50,6 +55,13 @@ private final class WhitegramHistoryCoordinator: NSObject, UIDocumentPickerDeleg
     }
 
     func toggle(_ key: String, _ value: Bool) {
+        if let peerId = self.query.scope.peerId, let rawId = Int64(peerId), key == "perChatHideDeleted" || key == "perChatHideEdited" {
+            var ids = WhitegramHistoryPolicy.parsePeerIds(WhitegramPreferences.string(key, default: UserDefaults.standard.string(forKey: "wg_" + key) ?? ""))
+            if value { ids.insert(rawId) } else { ids.remove(rawId) }
+            self.status = WhitegramPreferences.set(ids.sorted().map(String.init).joined(separator: ","), for: key) ? "" : self.strings.text("Could not save setting.", "Не удалось сохранить настройку.")
+            self.changed()
+            return
+        }
         self.status = WhitegramPreferences.set(value, for: key) ? "" : self.strings.text("Could not save setting.", "Не удалось сохранить настройку.")
         self.changed()
     }
@@ -107,6 +119,83 @@ private final class WhitegramHistoryCoordinator: NSObject, UIDocumentPickerDeleg
         self.controller?.present(alert, animated: true)
     }
 
+    private func opacity() {
+        let strings = self.strings
+        let alert = UIAlertController(title: strings.text("Deleted message opacity", "Непрозрачность удалённых сообщений"), message: strings.text("1–100%. Original default: 45%.", "1–100%. Исходное значение: 45%."), preferredStyle: .alert)
+        alert.addTextField { field in
+            field.keyboardType = .decimalPad
+            field.text = String(Int((WhitegramHistoryRuntime.policy.deletedOpacity * 100.0).rounded()))
+        }
+        alert.addAction(UIAlertAction(title: strings.text("Cancel", "Отмена"), style: .cancel))
+        alert.addAction(UIAlertAction(title: strings.text("Save", "Сохранить"), style: .default, handler: { [weak self, weak alert] _ in
+            guard let self else { return }
+            guard let number = Double((alert?.textFields?.first?.text ?? "").replacingOccurrences(of: ",", with: ".")), number.isFinite, (1.0...100.0).contains(number) else {
+                self.status = strings.text("Enter a number from 1 to 100.", "Введите число от 1 до 100.")
+                self.changed()
+                return
+            }
+            self.status = WhitegramPreferences.set(number / 100.0, for: "deletedMessagesOpacity") ? "" : strings.text("Could not save setting.", "Не удалось сохранить настройку.")
+            self.changed()
+        }))
+        self.controller?.present(alert, animated: true)
+    }
+
+    private func nativeAction(_ action: WhitegramHistoryAction) {
+        guard !self.operationInProgress else { return }
+        let scope = self.query.scope
+        if action == .restoreChatsView && scope == .account {
+            self.controller?.navigationController?.pushViewController(whitegramHistoryRestorableChatsController(context: self.context), animated: true)
+            return
+        }
+        self.store.snapshot { [weak self] snapshot in
+            guard let self, let controller = self.controller else { return }
+            let records: [WhitegramHistoryEntry]
+            switch snapshot {
+            case let .success(value): records = value
+            case let .failure(error): self.status = error.localizedDescription; self.changed(); return
+            }
+            let strings = self.strings
+            let title = strings.action(action)
+            let scopeTitle = scope.peerId.map { " [\($0)]" } ?? strings.text(" in this account", " в этом аккаунте")
+            let alert = UIAlertController(title: title + scopeTitle, message: strings.actionDescription(action), preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: strings.text("Cancel", "Отмена"), style: .cancel))
+            alert.addAction(UIAlertAction(title: title, style: action == .restoreChatsView ? .default : .destructive, handler: { [weak self] _ in
+                guard let self else { return }
+                self.operationInProgress = true
+                self.status = strings.text("Updating local history…", "Обновление локальной истории…")
+                self.changed()
+                self.operation.set((WhitegramHistoryOperations.perform(postbox: self.context.account.postbox, accountPeerId: self.context.account.peerId, action: action, scope: scope, records: records)
+                |> deliverOnMainQueue).start(next: { [weak self] result in
+                    guard let self else { return }
+                    self.operationInProgress = false
+                    switch result {
+                    case let .failure(error): self.status = error.localizedDescription; self.changed()
+                    case let .success(result):
+                        let summary = strings.operationResult(result)
+                        let archiveEvent: WhitegramHistoryEvent?
+                        switch action {
+                        case .clearEditedCache: archiveEvent = .edited
+                        case .clearSavedChatHistory: archiveEvent = .received
+                        default: archiveEvent = nil
+                        }
+                        if let archiveEvent, !result.cancelled {
+                            self.store.clear(matching: WhitegramHistoryQuery(scope: scope, event: archiveEvent)) { [weak self] cleared in
+                                guard let self else { return }
+                                switch cleared {
+                                case .success: self.status = summary; self.reload()
+                                case let .failure(error):
+                                    self.status = summary + "\n" + strings.text("The native cache was updated, but the archive could not be cleared: ", "Нативный кеш обновлён, но архив не удалось очистить: ") + error.localizedDescription
+                                    self.changed()
+                                }
+                            }
+                        } else { self.status = summary; self.reload() }
+                    }
+                }))
+            }))
+            controller.present(alert, animated: true)
+        }
+    }
+
     private func clear() {
         let strings = self.strings
         let query = self.query
@@ -124,8 +213,9 @@ private final class WhitegramHistoryCoordinator: NSObject, UIDocumentPickerDeleg
         self.controller?.present(alert, animated: true)
     }
 
-    private func export() {
-        let query = self.query
+    private func export(deletedOnly: Bool = false) {
+        var query = self.query
+        if deletedOnly { query.event = .deleted; query.text = "" }
         self.store.export(matching: query) { [weak self] result in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
@@ -168,7 +258,13 @@ private final class WhitegramHistoryCoordinator: NSObject, UIDocumentPickerDeleg
         case "reload": self.reload()
         case "clear": self.clear()
         case "export": self.export()
-        case "import":
+        case "exportDeletedBackup": self.export(deletedOnly: true)
+        case "opacity": self.opacity()
+        case "nativeChats", "restoreChatsView": self.nativeAction(.restoreChatsView)
+        case "clearDeletedCache": self.nativeAction(.clearDeletedCache)
+        case "clearEditedCache": self.nativeAction(.clearEditedCache)
+        case "clearSavedChatHistory": self.nativeAction(.clearSavedChatHistory)
+        case "import", "importDeletedBackup":
             let picker = UIDocumentPickerViewController(documentTypes: ["public.json"], in: .import)
             picker.delegate = self
             controller.present(picker, animated: true)
@@ -200,16 +296,31 @@ private final class WhitegramHistoryCoordinator: NSObject, UIDocumentPickerDeleg
                 let input = try FileHandle(forReadingFrom: url)
                 defer { input.closeFile() }
                 let data = input.readData(ofLength: WhitegramHistoryStore.maximumArchiveBytes + 1)
-                self?.store.importArchive(data) { [weak self] result in
-                    guard let self else { return }
-                    switch result {
-                    case let .success(count): self.status = self.strings.text("Added \(count) new versions to this account's archive.", "В архив этого аккаунта добавлено новых версий: \(count)."); self.reload()
-                    case let .failure(error): self.status = error.localizedDescription; self.changed()
+                if data.count <= WhitegramHistoryStore.maximumArchiveBytes, try JSONSerialization.jsonObject(with: data) is [Any] {
+                    DispatchQueue.main.async { [weak self] in
+                        guard let self, let controller = self.controller else { return }
+                        let strings = self.strings
+                        let accountId = String(self.context.account.peerId.toInt64())
+                        let alert = UIAlertController(title: strings.text("Import original Whitegram backup?", "Импортировать резервную копию Whitegram?"), message: strings.text("This original-format file does not identify its account. Import it as a text backup for account \(accountId)? Existing messages will not be overwritten. Restoration is a separate local action.", "В исходном формате не указан аккаунт. Импортировать текстовую копию для аккаунта \(accountId)? Существующие сообщения не будут перезаписаны. Локальное восстановление выполняется отдельно."), preferredStyle: .alert)
+                        alert.addAction(UIAlertAction(title: strings.text("Cancel", "Отмена"), style: .cancel))
+                        alert.addAction(UIAlertAction(title: strings.text("Import for this account", "Импортировать для этого аккаунта"), style: .default, handler: { [weak self] _ in
+                            self?.store.importOriginalBackupForThisAccount(data) { [weak self] result in self?.imported(result) }
+                        }))
+                        controller.present(alert, animated: true)
                     }
+                } else {
+                    self?.store.importArchive(data) { [weak self] result in self?.imported(result) }
                 }
             } catch {
                 DispatchQueue.main.async { self?.status = error.localizedDescription; self?.changed() }
             }
+        }
+    }
+
+    private func imported(_ result: Result<Int, Error>) {
+        switch result {
+        case let .success(count): self.status = self.strings.text("Added \(count) new versions to this account's archive.", "В архив этого аккаунта добавлено новых версий: \(count)."); self.reload()
+        case let .failure(error): self.status = error.localizedDescription; self.changed()
         }
     }
 }
@@ -221,9 +332,10 @@ private func historyRows(_ coordinator: WhitegramHistoryCoordinator, strings: Wh
     }
     if coordinator.query.scope == .account && !coordinator.showsChats {
         let switches = [
-            ("showDeletedMessages", "Save deleted messages", "Сохранять удалённые сообщения"),
-            ("showEditedOriginalText", "Save versions before edits", "Сохранять версии до изменения"),
+            ("showDeletedMessages", "Show deleted messages in chats", "Показывать удалённые сообщения"),
+            ("showEditedOriginalText", "Show original text and save edits", "Показывать исходный текст и сохранять изменения"),
             ("saveChatHistory", "Save received messages", "Сохранять полученные сообщения"),
+            ("saveDeletedMessagesToBackup", "Back up deleted message text", "Резервная копия текста удалённых сообщений"),
             ("hideMyDeletedMessages", "Exclude own deleted messages", "Не сохранять мои удалённые"),
             ("hideMyEditedMessages", "Exclude own edited messages", "Не сохранять мои изменения"),
             ("hideBotDeletedMessages", "Exclude bot deletions", "Не сохранять удалённые у ботов"),
@@ -234,12 +346,18 @@ private func historyRows(_ coordinator: WhitegramHistoryCoordinator, strings: Wh
         }
         action("chats", strings.text("Browse archived chats", "Чаты в архиве"))
         action("import", strings.text("Import JSON", "Импорт JSON"))
+        action("opacity", strings.text("Deleted message opacity", "Непрозрачность удалённых"), detail: "\(Int((WhitegramHistoryRuntime.policy.deletedOpacity * 100).rounded()))%")
     } else {
         action("settings", strings.text("Archive & capture settings", "Архив и настройки сохранения"))
     }
     if let peerId = coordinator.query.scope.peerId {
         let title = coordinator.records.first(where: { $0.peerId == peerId && $0.peerTitle != nil })?.peerTitle ?? peerId
         rows.append(WhitegramHistoryRow(id: "scope", index: rows.count, section: 1, title: "\(title) [\(peerId)]", isInfo: true))
+        if let rawId = Int64(peerId) {
+            let policy = WhitegramHistoryRuntime.policy
+            rows.append(WhitegramHistoryRow(id: "perChatHideDeleted", index: rows.count, section: 0, title: strings.text("Hide deleted messages in this chat", "Скрывать удалённые в этом чате"), value: policy.hiddenDeletedPeers.contains(rawId)))
+            rows.append(WhitegramHistoryRow(id: "perChatHideEdited", index: rows.count, section: 0, title: strings.text("Hide original text in this chat", "Скрывать исходный текст в этом чате"), value: policy.hiddenEditedPeers.contains(rawId)))
+        }
         if case let .message(id) = coordinator.query.scope {
             rows.append(WhitegramHistoryRow(id: "message", index: rows.count, section: 1, title: "\(strings.text("Message", "Сообщение")) \(id.id)", isInfo: true))
             action("chat", strings.text("All archived messages in this chat", "Все сохранённые сообщения этого чата"))
@@ -252,6 +370,9 @@ private func historyRows(_ coordinator: WhitegramHistoryCoordinator, strings: Wh
     action("order", strings.text("Sort by", "Сортировка"), detail: strings.order(coordinator.query.order))
     action("reload", strings.text("Refresh archive", "Обновить архив"))
     if !coordinator.showsChats {
+        for operation in WhitegramHistoryAction.allCases where operation != .importDeletedBackup || coordinator.query.scope == .account {
+            action(operation.rawValue, strings.action(operation))
+        }
         action("export", strings.text("Export matching versions", "Экспорт найденных версий"))
         action("clear", strings.text("Clear matching versions", "Удалить найденные версии"))
     }
@@ -261,7 +382,7 @@ private func historyRows(_ coordinator: WhitegramHistoryCoordinator, strings: Wh
     if !coordinator.status.isEmpty {
         rows.append(WhitegramHistoryRow(id: "operation", index: rows.count, section: 1, title: coordinator.status, isInfo: true))
     }
-    rows.append(WhitegramHistoryRow(id: "limits", index: rows.count, section: 1, title: strings.text("Local cloud-message text and attachment metadata. Media files and secret chats are not backed up. Versions missed before capture was enabled cannot be reconstructed.", "Локальный архив текста облачных сообщений и метаданных вложений. Медиафайлы и секретные чаты не резервируются. Пропущенные до включения сохранения версии восстановить нельзя."), isInfo: true))
+    rows.append(WhitegramHistoryRow(id: "limits", index: rows.count, section: 1, title: strings.text("Deleted messages retained in a chat keep their native attachments and formatting. JSON backups contain text and attachment metadata, not media files. Already downloaded content can be restored locally; missing content cannot be fetched from this archive. Secret chats are excluded.", "Удалённые сообщения, сохранённые в чате, сохраняют нативные вложения и форматирование. JSON-копии содержат текст и метаданные, но не медиафайлы. Уже полученное содержимое можно восстановить локально; отсутствующее содержимое архив не загружает. Секретные чаты исключены."), isInfo: true))
     if entries.isEmpty && coordinator.loadError == nil {
         rows.append(WhitegramHistoryRow(id: "empty", index: rows.count, section: 2, title: strings.text("No archived versions match. Try another filter, or enable capture for future messages and edits.", "Подходящих версий в архиве нет. Измените фильтр или включите сохранение будущих сообщений и изменений."), isInfo: true))
     }
@@ -283,7 +404,7 @@ private func historyRows(_ coordinator: WhitegramHistoryCoordinator, strings: Wh
     return rows
 }
 
-private func whitegramHistoryListController(context: AccountContext, query: WhitegramHistoryQuery, showsChats: Bool) -> ViewController {
+private func whitegramHistoryListController(context: AccountContext, query: WhitegramHistoryQuery, showsChats: Bool, initialAction: WhitegramHistoryAction? = nil) -> ViewController {
     let coordinator = WhitegramHistoryCoordinator(context: context, query: query, showsChats: showsChats)
     let actions = WhitegramHistoryListActions(select: { coordinator.action($0) }, toggle: { coordinator.toggle($0, $1) })
     let signal = combineLatest(context.sharedContext.presentationData, coordinator.revision.get())
@@ -296,6 +417,11 @@ private func whitegramHistoryListController(context: AccountContext, query: Whit
     }
     let controller = ItemListController(context: context, state: signal)
     coordinator.controller = controller
+    if let initialAction {
+        controller.didAppear = { firstTime in
+            if firstTime { coordinator.action(initialAction.rawValue) }
+        }
+    }
     return controller
 }
 
@@ -306,5 +432,9 @@ public func whitegramHistoryController(context: AccountContext, scope: Whitegram
 }
 
 public func whitegramMessageHistoryController(context: AccountContext, messageId: EngineMessage.Id) -> ViewController {
-    return whitegramHistoryController(context: context, scope: .message(WhitegramHistoryMessageId(peerId: String(messageId.peerId.toInt64()), namespace: messageId.namespace, id: messageId.id)))
+    return whitegramNativeMessageHistoryController(context: context, messageId: messageId)
+}
+
+public func whitegramHistoryActionController(context: AccountContext, action: WhitegramHistoryAction, scope: WhitegramHistoryScope = .account) -> ViewController {
+    return whitegramHistoryListController(context: context, query: WhitegramHistoryQuery(scope: scope), showsChats: false, initialAction: action)
 }

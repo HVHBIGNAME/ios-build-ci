@@ -1,0 +1,35 @@
+{
+  "role": "appearance",
+  "status": "in_progress_verified_reference_and_numeric_scope_corrections",
+  "files_changed": [],
+  "original_evidence": [
+    "audit-full-3.1.1/audit.sqlite3: TelegramCore image 46; TelegramUI image 55",
+    "TelegramCore 0x1f8954: SGSettings.addToFontHistory(fileName:psName:)",
+    "TelegramUI 0x505188c: WGIconPackManifest metadata",
+    "TelegramUI 0xcc05e0: WGIconPackManager.inspectArchive(at:)",
+    "TelegramUI 0x609a48..0x609b80: wg_hideSearchBar gates TabBarComponent.Search, matching the public bottom-bar search button",
+    "TelegramCore 0x204660 -> 0x212b30: hideBottomTabBar getter returns false; no native UI consumer was found",
+    "TelegramUI 0xe03f40 / 0xe041fc: sticker custom input accepts integer 10..200 percent",
+    "TelegramUI 0xe05bb8 / 0xe05e70: Stars custom input accepts integer 1..9999999",
+    "TelegramUI 0xe07774: custom tab-height input 50..100 percent; menu sliders at 0xddd9cc and 0xde023c both 50..150",
+    "TelegramUI 0x20f103c: native tab-height renderer reads wg_tabBarScale and clamps percent to 50..150",
+    "TelegramUI 0x8228b8..0x822a50: hidePhoneNumber directly gates user profile phone rows without an isMyProfile restriction",
+    "TelegramUI 0x828210..0x828538: DC lookup uses the small profile image, all profile images and cached photo data"
+  ],
+  "implemented_keys": [],
+  "remaining_keys": [],
+  "runtime_files": {},
+  "patch_entrypoint": null,
+  "controller_entrypoints": [],
+  "required_dependencies": [],
+  "parent_integration": [
+    "Retain hideSearchBar -> hideSearchButton: original localization wh.hideSearchBar and native TabBar consumer prove that scope. Earlier inventory suspicion is resolved.",
+    "Remove hideBottomTabBar -> compactPanel binding in both directions: original getter returns false, while the public compact panel is a different feature. Preserve saved original data; no destructive migration is authorized.",
+    "Decouple hideReactions from channelPostReactions; the new native appearance consumer hides reaction rows for all peer types and preserves the independent public channel preference.",
+    "Tab-height/width are percentages, default 100.0; sticker scale is factor 1.0 with UI 10..200 percent. Parent must reconcile old synthetic 1.0 tab defaults and public sticker zero-hides migration explicitly.",
+    "Current parent routes customSettingsIcons and showOriginalTelegramIcons to iconPacks, but these are distinct original controls, not installed-pack selection. Do not count those two rows as implemented by this manager: original showOriginalTelegramIcons reveals stock launcher icons; customSettingsIcons chooses alternative Settings glyphs.",
+    "Parent-owned preference/catalog/bridge/archive files are not edited by this worker."
+  ],
+  "tests_run": ["Recovered baseline: 52 appearance Python source/patch tests passed on C:/coding/telegram/whitegram/source-12.9.2, 2026-10-02; no skips. This is syntax/source verification, not Swift compilation."],
+  "device_checks_needed": []
+}

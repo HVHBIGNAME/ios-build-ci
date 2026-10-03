@@ -25,12 +25,12 @@ private final class WhitegramMainMenuArguments {
 }
 
 private enum WhitegramMainMenuEntry: ItemListNodeEntry {
-    case row(WhitegramMainMenuSection, Int, WhitegramMenuSection)
+    case row(WhitegramMainMenuSection, Int, WhitegramMenuSection, String, String)
     case version(WhitegramMainMenuSection, String)
 
     var section: ItemListSectionId {
         switch self {
-        case let .row(section, _, _):
+        case let .row(section, _, _, _, _):
             return section.rawValue
         case let .version(section, _):
             return section.rawValue
@@ -39,7 +39,7 @@ private enum WhitegramMainMenuEntry: ItemListNodeEntry {
 
     var stableId: String {
         switch self {
-        case let .row(_, _, item):
+        case let .row(_, _, item, _, _):
             return "row-\(item.id)"
         case let .version(_, value):
             return "version-\(value)"
@@ -47,28 +47,34 @@ private enum WhitegramMainMenuEntry: ItemListNodeEntry {
     }
 
     static func ==(lhs: WhitegramMainMenuEntry, rhs: WhitegramMainMenuEntry) -> Bool {
-        return lhs.stableId == rhs.stableId && lhs.section == rhs.section
+        switch (lhs, rhs) {
+        case let (.row(leftSection, leftIndex, leftItem, leftTitle, leftSubtitle), .row(rightSection, rightIndex, rightItem, rightTitle, rightSubtitle)):
+            return leftSection == rightSection && leftIndex == rightIndex && leftItem == rightItem && leftTitle == rightTitle && leftSubtitle == rightSubtitle
+        case let (.version(leftSection, leftValue), .version(rightSection, rightValue)):
+            return leftSection == rightSection && leftValue == rightValue
+        default: return false
+        }
     }
 
     static func <(lhs: WhitegramMainMenuEntry, rhs: WhitegramMainMenuEntry) -> Bool {
         if lhs.section != rhs.section { return lhs.section < rhs.section }
         switch (lhs, rhs) {
-        case let (.row(_, lhsIndex, _), .row(_, rhsIndex, _)): return lhsIndex < rhsIndex
+        case let (.row(_, lhsIndex, _, _, _), .row(_, rhsIndex, _, _, _)): return lhsIndex < rhsIndex
         case (.row, .version): return true
         default: return false
         }
     }
 
     func item(presentationData: ItemListPresentationData, arguments: Any) -> ListViewItem {
-        let russian = presentationData.strings.baseLanguageCode.lowercased().hasPrefix("ru")
         switch self {
-        case let .row(_, _, section):
+        case let .row(_, _, section, title, subtitle):
             return ItemListDisclosureItem(
                 presentationData: presentationData,
                 systemStyle: .glass,
                 icon: section.image(),
-                title: section.title(russian: russian),
-                label: section.description(russian: russian),
+                title: title,
+                label: "",
+                additionalDetailLabel: subtitle.isEmpty ? nil : subtitle,
                 sectionId: self.section,
                 style: .blocks,
                 action: {
@@ -90,7 +96,7 @@ private let whitegramAboutIds = ["about", "apiStatus", "donate"]
 
 private let whitegramFeatureIds = [
     "search", "appearance", "notifications", "liquidGlass", "messages", "camera", "ghost", "privacy",
-    "info", "misc", "interface", "tabs", "localStars", "fonts", "translation", "ai", "traffic", "virusTotal",
+    "info", "misc", "interface", "tabs", "localStars", "fonts", "translation", "traffic", "virusTotal",
     "voiceChanger", "player", "radio", "features", "icons", "plugins", "localization", "sessions"
 ]
 
@@ -99,20 +105,25 @@ private func whitegramSection(id: String) -> WhitegramMenuSection {
         ?? WhitegramMenuSection(id: id, icon: "questionmark", ruTitle: id, ruDescription: id, enTitle: id, enDescription: id)
 }
 
-private func whitegramMainMenuEntries(russian: Bool) -> [WhitegramMainMenuEntry] {
+private func whitegramMainMenuEntries(baseLanguage: String) -> [WhitegramMainMenuEntry] {
     var entries: [WhitegramMainMenuEntry] = []
+    let hideDescriptions = WhitegramPreferences.bool("hideSettingsDescriptions", default: UserDefaults.standard.bool(forKey: "wg_hideSettingsDescriptions"))
+    func append(_ id: String, to group: WhitegramMainMenuSection) {
+        let item = whitegramSection(id: id)
+        entries.append(.row(group, entries.count, item, item.title(baseLanguage: baseLanguage), hideDescriptions ? "" : item.description(baseLanguage: baseLanguage)))
+    }
     for id in whitegramAboutIds where WhitegramMenuCatalog.implemented.contains(id) {
-        entries.append(.row(.about, entries.count, whitegramSection(id: id)))
+        append(id, to: .about)
     }
     for id in whitegramFeatureIds where WhitegramMenuCatalog.implemented.contains(id) {
-        entries.append(.row(.features, entries.count, whitegramSection(id: id)))
+        append(id, to: .features)
     }
     for id in ["publicSettings", "allSettings"] {
-        entries.append(.row(.all, entries.count, whitegramSection(id: id)))
+        append(id, to: .all)
     }
     let version = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "—"
     let build = (Bundle.main.infoDictionary?["CFBundleVersion"] as? String) ?? "—"
-    entries.append(.version(.all, russian ? "\(version) (\(build))" : "Whitegram \(version) (\(build))"))
+    entries.append(.version(.all, "Whitegram \(version) (\(build))"))
     return entries
 }
 
@@ -120,7 +131,7 @@ public func whitegramMainMenuController(context: AccountContext) -> ViewControll
     WhitegramForkBridge.migrate()
     var pushController: ((ViewController) -> Void)?
     let arguments = WhitegramMainMenuArguments(open: { section in
-        let russian = context.sharedContext.currentPresentationData.with { $0.strings.baseLanguageCode.hasPrefix("ru") }
+        let baseLanguage = context.sharedContext.currentPresentationData.with { $0.strings.baseLanguageCode }
         switch section.id {
         case "about":
             pushController?(whitegramAboutController(context: context, section: section))
@@ -136,8 +147,12 @@ public func whitegramMainMenuController(context: AccountContext) -> ViewControll
             pushController?(whitegramPluginManagerController(context: context))
         case "voiceChanger":
             pushController?(whitegramVoiceSettingsController(context: context))
-        case "ai":
-            pushController?(whitegramAISettingsController(context: context))
+        case "player":
+            pushController?(whitegramPlayerSettingsController(context: context))
+        case "liquidGlass":
+            pushController?(whitegramGlassController(context: context))
+        case "localStars":
+            pushController?(whitegramLocalStarsController(context: context))
         case "virusTotal":
             pushController?(whitegramVirusTotalController(context: context))
         case "tabs":
@@ -148,23 +163,25 @@ public func whitegramMainMenuController(context: AccountContext) -> ViewControll
             pushController?(whitegramTranslationSettingsController(context: context))
         case "sessions":
             pushController?(whitegramAccountsSettingsController(context: context))
+        case "localization":
+            pushController?(whitegramLocalizationController(context: context))
         case "search":
-            pushController?(whitegramGeneratedSettingsController(context: context, title: section.title(russian: russian), availableOnly: true))
+            pushController?(whitegramGeneratedSettingsController(context: context, title: section.title(baseLanguage: baseLanguage), availableOnly: true))
         case "allSettings":
-            pushController?(whitegramGeneratedSettingsController(context: context, title: section.title(russian: russian)))
+            pushController?(whitegramGeneratedSettingsController(context: context, title: section.title(baseLanguage: baseLanguage)))
         case "publicSettings":
             pushController?(whiteGramSettingsController(context: context))
         default:
             let sections: [String: Set<Int>] = ["appearance": [3, 9], "interface": [5], "info": [6], "misc": [8]]
             if let sections = sections[section.id] {
-                pushController?(whitegramGeneratedSettingsController(context: context, sections: sections, title: section.title(russian: russian), availableOnly: true))
+                pushController?(whitegramGeneratedSettingsController(context: context, sections: sections, title: section.title(baseLanguage: baseLanguage), availableOnly: true))
             }
         }
     })
-    let signal = context.sharedContext.presentationData
+    let signal = combineLatest(context.sharedContext.presentationData, whitegramLocalizationUpdates())
         |> deliverOnMainQueue
-        |> map { presentationData -> (ItemListControllerState, (ItemListNodeState, Any)) in
-            let russian = presentationData.strings.baseLanguageCode.lowercased().hasPrefix("ru")
+        |> map { presentationData, _ -> (ItemListControllerState, (ItemListNodeState, Any)) in
+            WhitegramLocalization.rememberBaseLanguage(presentationData.strings.baseLanguageCode)
             let controllerState = ItemListControllerState(
                 presentationData: ItemListPresentationData(presentationData),
                 title: .text("Whitegram"),
@@ -175,7 +192,7 @@ public func whitegramMainMenuController(context: AccountContext) -> ViewControll
             )
             let listState = ItemListNodeState(
                 presentationData: ItemListPresentationData(presentationData),
-                entries: whitegramMainMenuEntries(russian: russian),
+                entries: whitegramMainMenuEntries(baseLanguage: presentationData.strings.baseLanguageCode),
                 style: .blocks,
                 animateChanges: false
             )
@@ -189,12 +206,13 @@ public func whitegramMainMenuController(context: AccountContext) -> ViewControll
 }
 
 private func whitegramAboutController(context: AccountContext, section: WhitegramMenuSection) -> ViewController {
-    let russian = context.sharedContext.currentPresentationData.with { $0.strings.baseLanguageCode.hasPrefix("ru") }
+    let baseLanguage = context.sharedContext.currentPresentationData.with { $0.strings.baseLanguageCode }
+    let russian = WhitegramLocalization.selectedLanguage(baseLanguage: baseLanguage) == "ru"
     let version = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "—"
     let build = (Bundle.main.infoDictionary?["CFBundleVersion"] as? String) ?? "—"
     return whitegramSimpleInfoController(
         context: context,
-        title: section.title(russian: russian),
+        title: section.title(baseLanguage: baseLanguage),
         lines: [
             "Whitegram", "\(version) (\(build))",
             russian ? "База исходников: Telegram 12.9.2" : "Source baseline: Telegram 12.9.2",

@@ -46,7 +46,7 @@ public enum WhitegramVirusTotalTargetLookupResult: Equatable {
     case notFound(target: WhitegramVirusTotalTarget)
 }
 
-private func whitegramVirusTotalSummary(statistics: [String: Int]?, engines: [WhitegramVirusTotalEngineResult], subject: String) -> String {
+func whitegramVirusTotalSummary(statistics: [String: Int]?, engines: [WhitegramVirusTotalEngineResult], subject: String) -> String {
     if (statistics?["malicious"] ?? 0) > 0 || (statistics?["suspicious"] ?? 0) > 0 || engines.contains(where: { $0.category == "malicious" || $0.category == "suspicious" }) {
         return "One or more engines reported malicious or suspicious findings."
     }
@@ -57,15 +57,19 @@ private func whitegramVirusTotalSummary(statistics: [String: Int]?, engines: [Wh
     return "Unknown — no conclusive analysis statistics were returned."
 }
 
-/// Looks up an existing report. This service has no file-upload or scan-submission endpoint.
+/// Official API v3 reports and explicitly submitted analyses share one quota gate.
 public final class WhitegramVirusTotalService {
     public static let shared = WhitegramVirusTotalService()
-    private let transport: WhitegramServiceTransport
-    private let gate: WhitegramServiceRequestGate
+    let transport: WhitegramServiceTransport
+    let gate: WhitegramServiceRequestGate
+    let pollInterval: TimeInterval
+    let route: WhitegramServiceRoute
 
-    public init(transport: WhitegramServiceTransport = WhitegramURLSessionTransport(), minimumRequestInterval: TimeInterval = 15) {
+    public init(transport: WhitegramServiceTransport = WhitegramURLSessionTransport(), minimumRequestInterval: TimeInterval = 15, route: WhitegramServiceRoute = .direct) {
         self.transport = transport
         self.gate = WhitegramServiceRequestGate(minimumInterval: minimumRequestInterval)
+        self.pollInterval = minimumRequestInterval.isFinite ? max(0, min(604800, minimumRequestInterval)) : 15
+        self.route = route
     }
 
     @discardableResult
@@ -78,9 +82,10 @@ public final class WhitegramVirusTotalService {
         return self.perform(request: { try WhitegramVirusTotalWire.request(target: target, apiKey: apiKey) }, response: { try WhitegramVirusTotalWire.response($0, target: target) }, completion: completion)
     }
 
-    private func perform<Value>(request: () throws -> URLRequest, response decode: @escaping (WhitegramServiceHTTPResponse) throws -> Value, completion: @escaping (Result<Value, WhitegramServiceError>) -> Void) -> WhitegramServiceTask {
+    func perform<Value>(request: () throws -> URLRequest, response decode: @escaping (WhitegramServiceHTTPResponse) throws -> Value, completion: @escaping (Result<Value, WhitegramServiceError>) -> Void) -> WhitegramServiceTask {
         let operation = WhitegramServiceOperation(completion: completion)
         let prepared = whitegramServiceResult { () -> URLRequest in
+            try self.route.requireAvailable()
             let request = try request()
             try self.gate.begin()
             return request

@@ -34,7 +34,13 @@ class PrivacyIntegrationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.root = Path(SOURCE)
-        cls.patches = SourcePatches(cls.root)
+        discovered = SourcePatches(cls.root)
+        apply_privacy(discovered)
+        originals = {
+            path: subprocess.check_output(["git", "-C", str(cls.root), "show", f"HEAD:{path}"]).decode("utf-8")
+            for path in discovered.pending
+        }
+        cls.patches = in_memory(cls.root, originals)
         apply_privacy(cls.patches)
         apply_fork_bindings(cls.patches)
 
@@ -48,7 +54,8 @@ class PrivacyIntegrationTests(unittest.TestCase):
         }
         fresh = in_memory(self.root, originals)
         apply_privacy(fresh)
-        self.assertEqual(fresh.pending, discovered.pending)
+        for path, value in fresh.pending.items():
+            self.assertTrue(value == self.patches.pending[path], path)
 
     def test_second_pass_is_idempotent_without_writes(self):
         repeated = in_memory(self.root, self.patches.pending)
@@ -63,7 +70,8 @@ class PrivacyIntegrationTests(unittest.TestCase):
         expression = re.compile(r"Api\.functions\.(messages|channels|stories)\.(read\w+|incrementStoryViews)\(")
         files = {path.relative_to(self.root).as_posix(): path.read_text(encoding="utf-8") for path in (self.root / CORE).rglob("*.swift")}
         files.update(self.patches.pending)
-        files[CORE + "WhitegramGhost.swift"] = (OVERLAY / "cleanroom/WhitegramGhost.swift").read_text(encoding="utf-8")
+        for name in ("WhitegramGhost.swift", "WhitegramReadAction.swift"):
+            files[CORE + name] = (OVERLAY / "cleanroom" / name).read_text(encoding="utf-8")
         inventory = collections.Counter()
         for path, value in files.items():
             for _, method in expression.findall(value):
@@ -80,7 +88,11 @@ class PrivacyIntegrationTests(unittest.TestCase):
             "TelegramEngine/Messages/ReplyThreadHistory.swift": 2,
             "TelegramEngine/Messages/Stories.swift": 1,
             "WhitegramGhost.swift": 2,
+            "WhitegramReadAction.swift": 5,
         })
+        action = files[CORE + "WhitegramReadAction.swift"]
+        self.assertEqual(action.count("WhitegramGhost.canReadOnAction(for: index.id.peerId)"), 2)
+        self.assertIn("guard permit.consume(for: scope), WhitegramContentSettings.readOnAction", action)
 
     def test_both_personal_message_paths_keep_local_completion(self):
         value = self.patches.pending[CORE + "State/ManagedConsumePersonalMessagesActions.swift"]

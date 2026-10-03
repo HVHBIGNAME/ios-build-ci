@@ -408,9 +408,9 @@ final class WhitegramPluginUI {
 
     deinit { if let observer = self.keyboardObserver { NotificationCenter.default.removeObserver(observer) } }
 
-    func attach(_ controller: ViewController) {
+    func attach(_ controller: UIViewController) {
         dispatchPrecondition(condition: .onQueue(.main))
-        self.navigation = controller.navigationController as? NavigationController
+        self.navigation = (controller as? NavigationController) ?? (controller.navigationController as? NavigationController)
     }
 
     private func presentationData() throws -> PresentationData {

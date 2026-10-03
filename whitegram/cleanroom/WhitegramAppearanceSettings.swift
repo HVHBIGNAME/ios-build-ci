@@ -17,8 +17,12 @@ public struct WhitegramAppearanceSettings: Equatable {
 
     private let enabled: Set<WhitegramAppearanceToggle>
     public let messageBorderColorHex: String
+    public let policy: WhitegramAppearancePolicy
+    public let localStars: WhitegramLocalStars
 
     public init(values: [String: Any], legacyDefaults: UserDefaults? = nil) {
+        self.policy = WhitegramAppearancePolicy(values: values, legacyDefaults: legacyDefaults)
+        self.localStars = WhitegramLocalStars(values: values, legacyDefaults: legacyDefaults)
         var enabled = Set<WhitegramAppearanceToggle>()
         for toggle in WhitegramAppearanceToggle.allCases {
             let value = values[toggle.rawValue] ?? legacyDefaults?.object(forKey: "wg_" + toggle.rawValue)
@@ -40,9 +44,7 @@ public struct WhitegramAppearanceSettings: Equatable {
     }
 
     public var bubbleFillOpacity: Double {
-        if self.isEnabled(.transparentMessages) { return 0.0 }
-        if self.isEnabled(.semiTransparentBubbles) { return 0.65 }
-        return 1.0
+        return WhitegramAppearancePolicy.bubbleFillOpacity(transparent: self.isEnabled(.transparentMessages), semiTransparent: self.isEnabled(.semiTransparentBubbles))
     }
 
     public var borderRGB: UInt32? {
@@ -65,8 +67,12 @@ public struct WhitegramAppearanceSettings: Equatable {
             switch toggle {
             case .transparentMessages:
                 changes[WhitegramAppearanceToggle.semiTransparentBubbles.rawValue] = false
+                changes["liquidGlassBubbles"] = false
+                changes["glassMessageBubbles"] = false
             case .semiTransparentBubbles:
                 changes[WhitegramAppearanceToggle.transparentMessages.rawValue] = false
+                changes["liquidGlassBubbles"] = false
+                changes["glassMessageBubbles"] = false
             default:
                 break
             }
@@ -81,20 +87,11 @@ public struct WhitegramAppearanceSettings: Equatable {
     }
 
     public func messageStatus(dateText: String, text: String, russian: Bool) -> String {
-        guard self.isEnabled(.showCharCountMessages), !text.isEmpty else { return dateText }
-        let count = "\(text.count) " + (russian ? "симв." : "chars")
-        return dateText.isEmpty ? count : count + " · " + dateText
+        return WhitegramAppearancePolicy.messageStatus(enabled: self.isEnabled(.showCharCountMessages), dateText: dateText, text: text, russian: russian)
     }
 
     public func inputCounter(text: String, limit: Int32?) -> (text: String, isOverLimit: Bool) {
-        let count = text.count
-        if let limit {
-            let remaining = max(-999, Int(limit) - count)
-            if remaining < 5 { return (String(remaining), count > Int(limit)) }
-        }
-        guard self.isEnabled(.showCharCountTyping), !text.isEmpty else { return ("", false) }
-        if let limit { return ("\(count) / \(limit)", false) }
-        return (String(count), false)
+        return WhitegramAppearancePolicy.inputCounter(enabled: self.isEnabled(.showCharCountTyping), text: text, limit: limit)
     }
 
     public static func signal() -> Signal<WhitegramAppearanceSettings, NoError> {

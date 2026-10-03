@@ -12,7 +12,7 @@ def main() -> int:
         raise SystemExit("Swift is required for native translation tests")
     here = Path(__file__).resolve().parent
     overlay = here.parents[1]
-    with tempfile.TemporaryDirectory(prefix="whitegram-translation-") as temporary:
+    with tempfile.TemporaryDirectory(prefix=".whitegram-translation-", dir=here) as temporary:
         root = Path(temporary)
         core = root / "Sources/TelegramCore"
         tests = root / "Tests/TranslationTests"
@@ -25,10 +25,11 @@ let package = Package(name: "WhitegramTranslationChecks", platforms: [.macOS(.v1
     .testTarget(name: "TranslationTests", dependencies: ["TelegramCore"])
 ])
 ''', encoding="utf-8")
-        for name in ("WhitegramPreferences.swift", "WhitegramTranslationSettings.swift", "WhitegramTranslationDraftGuard.swift", "WhitegramTranslationTextRules.swift"):
+        for name in ("WhitegramPreferences.swift", "WhitegramTranslationSettings.swift", "WhitegramTranslationDraftGuard.swift", "WhitegramTranslationTextRules.swift", "WhitegramTranslationGoogle.swift"):
             shutil.copyfile(overlay / "cleanroom" / name, core / name)
         shutil.copyfile(overlay / "generated/WhitegramSettingsState.swift", core / "WhitegramSettingsState.swift")
-        shutil.copyfile(here / "WhitegramTranslationTests.swift", tests / "WhitegramTranslationTests.swift")
+        for source in here.glob("*Tests.swift"):
+            shutil.copyfile(source, tests / source.name)
         return subprocess.run([swift, "test", "--package-path", str(root)], check=False).returncode
 
 

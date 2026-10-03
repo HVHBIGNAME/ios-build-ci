@@ -41,11 +41,17 @@ def apply_interface_patches(root: Path) -> dict[str, list[str]]:
 
     ads = "submodules/TelegramCore/Sources/TelegramEngine/Messages/AdMessages.swift"
     guard = 'WhitegramPreferences.bool("disableAds") || WhitegramPreferences.bool("hideChannelAds")'
-    anchor = "        self.stateValue = State(interPostInterval: nil, messages: [])\n"
-    patches.replace("hideChannelAds", ads, anchor, anchor + f"        if {guard} {{\n            self.state.set(.single(State(interPostInterval: nil, messages: [])))\n            return\n        }}\n")
+    upgraded_guard = guard.replace('WhitegramPreferences.bool("disableAds")', 'WhitegramContentSettings.bool("disableAds")')
+    anchor = "\n        self.stateValue = State(interPostInterval: nil, messages: [])\n"
+    replacement = anchor + f"        if {guard} {{\n            self.state.set(.single(State(interPostInterval: nil, messages: [])))\n            return\n        }}\n"
+    patches.replace("hideChannelAds", ads, anchor, replacement,
+        accepted_after=(replacement.replace(guard, upgraded_guard),))
     anchor = "    func activate() {\n"
-    patches.replace("hideChannelAds", ads, anchor, anchor + f"        if {guard} {{\n            self.disposable.set(nil)\n            self.state.set(.single(State(interPostInterval: nil, messages: [])))\n            return\n        }}\n")
+    body = f"        if {guard} {{\n            self.disposable.set(nil)\n            self.state.set(.single(State(interPostInterval: nil, messages: [])))\n            return\n        }}\n"
+    patches.replace("hideChannelAds", ads, anchor, anchor + body,
+        accepted_after=(anchor + "        self.whitegramActivationRequested = true\n" + body.replace(guard, upgraded_guard),))
     search_ads = "submodules/TelegramCore/Sources/TelegramEngine/Peers/AdPeers.swift"
     anchor = "func _internal_searchAdPeers(account: Account, query: String) -> Signal<[AdPeer], NoError> {\n"
-    patches.replace("disableAds", search_ads, anchor, anchor + '    if WhitegramPreferences.bool("disableAds") { return .single([]) }\n')
+    patches.replace("disableAds", search_ads, anchor, anchor + '    if WhitegramPreferences.bool("disableAds") { return .single([]) }\n',
+        accepted_after=(anchor + '    if WhitegramContentSettings.bool("disableAds") { return .single([]) }\n',))
     return patches.write()

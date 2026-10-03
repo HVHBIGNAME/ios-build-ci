@@ -1,9 +1,28 @@
 import Foundation
+import CoreFoundation
+import TelegramCore
 
 enum WhitegramPortCapabilities {
+    private static let defaults = WhitegramSettingsState()
+    private static let booleanDefaults: [String: Bool] = Dictionary(uniqueKeysWithValues: Mirror(reflecting: defaults).children.compactMap { child -> (String, Bool)? in
+        guard let key = child.label, let value = child.value as? NSNumber,
+              CFGetTypeID(value) == CFBooleanGetTypeID() else { return nil }
+        return (key, value.boolValue)
+    })
     // Each writable key has an installed consumer in runtime_patches,
     // interface_patches, history_patches, or WhitegramForkBridge.
     static let booleans: [String: String] = [
+        "hideDescriptions": "hideSettingsDescriptions",
+        "keepUnavailableAccounts": "keepUnavailableAccounts", "accountSwitcherEnabled": "accountSwitcherEnabled",
+        "playbackPitchFollowsSpeed": "musicPlaybackPitchFollowsSpeed", "crossfadeEnabled": "musicCrossfadeEnabled",
+        "equalizerEnabled": "musicEqualizerEnabled", "stopAfterVoiceMessage": "stopAfterVoiceMessage",
+        "readOnAction": "readOnAction", "warnBeforeCall": "warnBeforeCall",
+        "bypassContentRestrictions": "bypassContentRestrictions", "keepBannedChats": "keepBannedChats",
+        "saveProtectedContent": "saveProtectedContent", "removeSpoilers": "removeSpoilers",
+        "saveViewOnceMedia": "saveViewOnceMedia", "ghostModeRecordOnce": "ghostModeRecordOnce",
+        "hideAllChatsTab": "hideAllChatsTab", "hideAccountRating": "hideAccountRating",
+        "showPeerIDAndDC": "showPeerIDAndDC", "showChatCreationDate": "showChatCreationDate",
+        "foldersAtBottom": "foldersAtBottom", "saveToFavoritesInMenu": "saveToFavoritesInMenu",
         "showDeletedMessages": "showDeletedMessages", "showEditedOriginalText": "showEditedOriginalText",
         "saveChatHistory": "saveChatHistory", "saveDeletedToBackup": "saveDeletedMessagesToBackup",
         "hideMyDeletedMessages": "hideMyDeletedMessages", "hideMyEditedMessages": "hideMyEditedMessages",
@@ -33,6 +52,16 @@ enum WhitegramPortCapabilities {
     ]
 
     static let screens: [String: String] = [
+        "menuLanguagePicker": "localization",
+        "keychainAccounts": "keychainAccounts", "accountTransfer": "accountTransfer", "botAccounts": "botAccounts",
+        "playbackSpeedSlider": "player", "crossfadeSlider": "player", "equalizerOpen": "equalizer",
+        "staticZoom": "media", "maxDownloadSpeed": "media", "sendAcceleration": "media", "downloadAccelPicker": "media",
+        "localStarsEnabled": "localStars", "localStarsCountSlider": "localStars", "localStarsCountCustom": "localStars",
+        "tabBarScaleButton": "appearanceControls", "tabBarScaleSlider": "appearanceControls", "tabBarWidthSlider": "appearanceControls",
+        "liquidGlassBubbles": "glass", "glassMessageBubbles": "glass", "liquidGlassSettings": "glass",
+        "liquidGlassProfile": "glass", "liquidGlassGifts": "glass", "liquidGlassInlineButtons": "glass",
+        "glassTinting": "glass", "fakeLiquidGlass": "glass", "colorInsteadOfGlass": "glass",
+        "myIconPacks": "iconPacks", "createIconPack": "iconPacks",
         "sendLargePhotos": "media", "photoQualitySlider": "media", "alwaysSendHD": "media",
         "cleanMetadataOnSend": "media", "rememberLastCamera": "media",
         "translationTargetLang": "translation", "translateBeforeSending": "translation",
@@ -43,10 +72,9 @@ enum WhitegramPortCapabilities {
         "showCharCountMessages": "appearanceExtensions", "showActionTime": "appearanceExtensions",
         "hideBusinessBotPanel": "appearanceExtensions",
         "compactChatList": "chats",
-        "hideBottomTabBar": "tabs",
         "clearSavedChatHistory": "history", "restoreChatsView": "history", "clearDeletedCache": "history",
         "clearEditedCache": "history", "exportDeletedBackup": "history", "importDeletedBackup": "history",
-        "stickerSizeAction": "chats", "stickerSizeSlider": "chats",
+        "stickerSizeAction": "appearanceControls", "stickerSizeSlider": "appearanceControls",
         "cameraBack": "media", "cameraFront": "media", "cameraSettingsButton": "media",
         "customFontsManager": "fonts", "customFontPicker": "fonts", "fontHistoryItem": "fonts",
         "pluginsOpen": "plugins", "pluginRow": "plugins",
@@ -58,6 +86,7 @@ enum WhitegramPortCapabilities {
     ]
 
     static let russianTitles: [String: String] = [
+        "foldersAtBottom": "Папки внизу", "saveToFavoritesInMenu": "Сохранить в Избранное в меню сообщения",
         "exportSettings": "Экспорт настроек", "importSettings": "Импорт настроек",
         "saveSettingsToKeychain": "Сохранить настройки в Связку ключей",
         "restoreSettingsFromKeychain": "Восстановить настройки из Связки ключей",
@@ -92,7 +121,22 @@ enum WhitegramPortCapabilities {
         "hideSettingsProfileColor": "Скрыть цвет профиля", "hideSettingsSetPhoto": "Скрыть Установить фото"
     ]
 
-    static func title(_ row: WhitegramSettingsRowDescriptor, russian: Bool) -> String {
+    static func booleanValue(_ id: String) -> Bool? {
+        guard let key = booleans[id] else { return nil }
+        var fallback = defaults.boolValue(for: id) ?? booleanDefaults[key] ?? false
+        if let legacy = UserDefaults.standard.object(forKey: "wg_" + key) as? NSNumber,
+           CFGetTypeID(legacy) == CFBooleanGetTypeID() {
+            fallback = legacy.boolValue
+        }
+        return WhitegramPreferences.bool(key, default: fallback)
+    }
+
+    static func title(_ row: WhitegramSettingsRowDescriptor, baseLanguage: String) -> String {
+        let key = (row.kind == .headerRow ? "h." : "s.") + row.id
+        if WhitegramLocalizationStrings.values[key] != nil {
+            return WhitegramLocalization.string(key, baseLanguage: baseLanguage)
+        }
+        let russian = WhitegramLocalization.selectedLanguage(baseLanguage: baseLanguage) == "ru"
         if russian, let title = russianTitles[row.id] { return title }
         return row.id.replacingOccurrences(of: "([a-z0-9])([A-Z])", with: "$1 $2", options: .regularExpression).capitalized
     }

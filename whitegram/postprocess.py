@@ -1,8 +1,20 @@
 #!/usr/bin/env python3
+import base64
+import binascii
+import os
 import plistlib
 import shutil
 import sys
 from pathlib import Path
+
+backend_key = os.environ.get("WHITEGRAM_BACKEND_APPLICATION_KEY", "")
+if backend_key:
+    try:
+        decoded_key = base64.b64decode(backend_key, validate=True)
+        if len(decoded_key) != 32 or base64.b64encode(decoded_key).decode("ascii") != backend_key:
+            raise ValueError("Invalid application key")
+    except (ValueError, binascii.Error):
+        raise SystemExit("WHITEGRAM_BACKEND_APPLICATION_KEY must be canonical base64 for exactly 32 bytes") from None
 
 root = Path(sys.argv[1]).resolve()
 old_prefix = "ph.telegra.Telegraph"
@@ -34,6 +46,10 @@ for path in sorted(root.rglob("Info.plist")):
     updated_plist = replace_prefix(plist)
     if path.name == "Info.plist" and path.parent.name == "Telegram.app":
         updated_plist["CFBundleDisplayName"] = "WhiteGram"
+        if backend_key:
+            updated_plist["WhitegramBackendApplicationKey"] = backend_key
+        else:
+            updated_plist.pop("WhitegramBackendApplicationKey", None)
 
     url_types = updated_plist.get("CFBundleURLTypes")
     if isinstance(url_types, list):

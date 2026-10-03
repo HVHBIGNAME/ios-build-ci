@@ -21,6 +21,10 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
     private var history: WhitegramAIConversationSession?
     private var historyLoadError: WhitegramServiceError?
     private var configuration: [String]?
+    private var modelTask: WhitegramServiceTask?
+    private var modelTaskId: UUID?
+    private var models: [WhitegramAIModel] = []
+    private var nextModelPage: String?
     private var refreshing = false
     private var status = ""
     private var connection = "Not checked. Send a prompt to check the configured model."
@@ -32,6 +36,7 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
         self.historyDirectory = URL(fileURLWithPath: context.account.basePath, isDirectory: true).appendingPathComponent("whitegram-ai-v1", isDirectory: true)
         self.presenter.changed = { [weak self] in self?.refresh() }
         self.observers.append(whitegramServiceObserve(WhitegramPreferences.updatedNotification) { [weak self] _ in self?.refresh() })
+        self.observers.append(whitegramServiceObserve(WhitegramLocalizationStore.changedNotification) { [weak self] _ in self?.refresh() })
         self.observers.append(whitegramServiceObserve(WhitegramServiceCredential.updatedNotification) { [weak self] notification in
             guard let self = self, let credential = notification.object as? WhitegramServiceCredential, credential == self.historyProvider?.credential else { return }
             self.cancel(message: "API key changed. Request cancelled.")
@@ -44,6 +49,7 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
     }
 
     deinit {
+        self.modelTask?.cancel()
         self.history?.changed = nil
         self.observers.forEach { NotificationCenter.default.removeObserver($0) }
     }
@@ -77,24 +83,26 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
             }
             self.hasLoadedHistory = true
             self.historyProvider = provider
+            self.models = []
+            self.nextModelPage = nil
             self.historyStore = provider.map { WhitegramAIConversationStore(directory: self.historyDirectory, accountId: self.accountId, provider: $0) }
             self.loadHistory()
         }
         let enabled = WhitegramPreferences.bool("geminiEnabled")
-        let model = provider.map { WhitegramPreferences.string($0.modelPreference) } ?? ""
+        let model = provider?.configuredModel ?? ""
         var keyAvailable = false
         var credentialError: WhitegramServiceError?
         if let provider = provider {
             do { keyAvailable = try WhitegramServiceCredentials.vault.token(for: provider.credential) != nil }
             catch { credentialError = error as? WhitegramServiceError ?? .preferences }
         }
-        let configuration = [provider?.rawValue ?? "", model, enabled ? "1" : "0", keyAvailable ? "1" : "0"]
+        let configuration = [provider?.rawValue ?? "", model, enabled ? "1" : "0", keyAvailable ? "1" : "0", provider?.configuredRoute.rawValue ?? ""]
         if let previous = self.configuration, previous != configuration {
             self.cancel(message: "Configuration changed. Request cancelled.")
             self.connection = "Not checked for these settings."
         }
         self.configuration = configuration
-        let requesting = self.history?.isRequesting == true
+        let requesting = self.history?.isRequesting == true || self.modelTask != nil
         let idle = !requesting && !self.presenter.isPresenting
         let historyError = self.historyLoadError ?? self.history?.storageError
         let canSend = idle && enabled && provider != nil && keyAvailable && !model.isEmpty && self.history != nil && historyError == nil
@@ -102,14 +110,24 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
         func add(_ id: String, _ section: Int32, _ content: WhitegramServiceEntry.Content) {
             rows.append(WhitegramServiceEntry(stableId: id, order: rows.count, section: section, content: content))
         }
-        add("enabled", 0, .toggle("Enable AI Requests", enabled, idle))
-        add("provider", 0, .disclosure("Provider", provider?.title ?? "Choose", idle))
-        add("model", 0, .disclosure("Model ID", model.isEmpty ? "Enter model ID" : String(model.prefix(80)), idle && provider != nil))
-        add("key", 0, .disclosure("API Key", keyAvailable ? "•••••••• · Keychain" : "Not set", idle && provider != nil))
+        add("enabled", 0, .toggle(WhitegramLocalization.string("s.aiEnabled"), enabled, idle))
+        add("provider", 0, .disclosure(WhitegramLocalization.string("s.aiProvider"), provider?.title ?? "Choose", idle))
+        add("route", 0, .disclosure("Connection Route", provider?.configuredRoute == .direct ? "Direct API" : "Original Whitegram Proxy", idle && provider != nil))
+        if provider?.configuredRoute == .originalProxy { add("proxyStatus", 0, .text(WhitegramServiceError.originalProxyUnavailable.localizedDescription)) }
+        add("model", 0, .disclosure(WhitegramLocalization.string(provider == .groq ? "s.groqModel" : "s.geminiModel"), model.isEmpty ? "Enter model ID" : String(model.prefix(80)), idle && provider != nil))
+        add("discoverModels", 0, .action("Load Models / Test Connection", idle && enabled && keyAvailable && provider != nil))
+        add("key", 0, .disclosure(WhitegramLocalization.string(provider == .groq ? "s.groqApiKey" : "s.geminiApiKey"), keyAvailable ? "•••••••• · Keychain" : "Not set", idle && provider != nil))
         add("removeKey", 0, .action("Remove This Provider's API Key", idle && provider != nil && (keyAvailable || credentialError != nil)))
         if let error = credentialError { add("credentialError", 0, .text(error.localizedDescription)) }
         add("modelInfo", 0, .text("Enter a text-capable model ID available to your provider account. Each provider keeps its own model ID and API key. Keys are stored in this device's Keychain."))
         add("network", 0, .text("Official Gemini and Groq APIs via Apple URLSession and system network settings. Replies have a 4,096-token output limit."))
+        if !self.models.isEmpty {
+            add("modelListHeader", 3, .header("PROVIDER MODEL LIST"))
+            for model in self.models {
+                add("selectModel:" + model.id, 3, .disclosure(model.title, model.id, idle))
+            }
+        }
+        if self.nextModelPage != nil { add("moreModels", 3, .action("Load Next Model Page", idle)) }
         add("promptHeader", 1, .header("PROMPT"))
         add("compose", 1, .action("Compose Prompt…", idle))
         add("prompt", 1, .text(self.prompt.isEmpty ? "Write or paste the text you want to send." : String(self.prompt.prefix(500)) + (self.prompt.count > 500 ? "…" : "")))
@@ -125,7 +143,14 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
             add("reloadHistory", 2, .action("Reload Saved History", idle))
         }
         let turns = self.history?.snapshot.turns ?? []
-        if turns.isEmpty { add("emptyHistory", 2, .text("No saved conversation for this account and provider.")) }
+        if let legacy = self.history?.snapshot.legacyHistory {
+            add("legacyHistory", 2, .text("Imported original v5 history: \(legacy.entries.count) entries. The original format had no account, date or model metadata. Complete user/reply pairs are included in new prompts; orphan and unanswered entries remain in the transcript."))
+            add("viewLegacyHistory", 2, .action("View Original History", idle))
+        } else if let provider, UserDefaults.standard.object(forKey: WhitegramAILegacyHistory.key(for: provider)) != nil {
+            add("importLegacyHistory", 2, .action("Import Original v5 History…", idle && turns.isEmpty && historyError == nil))
+            add("legacyImportInfo", 2, .text("Original history was shared across accounts. Import explicitly copies it to this account and provider. The original store is retained."))
+        }
+        if turns.isEmpty && self.history?.snapshot.legacyHistory == nil { add("emptyHistory", 2, .text("No saved conversation for this account and provider.")) }
         for turn in turns.suffix(8) {
             let prefix = "turn:" + turn.id.uuidString
             add(prefix + ":user", 2, .text("You · " + whitegramServiceDate(turn.date) + "\n" + whitegramAIPreview(turn.prompt, limit: 500)))
@@ -133,18 +158,21 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
                 add(prefix + ":reply", 2, .text(response.provider.title + " · " + response.model + "\n" + whitegramAIPreview(response.text, limit: 800)))
                 if response.isTruncated { add(prefix + ":partial", 2, .text("The provider reached the output limit. This reply is partial.")) }
             } else {
+                if let partial = turn.partialText, !partial.isEmpty {
+                    add(prefix + ":partialReply", 2, .text("Partial reply · " + whitegramAIPreview(partial, limit: 800)))
+                }
                 let state: String
                 switch turn.state {
                 case .pending: state = requesting ? "Waiting for a reply…" : "Interrupted. Retry Last Prompt resubmits it explicitly."
-                case .cancelled: state = "Cancelled. No reply was saved."
-                case .failed: state = "Request failed. No reply was saved."
+                case .cancelled: state = "Cancelled. Any partial reply is excluded from conversation context."
+                case .failed: state = "Request failed. Any partial reply is excluded from conversation context."
                 case .answered: state = "Reply unavailable."
                 }
                 add(prefix + ":state", 2, .text(state))
             }
         }
         if turns.count > 8 { add("moreHistory", 2, .text("Showing the latest 8 of \(turns.count) turns. View Full Transcript includes all saved turns.")) }
-        add("viewHistory", 2, .action("View Full Transcript", idle && !turns.isEmpty))
+        add("viewHistory", 2, .action("View Full Transcript", idle && (!turns.isEmpty || self.history?.snapshot.legacyHistory != nil)))
         add("clearHistory", 2, .action("Clear This Provider's History…", !self.presenter.isPresenting && self.historyStore != nil))
         if let response = turns.last?.response {
             add("viewResponse", 2, .action("View Last Reply", idle))
@@ -159,7 +187,7 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
     }
 
     func setEnabled(_ enabled: Bool) {
-        guard self.history?.isRequesting != true, !self.presenter.isPresenting else { return }
+        guard self.history?.isRequesting != true, self.modelTask == nil, !self.presenter.isPresenting else { return }
         self.save(["geminiEnabled": enabled])
     }
 
@@ -175,10 +203,19 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
     func perform(_ id: String) {
         if id == "cancel" { self.cancel(); return }
         if id == "clearHistory", !self.presenter.isPresenting { self.clearHistory(); return }
-        guard self.history?.isRequesting != true, !self.presenter.isPresenting else { return }
+        guard self.history?.isRequesting != true, self.modelTask == nil, !self.presenter.isPresenting else { return }
+        if id.hasPrefix("selectModel:"), let provider = self.historyProvider {
+            let value = String(id.dropFirst("selectModel:".count))
+            guard self.models.contains(where: { $0.id == value }) else { return }
+            self.save([provider.modelPreference: value])
+            return
+        }
         switch id {
         case "provider": self.chooseProvider()
+        case "route": self.chooseRoute()
         case "model": self.editModel()
+        case "discoverModels": self.discoverModels(nextPage: false)
+        case "moreModels": self.discoverModels(nextPage: true)
         case "key": self.editKey()
         case "removeKey": self.removeKey()
         case "compose":
@@ -192,9 +229,15 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
         case "send": self.send(retry: false)
         case "retry": self.send(retry: true)
         case "reloadHistory": self.loadHistory(); self.refresh()
+        case "importLegacyHistory": self.importLegacyHistory()
+        case "viewLegacyHistory":
+            if let history = self.history?.snapshot.legacyHistory {
+                self.checkPresentation(self.presenter.showText(title: "Original v5 History", text: history.transcript))
+            }
         case "viewHistory":
             if let history = self.history {
-                self.checkPresentation(self.presenter.showText(title: history.provider.title + " Conversation", text: whitegramAITranscript(history.snapshot.turns)))
+                let original = history.snapshot.legacyHistory.map { "Original v5 history (dates and model not recorded)\n\n" + $0.transcript + "\n\n──────────\n\n" } ?? ""
+                self.checkPresentation(self.presenter.showText(title: history.provider.title + " Conversation", text: original + whitegramAITranscript(history.snapshot.turns)))
             }
         case "viewResponse":
             if let response = self.history?.snapshot.turns.last?.response { self.checkPresentation(self.presenter.showText(title: response.provider.title + " Response", text: response.text)) }
@@ -223,10 +266,56 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
     private func editModel() {
         guard let provider = WhitegramAIProvider.configured else { return }
         self.checkPresentation(self.presenter.editValue(title: provider.title + " Model ID", message: "Use an exact text-generation model ID from your provider account.",
-            value: WhitegramPreferences.string(provider.modelPreference), placeholder: "Model ID", saved: { [weak self] value in
+            value: provider.configuredModel, placeholder: "Model ID", saved: { [weak self] value in
                 do { self?.save([provider.modelPreference: try provider.validatedModel(value)]) }
                 catch { self?.status = (error as? WhitegramServiceError ?? .invalidModel).localizedDescription; self?.refresh() }
             }))
+    }
+
+    private func chooseRoute() {
+        guard let provider = self.historyProvider else { return }
+        let alert = UIAlertController(title: "\(provider.title) Connection", message: "The original signed Whitegram proxy session is unavailable. Direct API sends requests to the selected provider with your Keychain API key. It does not use Telegram's MTProto proxy.", preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Direct API", style: .default, handler: { [weak self] _ in
+            self?.presenter.close()
+            self?.save([provider.proxyPreference: false])
+        }))
+        alert.addAction(UIAlertAction(title: "Keep Original Proxy Setting", style: .default, handler: { [weak self] _ in
+            self?.presenter.close()
+            self?.save([provider.proxyPreference: true])
+        }))
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: { [weak self] _ in self?.presenter.close() }))
+        self.checkPresentation(self.presenter.present(alert))
+    }
+
+    private func discoverModels(nextPage: Bool) {
+        guard let provider = self.historyProvider else { return }
+        do {
+            guard WhitegramPreferences.bool("geminiEnabled") else { throw WhitegramServiceError.disabled }
+            guard let key = try WhitegramServiceCredentials.vault.token(for: provider.credential) else { throw WhitegramServiceError.missingAPIKey }
+            let id = UUID()
+            self.modelTaskId = id
+            self.status = "Requesting the provider's model list…"
+            self.modelTask = WhitegramAIService.shared.fetchModels(provider: provider, apiKey: key, route: provider.configuredRoute, pageToken: nextPage ? self.nextModelPage : nil) { [weak self] result in
+                guard let self, self.modelTaskId == id, self.historyProvider == provider else { return }
+                self.modelTask = nil
+                self.modelTaskId = nil
+                switch result {
+                case let .success(page):
+                    if !nextPage { self.models = [] }
+                    for model in page.models where !self.models.contains(where: { $0.id == model.id }) { self.models.append(model) }
+                    self.nextModelPage = page.nextPageToken
+                    self.connection = "Model list received from \(provider.title) at \(whitegramServiceDate(Date()))."
+                    self.status = "Choose a model returned by the provider. Listing access does not guarantee generation access or quota; Groq's list can include non-text models."
+                case let .failure(error):
+                    self.status = error.localizedDescription
+                    self.connection = "Model-list request failed at \(whitegramServiceDate(Date()))."
+                }
+                self.refresh()
+            }
+        } catch {
+            self.status = (error as? WhitegramServiceError ?? .preferences).localizedDescription
+        }
+        self.refresh()
     }
 
     private func editKey() {
@@ -269,6 +358,28 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
         }
     }
 
+    private func importLegacyHistory() {
+        guard let provider = self.historyProvider, let store = self.historyStore, let snapshot = self.history?.snapshot,
+              snapshot.turns.isEmpty, snapshot.legacyHistory == nil else { return }
+        let alert = UIAlertController(title: "Import Original \(provider.title) History?", message: "The original app-wide history will be copied to the current Telegram account. Complete user/reply pairs become context for future prompts. Dates and model names were not stored and will not be invented.", preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: { [weak self] _ in self?.presenter.close() }))
+        alert.addAction(UIAlertAction(title: "Import to This Account", style: .default, handler: { [weak self] _ in
+            guard let self else { return }
+            self.presenter.close()
+            guard self.historyProvider == provider else { return }
+            do {
+                guard let data = UserDefaults.standard.data(forKey: WhitegramAILegacyHistory.key(for: provider)) else { throw WhitegramServiceError.legacyHistoryFormat }
+                _ = try store.importLegacy(data, replacing: snapshot.revision)
+                self.loadHistory()
+                self.status = "Original history imported. Its source Data is unchanged."
+            } catch {
+                self.status = (error as? WhitegramServiceError ?? .conversationStorage).localizedDescription
+            }
+            self.refresh()
+        }))
+        self.checkPresentation(self.presenter.present(alert))
+    }
+
     private func historyChanged() {
         if let result = self.history?.lastResult {
             switch result {
@@ -291,12 +402,12 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
 
     private func send(retry: Bool) {
         guard let history = self.history, let provider = self.historyProvider else { return }
-        let sender: WhitegramAIConversationSession.Sender = { messages, model, completion in
+        let sender: WhitegramAIConversationSession.StreamingSender = { messages, model, onText, completion in
             do {
                 guard WhitegramPreferences.bool("geminiEnabled") else { throw WhitegramServiceError.disabled }
                 guard WhitegramAIProvider.configured == provider else { throw WhitegramServiceError.invalidProvider }
                 guard let key = try WhitegramServiceCredentials.vault.token(for: provider.credential) else { throw WhitegramServiceError.missingAPIKey }
-                return WhitegramAIService.shared.generate(messages: messages, provider: provider, model: model, apiKey: key, completion: completion)
+                return WhitegramAIService.shared.generateStreaming(messages: messages, provider: provider, model: model, apiKey: key, route: provider.configuredRoute, onText: onText, completion: completion)
             } catch {
                 let operation = WhitegramServiceOperation(completion: completion)
                 operation.finish(.failure(error as? WhitegramServiceError ?? .preferences))
@@ -304,11 +415,11 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
             }
         }
         do {
-            let model = WhitegramPreferences.string(provider.modelPreference)
+            let model = provider.configuredModel
             if retry {
-                try history.retry(model: model, sender: sender)
+                try history.retryStreaming(model: model, sender: sender)
             } else {
-                try history.send(text: self.prompt, model: model, sender: sender)
+                try history.sendStreaming(text: self.prompt, model: model, sender: sender)
                 self.prompt = ""
             }
             self.status = "Sending this prompt with the completed conversation…"
@@ -342,7 +453,10 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
     }
 
     private func cancel(message: String = "Request cancelled.") {
-        guard self.history?.isRequesting == true else { return }
+        guard self.history?.isRequesting == true || self.modelTask != nil else { return }
+        self.modelTaskId = nil
+        self.modelTask?.cancel()
+        self.modelTask = nil
         self.history?.cancel()
         self.status = message
         self.refresh()
@@ -364,6 +478,7 @@ private func whitegramAITranscript(_ turns: [WhitegramAIConversationTurn]) -> St
         if let response = turn.response {
             text += "\n\n" + response.provider.title + " · " + response.model + (response.isTruncated ? " (partial)" : "") + "\n" + response.text
         } else {
+            if let partial = turn.partialText { text += "\n\n[Partial reply]\n" + partial }
             text += "\n\n[" + (turn.state == .pending ? "interrupted" : turn.state.rawValue) + "]"
         }
         return text
@@ -377,7 +492,7 @@ public func whitegramAISettingsController(context: AccountContext) -> ViewContro
 /// Prefills the composer with selected message text. Nothing is submitted until the user taps Send Prompt.
 public func whitegramAISettingsController(context: AccountContext, text: String?) -> ViewController {
     let coordinator = WhitegramAICoordinator(context: context, text: text)
-    let controller = whitegramServiceListController(context: context, title: "AI", entries: coordinator.entries.get(), actions: coordinator)
+    let controller = whitegramServiceListController(context: context, title: "Whitegram AI", entries: coordinator.entries.get(), actions: coordinator, titleKey: "section.gemini")
     coordinator.presenter.controller = controller
     controller.didAppear = { [coordinator] _ in coordinator.appeared() }
     controller.didDisappear = { [coordinator] _ in coordinator.disappeared() }

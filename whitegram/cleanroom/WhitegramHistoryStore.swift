@@ -24,7 +24,9 @@ public final class WhitegramHistoryStore: NSObject {
     public static let updatedNotification = Notification.Name("WhitegramHistoryUpdated")
     public static let maximumArchiveBytes = 8 * 1024 * 1024
     public static let maximumEntries = 2000
-    static let maximumTextBytes = 8192
+    // Covers ordinary Telegram text/captions without the previous 8 KiB loss.
+    // Full native retained messages and their edit attributes are not truncated.
+    static let maximumTextBytes = 65536
     static let maximumMediaItems = 32
     static let maximumNameBytes = 512
 
@@ -102,7 +104,7 @@ public final class WhitegramHistoryStore: NSObject {
     private func validate(_ entry: WhitegramHistoryEntry) throws {
         guard entry.accountId == self.accountId else { throw WhitegramHistoryError.differentAccount }
         let expectedKey = "\(entry.peerId):\(entry.namespace):\(entry.messageId):\(entry.event.rawValue):\(entry.revision)"
-        guard let peerId = Int64(entry.peerId), String(peerId) == entry.peerId,
+        guard whitegramHistoryValidPeer(entry.peerId),
               entry.namespace == self.cloudNamespace, entry.messageId > 0, entry.key == expectedKey,
               entry.text.utf8.count <= Self.maximumTextBytes + 3,
               entry.mediaCount >= 0, entry.mediaCount <= 1000,
@@ -112,8 +114,11 @@ public final class WhitegramHistoryStore: NSObject {
               (entry.authorName?.utf8.count ?? 0) <= Self.maximumNameBytes else {
             throw WhitegramHistoryError.invalidArchive
         }
-        if let authorId = entry.authorId, Int64(authorId).map({ String($0) }) != authorId {
+        if let authorId = entry.authorId, !whitegramHistoryValidPeer(authorId) {
             throw WhitegramHistoryError.invalidArchive
+        }
+        for value in [entry.threadId, entry.groupingKey].compactMap({ $0 }) {
+            if Int64(value).map({ String($0) }) != value { throw WhitegramHistoryError.invalidArchive }
         }
         if let media = entry.media {
             guard media.count <= min(entry.mediaCount, Self.maximumMediaItems) else { throw WhitegramHistoryError.invalidArchive }
@@ -246,6 +251,25 @@ public final class WhitegramHistoryStore: NSObject {
                 return inserted.intersection(self.entries.keys).count
             }
             DispatchQueue.main.async { completion(result) }
+        }
+    }
+
+    /// The caller must obtain confirmation naming this account before using this
+    /// entry point. Modern archives always use importArchive and validate ownership.
+    public func importOriginalBackupForThisAccount(_ data: Data, completion: @escaping (Result<Int, Error>) -> Void) {
+        self.queue.async {
+            do {
+                guard data.count <= Self.maximumArchiveBytes else { throw WhitegramHistoryBackupError.invalidLegacyBackup }
+                let legacy = try JSONDecoder().decode([WhitegramHistoryLegacyMessage].self, from: data)
+                guard legacy.count <= Self.maximumEntries else { throw WhitegramHistoryBackupError.invalidLegacyBackup }
+                let timestamp = Date().timeIntervalSince1970
+                let entries = try legacy.map { try $0.entry(accountId: self.accountId, capturedAt: timestamp) }
+                let encoded = try self.encode(entries)
+                // Use the same all-or-nothing validator, ownership checks and merge.
+                self.importArchive(encoded, completion: completion)
+            } catch {
+                DispatchQueue.main.async { completion(.failure(error)) }
+            }
         }
     }
 }

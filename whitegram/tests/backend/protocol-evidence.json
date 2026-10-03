@@ -1,0 +1,34 @@
+{
+  "ipa_sha256": "bd6d3a13046d5857c1389e2d794c4c2ca44cee89bb22880004bd77f84fe29837",
+  "provenance": {
+    "api_root": "image46 0x2d7f24 -> array 0x11437e0; XOR decoder 0x2daf44 uses mask bytes at 0x1143838",
+    "application_key": "image46 0x2d9e20 -> array 0x11438f8 XOR mask 0x1143838",
+    "signing": "image46 0x2da040: decimal Unix seconds:uppercase HTTP method:URL.path plus optional ?URL.query; HMAC-SHA256 lowercase hex",
+    "pins": "image46 0x2d9a04 -> Swift String array 0x1145420; SPKI prefixes at 0x1145398 and 0x11453e0",
+    "beta": "image46 0x217fa0 payload and 0x218720 fields; image55 0x55b528 validates Ed25519 key at 0x4ba09b0, user, nonce, expiry, future skew 120 and TTL 600. Image55 0x55b888 returns unknown if the server verdict is absent/invalid; it does not promote local channel membership. Cache bounds: 0x2ec80 -> double at 0x4945060 = 900 positive, 0x2ec8c = 30 negative.",
+    "scammer_refresh": "image46 0x1f0008..0x1f000c consists only of RET. Snapshot constants exist but no active download is established by this method.",
+    "registration": "image46 0x2c6ed4 CodingKeys, 0x2c7bf4 GET, 0x2c8dc8 POST year/month/day (zeroes clear), 0x2ea2c cache lifetime at 0xd53520",
+    "photos": "image55 0xd743c4 + 0xd74700 manifest photos/slot; 0xd75468 GET user_id/slot; 0xd72d94 DELETE; 0xd733d4 JPEG POST",
+    "photo_wall": "image55 0xd6a164 WallpapersProfile; 0xd6a26c my_wall_<userId>.jpg; 0xd6b7a0 GET; 0xd6c1f8 JPEG POST; 0xd6ce74 DELETE",
+    "status": "image55 0xc9a840 status, uptime_seconds, services[{name,ok}], processing_ms; 0xc9ac5c signedRequest; 0xc97c84 probes"
+  },
+  "identity_keychain_tag": "com.whitegram.deviceIdentity.p256",
+  "legacy_device_token_service": "com.whitegram.deviceToken",
+  "legacy_device_token_account": "wg_stableDeviceToken",
+  "mask_hex": "5721930d44ae7bc218f06a31955de409",
+  "encoded_root_hex": "3f55e77d379454ed7980031fe2358d7d3246e16c298013a761800b58fb2e817b2148f0686ac115ae719e0f",
+  "synthetic_application_key_hex": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+  "api_root": "https://api.whitegram.heypainservice.online",
+  "spki_pins": ["brzvtCELCIZUo4sD/qPX0ccRtPsd3DY6RfmxpOU9oB4=", "sCkq5UWXjg+7mKu9lMhhYF5bGLsy7VI/UNW3tccdR7w=", "diGVwiVYbubAI3RW4hB9xU8e/CH2GnkuvVFZE8zmgzI=", "C5+lpZ7tcVwmwQIMcRtPbsQtWLABXhQzejna0wHFr8M="],
+  "spki_prefixes": {"65": "3059301306072a8648ce3d020106082a8648ce3d030107034200", "97": "3076301006072a8648ce3d020106052b81040022036200"},
+  "beta_public_key": "mZIY2qc74RLvkLLT6MXy5fG2vsOLPRRhYJ90JJdPDII=",
+  "registration_cache_seconds": 600,
+  "beta_positive_cache_seconds": 900,
+  "beta_negative_cache_seconds": 30,
+  "synthetic_vectors": [
+    {"message": "1700000000:GET:/v1/profile/about?user_id=42", "signature": "79ab277c886993475f98727d9f840648045303e271063af3945e23635a769964", "session_signature": "09323ea78560ce5167765f1d4276d4870a06a843a9ab0d522ef7fdf7fcea8c9b"},
+    {"message": "1700000000:POST:/v1/proxy/groq/openai/v1/chat/completions", "signature": "3d3f169f7910cb25ca237cd942330dbf609248e668b05aa8dcadfba5d0f87ed1", "session_signature": "88d3364aa5c099c5bbe99fc5a3b35889e2307451a6091ebba159eacc2da45263"},
+    {"message": "1700000000:GET:/v1/lyrics/search?q=a%2Bb%20c", "signature": "c2e4994fbb5f850c5bd43961ec0087a166a915d647291ddf722a5e8f1c163eb8", "session_signature": "a3ee1255084ee8fe80a9a77b2110b6e6497465aa3e96968bb79a0eb8880aa3fc"}
+  ],
+  "verification_scope": "The application/session signing keys, request inputs and tokens in tests are synthetic. Production application-key material is supplied by private build configuration and is excluded from this repository. These constants establish code recovery, not server availability, authenticated acceptance, entitlement, playback, or device parity."
+}

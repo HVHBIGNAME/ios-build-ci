@@ -14,6 +14,12 @@ public enum WhitegramAIProvider: String, CaseIterable, Codable {
         }
     }
 
+    /// Recovered getter defaults, used only when a model preference is absent.
+    func modelId(storedValue: Any?) -> String {
+        guard let storedValue else { return self == .gemini ? "gemini-3-flash-preview" : "llama-3.3-70b-versatile" }
+        return (storedValue as? String) ?? ""
+    }
+
     func validatedModel(_ value: String) throws -> String {
         var value = value.trimmingCharacters(in: .whitespacesAndNewlines)
         if self == .gemini && value.hasPrefix("models/") {
@@ -57,8 +63,8 @@ public struct WhitegramAIResponse: Equatable, Codable {
 /// Sends only explicitly supplied text messages. Account identifiers and local history metadata are never sent.
 public final class WhitegramAIService {
     public static let shared = WhitegramAIService()
-    private let transport: WhitegramServiceTransport
-    private let gate: WhitegramServiceRequestGate
+    let transport: WhitegramServiceTransport
+    let gate: WhitegramServiceRequestGate
 
     public init(transport: WhitegramServiceTransport = WhitegramURLSessionTransport(), minimumRequestInterval: TimeInterval = 1) {
         self.transport = transport
@@ -66,15 +72,22 @@ public final class WhitegramAIService {
     }
 
     @discardableResult
-    public func generate(text: String, provider: WhitegramAIProvider, model: String, apiKey: String, completion: @escaping (Result<WhitegramAIResponse, WhitegramServiceError>) -> Void) -> WhitegramServiceTask {
-        return self.generate(messages: [WhitegramAIMessage(role: .user, text: text)], provider: provider, model: model, apiKey: apiKey, completion: completion)
+    public func generate(text: String, provider: WhitegramAIProvider, model: String, apiKey: String, route: WhitegramServiceRoute = .direct, completion: @escaping (Result<WhitegramAIResponse, WhitegramServiceError>) -> Void) -> WhitegramServiceTask {
+        return self.generate(messages: [WhitegramAIMessage(role: .user, text: text)], provider: provider, model: model, apiKey: apiKey, route: route, completion: completion)
     }
 
     @discardableResult
-    public func generate(messages: [WhitegramAIMessage], provider: WhitegramAIProvider, model: String, apiKey: String, completion: @escaping (Result<WhitegramAIResponse, WhitegramServiceError>) -> Void) -> WhitegramServiceTask {
+    public func generate(messages: [WhitegramAIMessage], provider: WhitegramAIProvider, model: String, apiKey: String, route: WhitegramServiceRoute = .direct, completion: @escaping (Result<WhitegramAIResponse, WhitegramServiceError>) -> Void) -> WhitegramServiceTask {
+        return self.perform(prepare: {
+            try route.requireAvailable()
+            return try WhitegramAIWire.request(messages: messages, provider: provider, model: model, apiKey: apiKey)
+        }, decode: { try WhitegramAIWire.response($0, provider: provider, model: model) }, completion: completion)
+    }
+
+    func perform<Value>(prepare: () throws -> URLRequest, decode: @escaping (WhitegramServiceHTTPResponse) throws -> Value, completion: @escaping (Result<Value, WhitegramServiceError>) -> Void) -> WhitegramServiceTask {
         let operation = WhitegramServiceOperation(completion: completion)
         let prepared = whitegramServiceResult { () -> URLRequest in
-            let request = try WhitegramAIWire.request(messages: messages, provider: provider, model: model, apiKey: apiKey)
+            let request = try prepare()
             try self.gate.begin()
             return request
         }
@@ -89,7 +102,7 @@ public final class WhitegramAIService {
                     gate.end()
                 }
                 operation.finish(result.flatMap { response in
-                    whitegramServiceResult { try WhitegramAIWire.response(response, provider: provider, model: model) }
+                    whitegramServiceResult { try decode(response) }
                 })
             }
             operation.attach(child)
@@ -126,7 +139,7 @@ enum WhitegramAIWire {
     static func requestBody(messages: [WhitegramAIMessage], provider: WhitegramAIProvider, model: String) throws -> Data {
         let model = try provider.validatedModel(model)
         guard !messages.isEmpty, messages.count % 2 == 1,
-              messages.count <= WhitegramServiceLimits.maximumAIConversationTurns * 2 + 1 else {
+              messages.count <= WhitegramServiceLimits.maximumAIConversationTurns * 2 + 201 else {
             throw WhitegramServiceError.invalidConversation
         }
         for (index, message) in messages.enumerated() {
@@ -184,6 +197,7 @@ enum WhitegramAIWire {
         if blockedReasons.contains(candidate.finishReason ?? "") || candidate.safetyRatings?.contains(where: { $0.blocked == true }) == true {
             throw WhitegramServiceError.outputBlocked
         }
+        guard candidate.content?.parts?.contains(where: { $0.functionCall != nil }) != true else { throw WhitegramServiceError.unsupportedToolCall }
         let text = (candidate.content?.parts ?? []).filter { $0.thought != true }.compactMap { $0.text }.joined()
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw WhitegramServiceError.noText }
         guard candidate.finishReason == "STOP" || candidate.finishReason == "MAX_TOKENS" else { throw WhitegramServiceError.invalidResponse }
@@ -198,6 +212,8 @@ enum WhitegramAIWire {
         guard let choices = response.choices else { throw WhitegramServiceError.invalidResponse }
         guard let choice = choices.first(where: { $0.index == 0 }) ?? choices.first else { throw WhitegramServiceError.noText }
         if choice.finishReason == "content_filter" || !(choice.message?.refusal ?? "").isEmpty { throw WhitegramServiceError.outputBlocked }
+        guard choice.message?.toolCalls?.isEmpty != false, choice.message?.functionCall == nil,
+              choice.finishReason != "tool_calls", choice.finishReason != "function_call" else { throw WhitegramServiceError.unsupportedToolCall }
         guard let text = choice.message?.content, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw WhitegramServiceError.noText }
         guard choice.finishReason == "stop" || choice.finishReason == "length" else { throw WhitegramServiceError.invalidResponse }
         return WhitegramAIResponse(provider: .groq, model: response.model ?? model, text: text,
@@ -215,8 +231,10 @@ enum WhitegramAIWire {
         struct Candidate: Decodable {
             struct Content: Decodable {
                 struct Part: Decodable {
+                    struct FunctionCall: Decodable { let name: String? }
                     let text: String?
                     let thought: Bool?
+                    let functionCall: FunctionCall?
                 }
                 let parts: [Part]?
             }
@@ -235,8 +253,16 @@ enum WhitegramAIWire {
     private struct GroqResponse: Decodable {
         struct Choice: Decodable {
             struct Message: Decodable {
+                struct ToolCall: Decodable { let id: String? }
+                struct FunctionCall: Decodable { let name: String? }
                 let content: String?
                 let refusal: String?
+                let toolCalls: [ToolCall]?
+                let functionCall: FunctionCall?
+                enum CodingKeys: String, CodingKey {
+                    case content, refusal
+                    case toolCalls = "tool_calls", functionCall = "function_call"
+                }
             }
             let index: Int?
             let message: Message?

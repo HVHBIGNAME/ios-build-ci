@@ -89,5 +89,36 @@ final class WhitegramVirusTotalHashTests: XCTestCase {
         task.cancel()
         self.wait(for: [completed], timeout: 5)
     }
+
+    func testMultipartSnapshotContainsCheckedBytesAndIsRemovedAfterUse() throws {
+        let source = directory.appendingPathComponent("source.bin")
+        try Data("abc".utf8).write(to: source)
+        let completed = expectation(description: "snapshot")
+        var upload: WhitegramVirusTotalUpload?
+        WhitegramVirusTotalUpload.prepare(url: source, expectedHash: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", fileName: "selected.bin", progress: { _, _ in }) { result in
+            upload = try? result.get()
+            completed.fulfill()
+        }
+        wait(for: [completed], timeout: 10)
+        let bodyFile = try XCTUnwrap(upload?.bodyFile)
+        let boundary = try XCTUnwrap(upload?.boundary)
+        try Data("changed after snapshot".utf8).write(to: source)
+        let body = try Data(contentsOf: bodyFile)
+        XCTAssertEqual(body.count, Int(try XCTUnwrap(upload?.bodyBytes)))
+        XCTAssertEqual(String(decoding: body, as: UTF8.self), "--\(boundary)\r\nContent-Disposition: form-data; name=\"file\"; filename=\"selected.bin\"\r\nContent-Type: application/octet-stream\r\n\r\nabc\r\n--\(boundary)--\r\n")
+        upload = nil
+        XCTAssertFalse(FileManager.default.fileExists(atPath: bodyFile.path))
+    }
+
+    func testChangedFileCannotBeUploadedUnderPreviouslyReviewedHash() throws {
+        let source = directory.appendingPathComponent("changed.bin")
+        try Data("modified".utf8).write(to: source)
+        let completed = expectation(description: "changed snapshot")
+        WhitegramVirusTotalUpload.prepare(url: source, expectedHash: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", fileName: nil, progress: { _, _ in }) { result in
+            if case let .failure(error) = result { XCTAssertEqual(error, .fileChanged) } else { XCTFail("Mismatched reviewed hash must fail before upload") }
+            completed.fulfill()
+        }
+        wait(for: [completed], timeout: 10)
+    }
 }
 #endif

@@ -35,7 +35,7 @@ private enum WhitegramFontAction: String {
         case .choose:
             return "Choose a System Font"
         case .importFile:
-            return "Import a TTF or OTF File"
+            return "Import a TTF, OTF or ZIP File"
         case .reset:
             return "Reset to System Font"
         }
@@ -63,14 +63,15 @@ private struct WhitegramFontEntry: ItemListNodeEntry {
 
     func item(presentationData: ItemListPresentationData, arguments: Any) -> ListViewItem {
         let arguments = arguments as! WhitegramFontsCoordinator
+        func localized(_ key: String) -> String { return WhitegramLocalization.string(key, baseLanguage: presentationData.strings.baseLanguageCode) }
         switch self.content {
         case let .enabled(value, interactive):
-            return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: "Use Custom Font", value: value, enabled: interactive, sectionId: self.section, style: .blocks, updated: { value in
+            return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: localized("s.customFont"), value: value, enabled: interactive, sectionId: self.section, style: .blocks, updated: { value in
                 arguments.setEnabled(value)
             })
         case let .preview(name, _):
             let font = WhitegramFontRegistry.shared.previewFont(named: name, size: 22.0) ?? UIFont.systemFont(ofSize: 22.0)
-            let sample = NSAttributedString(string: "The quick brown fox jumps over the lazy dog.\nAa Бб Вв · 0123456789", attributes: [.font: font, .foregroundColor: presentationData.theme.list.itemPrimaryTextColor])
+            let sample = NSAttributedString(string: localized("font.previewSample") + "\nAa Бб Вв · 0123456789", attributes: [.font: font, .foregroundColor: presentationData.theme.list.itemPrimaryTextColor])
             return ItemListTextItem(presentationData: presentationData, text: .custom(context: arguments.context, string: sample), sectionId: self.section)
         case let .action(action, enabled):
             return ItemListActionItem(presentationData: presentationData, systemStyle: .glass, title: action.title, kind: enabled ? .generic : .disabled, alignment: .natural, sectionId: self.section, style: .blocks, action: {
@@ -94,7 +95,7 @@ private struct WhitegramFontEntry: ItemListNodeEntry {
     }
 }
 
-private func whitegramFontEntries(_ state: WhitegramFontsState) -> [WhitegramFontEntry] {
+private func whitegramFontEntries(_ state: WhitegramFontsState, language: String) -> [WhitegramFontEntry] {
     var entries: [WhitegramFontEntry] = []
     func add(_ id: String, _ section: Int32, _ content: WhitegramFontEntry.Content) {
         entries.append(WhitegramFontEntry(stableId: id, order: entries.count, section: section, content: content))
@@ -124,20 +125,21 @@ private func whitegramFontEntries(_ state: WhitegramFontsState) -> [WhitegramFon
     if !state.warnings.isEmpty {
         add("warnings", 1, .info(state.warnings.joined(separator: "\n")))
     }
-    add("historyHeader", 2, .header("SAVED FONTS"))
+    add("historyHeader", 2, .header(WhitegramLocalization.string("fonts.manager.title", baseLanguage: language)))
     for row in state.fonts {
         add("font:" + row.font.name, 2, .font(row, state.selectedName == row.font.name, !state.busy))
     }
     add("historyInfo", 2, .info(state.fonts.isEmpty ? "Your chosen and imported fonts will appear here. Imported files are stored on this device and restored when Whitegram launches." : "Tap a font to use it. Swipe left to remove it from this list. Removing an imported font deletes its file and all faces in that file. Reset restores the system font and keeps this library."))
+    add("archiveInfo", 2, .info(WhitegramLocalization.string("fonts.manager.footer", baseLanguage: language)))
     return entries
 }
 
 private func whitegramFontHistory() -> [[String: String]] {
-    return WhitegramPreferences.values()["fontHistory"] as? [[String: String]] ?? []
+    return WhitegramFontHistory.read(values: WhitegramPreferences.values(), defaults: .standard)
 }
 
 private func whitegramFontHistoryValue(_ font: WhitegramFontRecord) -> [String: String] {
-    var value = ["name": font.name, "displayName": font.displayName, "source": font.fileName == nil ? "system" : "import"]
+    var value = ["name": font.name, "psName": font.name, "displayName": font.displayName, "source": font.fileName == nil ? "system" : "import"]
     if let fileName = font.fileName {
         value["fileName"] = fileName
     }
@@ -154,7 +156,7 @@ private func whitegramReadFont(_ url: URL) throws -> [WhitegramFontRecord] {
     var coordinationError: NSError?
     var result: Result<[WhitegramFontRecord], Error>?
     NSFileCoordinator(filePresenter: nil).coordinate(readingItemAt: url, options: .withoutChanges, error: &coordinationError, byAccessor: { coordinatedURL in
-        result = Result { try WhitegramFontRegistry.shared.importFont(from: coordinatedURL) }
+        result = Result { try WhitegramFontArchiveImport.read(coordinatedURL) }
     })
     if let coordinationError = coordinationError {
         throw coordinationError
@@ -210,7 +212,7 @@ private final class WhitegramFontsCoordinator: NSObject, UIDocumentPickerDelegat
         var fonts: [WhitegramFontRecord] = []
         var names = Set<String>()
         for value in whitegramFontHistory() {
-            guard let name = value["name"], !name.isEmpty, names.insert(name).inserted else {
+            guard let name = WhitegramFontHistory.name(in: value), !name.isEmpty, names.insert(name).inserted else {
                 continue
             }
             let fileName = value["fileName"].flatMap { $0.isEmpty ? nil : $0 }
@@ -257,9 +259,9 @@ private final class WhitegramFontsCoordinator: NSObject, UIDocumentPickerDelegat
             self.refresh()
             return
         }
-        var history = whitegramFontHistory().filter { $0["name"] != font.name }
+        var history = whitegramFontHistory().filter { WhitegramFontHistory.name(in: $0) != font.name }
         history.insert(whitegramFontHistoryValue(font), at: 0)
-        self.save(["customFontEnabled": true, "customFontName": font.name, "fontHistory": history], success: "Selected \(font.displayName).")
+        self.save(["customFontEnabled": true, "customFontName": font.name, "customFontFileName": font.fileName ?? "", "fontHistory": history], success: "Selected \(font.displayName).")
     }
 
     func perform(_ action: WhitegramFontAction) {
@@ -282,16 +284,16 @@ private final class WhitegramFontsCoordinator: NSObject, UIDocumentPickerDelegat
         case .importFile:
             let picker: UIDocumentPickerViewController
             if #available(iOS 14.0, *) {
-                picker = UIDocumentPickerViewController(forOpeningContentTypes: [.font], asCopy: true)
+                picker = UIDocumentPickerViewController(forOpeningContentTypes: [.font, .zip], asCopy: true)
             } else {
-                picker = UIDocumentPickerViewController(documentTypes: ["public.font"], in: .import)
+                picker = UIDocumentPickerViewController(documentTypes: ["public.font", "public.zip-archive"], in: .import)
             }
             picker.allowsMultipleSelection = false
             picker.delegate = self
             picker.modalPresentationStyle = .formSheet
             self.presentNative(picker)
         case .reset:
-            self.save(["customFontEnabled": false, "customFontName": ""], success: "System font restored. Your saved fonts are still available below.")
+            self.save(["customFontEnabled": false, "customFontName": "", "customFontFileName": ""], success: "System font restored. Your saved fonts are still available below.")
         }
     }
 
@@ -341,7 +343,7 @@ private final class WhitegramFontsCoordinator: NSObject, UIDocumentPickerDelegat
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
         self.closeNative(controller)
         guard urls.count == 1, let url = urls.first else {
-            self.status = "Choose one TTF or OTF file."
+            self.status = "Choose one TTF, OTF or ZIP file."
             self.refresh()
             return
         }
@@ -356,7 +358,7 @@ private final class WhitegramFontsCoordinator: NSObject, UIDocumentPickerDelegat
                 case let .success(fonts):
                     var history = whitegramFontHistory()
                     for font in fonts.reversed() {
-                        history.removeAll { $0["name"] == font.name }
+                        history.removeAll { WhitegramFontHistory.name(in: $0) == font.name }
                         history.insert(whitegramFontHistoryValue(font), at: 0)
                     }
                     // Import does not silently change the active face; selection is explicit.
@@ -415,14 +417,15 @@ private final class WhitegramFontsCoordinator: NSObject, UIDocumentPickerDelegat
         let history = whitegramFontHistory()
         let removedNames = Set(names + history.compactMap { value -> String? in
             if let fileName = font.fileName, value["fileName"] == fileName {
-                return value["name"]
+                return WhitegramFontHistory.name(in: value)
             }
             return nil
         })
-        var changes: [String: Any] = ["fontHistory": history.filter { !removedNames.contains($0["name"] ?? "") }]
+        var changes: [String: Any] = ["fontHistory": history.filter { !removedNames.contains(WhitegramFontHistory.name(in: $0) ?? "") }]
         if removedNames.contains(WhitegramPreferences.string("customFontName")) {
             changes["customFontEnabled"] = false
             changes["customFontName"] = ""
+            changes["customFontFileName"] = ""
         }
         if WhitegramPreferences.update(changes) {
             self.status = warning ?? "Font removed."
@@ -466,8 +469,8 @@ public func whitegramFontsController(context: AccountContext) -> ViewController 
         |> deliverOnMainQueue
         |> map { presentationData, state -> (ItemListControllerState, (ItemListNodeState, Any)) in
             let data = ItemListPresentationData(presentationData)
-            let controllerState = ItemListControllerState(presentationData: data, title: .text("Fonts"), leftNavigationButton: nil, rightNavigationButton: nil, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back), animateChanges: false)
-            let listState = ItemListNodeState(presentationData: data, entries: whitegramFontEntries(state), style: .blocks, animateChanges: false)
+            let controllerState = ItemListControllerState(presentationData: data, title: .text(WhitegramLocalization.string("fonts.manager.title", baseLanguage: presentationData.strings.baseLanguageCode)), leftNavigationButton: nil, rightNavigationButton: nil, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back), animateChanges: false)
+            let listState = ItemListNodeState(presentationData: data, entries: whitegramFontEntries(state, language: presentationData.strings.baseLanguageCode), style: .blocks, animateChanges: false)
             return (controllerState, (listState, coordinator))
         }
     let controller = ItemListController(context: context, state: signal)

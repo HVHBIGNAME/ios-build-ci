@@ -296,12 +296,13 @@ test("recovered events, wildcard matching, once, streams and state batching work
 
 test("unsupported hooks cannot masquerade as installed capabilities", async () => {
   const host = new Host();
-  for (const api of ["tabs.add", "ui.overlay", "ui.provide", "intercept", "services.provide", "jobs.schedule", "tg.invoke", "postbox.transaction", "lang.python.run", "fakeAPI"]) {
+  for (const api of ["tabs.add", "ui.overlay", "ui.provide", "services.provide", "jobs.schedule", "tg.invoke", "postbox.transaction", "lang.python.run", "fakeAPI"]) {
     assert.equal(host.run(`wg.capabilities.has(${JSON.stringify(api)})`), false, api);
   }
-  for (const source of ["wg.tabs.add({})", "wg.ui.overlay({})", "wg.ui.provide('slot',function(){})", "wg.intercept('tg',function(){})", "wg.services.provide('service',{})", "wg.fakeAPI()", "wg.__native.fakeAPI()", "wg.onSendMessage(function(){})"]) {
+  for (const source of ["wg.tabs.add({})", "wg.ui.overlay({})", "wg.ui.provide('slot',function(){})", "wg.intercept('tg',function(){})", "wg.services.provide('service',{})", "wg.fakeAPI()", "wg.__native.fakeAPI()"] ) {
     assert.throws(() => host.run(source), code("UNSUPPORTED_API"), source);
   }
+  assert.throws(() => host.run("wg.onSendMessage(function(){})"), code("PERMISSION_DENIED"));
   assert.equal(host.run("wg.lang.python.installed"), false);
   assert.deepEqual(plain(host.run("wg.lang.available()")), []);
   await assert.rejects(host.run("wg.lang.python.run('print(1)')"), /UNSUPPORTED_LANGUAGE/);

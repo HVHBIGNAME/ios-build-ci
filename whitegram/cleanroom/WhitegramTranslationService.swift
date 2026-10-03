@@ -4,15 +4,15 @@ import TelegramCore
 import TelegramUIPreferences
 import AccountContext
 
-public enum WhitegramTranslationFailure {
+public enum WhitegramTranslationFailure: Error {
     case network(TranslationError)
     case invalidTarget
     case sourceTooLong
     case emptyResult
     case invalidEntities
-    case googleFormatting
     case unsupportedContent
     case localUnavailable
+    case voiceDisabled
     case timedOut
 
     public var message: String {
@@ -25,12 +25,12 @@ public enum WhitegramTranslationFailure {
             return "The translation service returned no usable text. Your draft has been kept."
         case .invalidEntities:
             return "The translation could not preserve the draft's formatting, links or mentions. Your original draft has been kept."
-        case .googleFormatting:
-            return "Google's native integration returns plain text only. Choose Telegram in Translation settings for drafts with formatting, links or mentions."
         case .unsupportedContent:
             return "Before-send translation supports text and basic formatting. Rich blocks, custom emoji and formatted dates must be sent as originally composed."
         case .localUnavailable:
-            return "The saved on-device translation request is unavailable in this port. Select a network provider in Translation settings to use before-send translation."
+            return "Apple translation requires iOS 18 and a supported language pair. Allow the system language download when prompted, or explicitly choose a network provider. Your original text has been kept."
+        case .voiceDisabled:
+            return "Enable Translate Completed Transcripts in Whitegram → Translation."
         case .timedOut:
             return "Translation timed out. Check your connection and try again. Your draft has been kept."
         case let .network(error):
@@ -51,7 +51,7 @@ public struct WhitegramTranslationResult {
     public let entities: [MessageTextEntity]
 }
 
-private func whitegramTranslationSupports(_ entity: MessageTextEntity) -> Bool {
+func whitegramTranslationSupports(_ entity: MessageTextEntity) -> Bool {
     switch entity.type {
     case .Unknown, .Custom, .CustomEmoji, .FormattedDate, .BankCard:
         return false
@@ -86,7 +86,7 @@ public func whitegramTranslationPreservesEntities(source: String, sourceEntities
 }
 
 /// Uses the existing providers without a silent switch of service or guessed formatting offsets.
-public func whitegramTranslateDraft(context: AccountContext, text: String, entities: [MessageTextEntity], toLang: String, provider: WhiteGramOtherTranslationService) -> Signal<WhitegramTranslationResult, WhitegramTranslationFailure> {
+public func whitegramTranslateDraft(context: AccountContext, text: String, entities: [MessageTextEntity], toLang: String, provider: WhiteGramOtherTranslationService, fromLang: String? = nil) -> Signal<WhitegramTranslationResult, WhitegramTranslationFailure> {
     guard supportedTranslationLanguages.contains(toLang) else { return .fail(.invalidTarget) }
     guard WhitegramTranslationTextRules.hasText(text) else { return .fail(.emptyResult) }
     guard text.utf16.count <= WhitegramTranslationTextRules.maximumSourceUTF16Length else { return .fail(.sourceTooLong) }
@@ -94,12 +94,26 @@ public func whitegramTranslateDraft(context: AccountContext, text: String, entit
     guard entities.allSatisfy(whitegramTranslationSupports) else { return .fail(.unsupportedContent) }
 
     let request: Signal<(String, [MessageTextEntity])?, TranslationError>
+    if WhitegramTranslationSettings.current.appleTranslationRequested {
+        return whitegramTranslateWithSegments(text: text, entities: entities, translate: { texts in
+            return whitegramAppleTranslate(context: context, texts: texts, fromLang: fromLang, toLang: toLang)
+        })
+        |> timeout(120.0, queue: .mainQueue(), alternate: .fail(.timedOut))
+    }
     switch provider {
     case .telegram:
         request = context.engine.messages.translate(text: text, toLang: toLang, entities: entities)
     case .gTranslate:
-        guard entities.isEmpty else { return .fail(.googleFormatting) }
-        request = alternativeTranslateText(text: text, fromLang: nil, toLang: toLang)
+        return whitegramTranslateWithSegments(text: text, entities: entities, translate: { texts in
+            // A highly formatted draft must not fan out hundreds of simultaneous HTTP requests.
+            return texts.reduce(Signal<[String], WhitegramTranslationFailure>.single([])) { previous, source in
+                previous |> mapToSignal { completed in
+                    whitegramTranslateGoogleText(text: source, fromLang: fromLang, toLang: toLang)
+                    |> map { completed + [$0] }
+                }
+            }
+        })
+        |> timeout(30.0, queue: .mainQueue(), alternate: .fail(.timedOut))
     }
     return request
     |> mapError { WhitegramTranslationFailure.network($0) }
@@ -112,6 +126,50 @@ public func whitegramTranslateDraft(context: AccountContext, text: String, entit
     }
     |> take(1)
     |> timeout(30.0, queue: .mainQueue(), alternate: .fail(.timedOut))
+}
+
+func whitegramTranslateGoogleText(text: String, fromLang: String?, toLang: String) -> Signal<String, WhitegramTranslationFailure> {
+    return Signal { subscriber in
+        let task = WhitegramTranslationGoogle.translate(text: text, fromLang: fromLang, toLang: toLang) { result in
+            switch result {
+            case let .success(text): subscriber.putNext(text); subscriber.putCompletion()
+            case .failure(.timedOut): subscriber.putError(.timedOut)
+            case .failure(.httpStatus(429)): subscriber.putError(.network(.limitExceeded))
+            case .failure(.invalidResponse), .failure(.responseTooLarge): subscriber.putError(.emptyResult)
+            case .failure: subscriber.putError(.network(.generic))
+            }
+        }
+        return ActionDisposable { task.cancel() }
+    }
+}
+
+private func whitegramTranslateWithSegments(text: String, entities: [MessageTextEntity], translate: @escaping ([String]) -> Signal<[String], WhitegramTranslationFailure>) -> Signal<WhitegramTranslationResult, WhitegramTranslationFailure> {
+    let protectedRanges = entities.filter { whitegramTranslationProtectedText($0, text: text) != nil }.map { $0.range }
+    guard let segments = WhitegramTranslationSegments(text: text, entityRanges: entities.map { $0.range }, protectedRanges: protectedRanges) else { return .fail(.invalidEntities) }
+    let result: Signal<[String], WhitegramTranslationFailure> = segments.requests.isEmpty ? .single([]) : translate(segments.requests)
+    return result |> mapToSignal { translated -> Signal<WhitegramTranslationResult, WhitegramTranslationFailure> in
+        guard let assembled = segments.assemble(translated, entityRanges: entities.map { $0.range }) else { return .fail(.invalidEntities) }
+        let resultEntities = zip(entities, assembled.ranges).map { MessageTextEntity(range: $0.1, type: $0.0.type) }
+        guard whitegramTranslationPreservesEntities(source: text, sourceEntities: entities, result: assembled.text, resultEntities: resultEntities) else { return .fail(.invalidEntities) }
+        return .single(WhitegramTranslationResult(text: assembled.text, entities: resultEntities))
+    }
+}
+
+/// Audio integration: translates an already-final transcript, never records/transcribes audio or changes its source attribute.
+public func whitegramTranslateVoiceText(context: AccountContext, text: String, toLang: String? = nil) -> Signal<WhitegramTranslationResult, WhitegramTranslationFailure> {
+    let settings = WhitegramTranslationSettings.current
+    guard settings.translateTranscripts else { return .fail(.voiceDisabled) }
+    guard let target = toLang ?? settings.resolvedTarget(baseLanguage: context.sharedContext.currentPresentationData.with { $0 }.strings.baseLanguageCode, supportedLanguages: supportedTranslationLanguages) else { return .fail(.invalidTarget) }
+    let provider: WhiteGramOtherTranslationService = settings.localTranslationRequested ? .gTranslate : WhiteGramOtherSettings.current.translationService
+    return whitegramTranslateDraft(context: context, text: text, entities: [], toLang: target, provider: provider)
+}
+
+func whitegramTranslateReceivedMessages(context: AccountContext, messageIds: [EngineMessage.Id], toLang: String, provider: WhiteGramOtherTranslationService) -> Signal<Never, TranslationError> {
+    return whitegramTranslateMessageBatch(account: context.account, messageIds: messageIds, toLang: toLang, translate: { text, entities in
+        return whitegramTranslateDraft(context: context, text: text, entities: entities, toLang: toLang, provider: provider)
+        |> map { ($0.text, $0.entities) }
+        |> mapError { _ in TranslationError.generic }
+    })
 }
 
 /// A configured global target overrides the default; an empty/invalid one preserves native selection.

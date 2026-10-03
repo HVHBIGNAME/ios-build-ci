@@ -85,6 +85,7 @@ jobs:
           WHITEGRAM_APPEARANCE_SOURCE: /Users/Shared/telegram-ios
           WHITEGRAM_VOICE_SOURCE: /Users/Shared/telegram-ios
           WHITEGRAM_VOICE_PUBLIC_SOURCE: /Users/Shared/whitegram-public
+          WHITEGRAM_PLAYER_SOURCE: /Users/Shared/telegram-ios
         run: |
           set -euo pipefail
           python3 -m venv "$RUNNER_TEMP/whitegram-check-env"
@@ -92,6 +93,7 @@ jobs:
           "$python" -m pip install -r whitegram/requirements-checks.txt
           "$python" -B -m unittest discover -s whitegram/tests -p 'test_*.py' -v
           "$python" -B -m unittest discover -s whitegram/tests/voice -p 'test_*.py' -v
+          "$python" -B -m unittest discover -s whitegram/tests/player -p 'test_*.py' -v
           node --test whitegram/tests/plugins/bootstrap.test.cjs whitegram/tests/plugins/hooks.test.cjs
           "$python" -B whitegram/tests/plugins/check_swift_syntax.py
           "$python" -B whitegram/tests/plugins/check_hook_patches.py /Users/Shared/telegram-ios
@@ -108,8 +110,14 @@ jobs:
           python3 -B whitegram/tests/history/run_native.py || failed=1
           python3 -B whitegram/tests/settings_transfer/run_native.py --assembled-source /Users/Shared/telegram-ios || failed=1
           python3 -B whitegram/tests/translation/run_native.py || failed=1
+          python3 -B whitegram/tests/localization/run_native.py || failed=1
+          python3 -B whitegram/tests/privacy/run_native.py || failed=1
+          python3 -B whitegram/tests/accounts/run_native.py || failed=1
+          python3 -B whitegram/tests/backend/run_native.py || failed=1
+          python3 -B whitegram/tests/appearance_parity/run_native.py || failed=1
           python3 -B whitegram/tests/media/run_native.py || failed=1
           python3 -B whitegram/tests/voice/run_native.py --require-swift || failed=1
+          python3 -B whitegram/tests/player/run_native.py --require-swift || failed=1
           exit "$failed"
 
       - name: Upload source validation report
@@ -138,6 +146,8 @@ jobs:
             bazel-${{ runner.os }}-${{ runner.arch }}-${{ matrix.source_version }}-${{ hashFiles('telegram-ios/versions.json') }}-
 
       - name: Собрать release IPA
+        env:
+          WHITEGRAM_BACKEND_APPLICATION_KEY: ${{ secrets.WHITEGRAM_BACKEND_APPLICATION_KEY }}
         run: |
           set -euxo pipefail
           source_dir=/Users/Shared/telegram-ios

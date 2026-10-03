@@ -14,11 +14,13 @@ struct WhitegramAIConversationTurn: Codable, Equatable {
     var model: String
     var state: State
     var response: WhitegramAIResponse?
+    var partialText: String? = nil
 }
 
 struct WhitegramAIConversationSnapshot: Equatable {
     var revision: UUID?
     var turns: [WhitegramAIConversationTurn]
+    var legacyHistory: WhitegramAILegacyHistory? = nil
 
     static let empty = WhitegramAIConversationSnapshot(revision: nil, turns: [])
 }
@@ -37,6 +39,7 @@ final class WhitegramAIConversationStore: WhitegramAIConversationStorage {
         let provider: WhitegramAIProvider
         let revision: UUID
         let turns: [WhitegramAIConversationTurn]
+        let legacyHistory: WhitegramAILegacyHistory?
     }
 
     // Serializes compare-and-replace across separate screens/store instances in this process.
@@ -61,15 +64,29 @@ final class WhitegramAIConversationStore: WhitegramAIConversationStorage {
     func save(_ turns: [WhitegramAIConversationTurn], replacing revision: UUID?) throws -> WhitegramAIConversationSnapshot {
         Self.lock.lock()
         defer { Self.lock.unlock() }
-        guard try self.readRecord().revision == revision else { throw WhitegramServiceError.conversationChanged }
-        return try self.writeRecord(turns)
+        let previous = try self.readRecord()
+        guard previous.revision == revision else { throw WhitegramServiceError.conversationChanged }
+        return try self.writeRecord(turns, legacyHistory: previous.legacyHistory)
     }
 
     func clear() throws -> WhitegramAIConversationSnapshot {
         Self.lock.lock()
         defer { Self.lock.unlock() }
         // Keep a new empty revision: deleting the file would let a stale first request recreate it.
-        return try self.writeRecord([])
+        return try self.writeRecord([], legacyHistory: nil)
+    }
+
+    /// Original histories were app-wide. The native screen asks which account should receive the copy.
+    /// Never removes the original Data or replaces a nonempty current conversation.
+    func importLegacy(_ data: Data, replacing revision: UUID?) throws -> WhitegramAIConversationSnapshot {
+        let history = try WhitegramAILegacyHistory.decode(data, provider: self.provider)
+        Self.lock.lock()
+        defer { Self.lock.unlock() }
+        let previous = try self.readRecord()
+        guard previous.revision == revision else { throw WhitegramServiceError.conversationChanged }
+        if previous.legacyHistory == history { return previous }
+        guard previous.turns.isEmpty, previous.legacyHistory == nil else { throw WhitegramServiceError.conversationChanged }
+        return try self.writeRecord([], legacyHistory: history)
     }
 
     private func readRecord() throws -> WhitegramAIConversationSnapshot {
@@ -90,7 +107,8 @@ final class WhitegramAIConversationStore: WhitegramAIConversationStorage {
                 throw WhitegramServiceError.conversationStorage
             }
             try self.validate(record.turns)
-            return WhitegramAIConversationSnapshot(revision: record.revision, turns: record.turns)
+            try record.legacyHistory?.validate(provider: self.provider)
+            return WhitegramAIConversationSnapshot(revision: record.revision, turns: record.turns, legacyHistory: record.legacyHistory)
         } catch {
             throw WhitegramServiceError.conversationStorage
         }
@@ -114,14 +132,18 @@ final class WhitegramAIConversationStore: WhitegramAIConversationStorage {
                     throw WhitegramServiceError.invalidConversation
                 }
             }
+            if let partial = turn.partialText {
+                guard turn.response == nil, partial.utf8.count <= WhitegramServiceLimits.maximumAIResponseBytes else { throw WhitegramServiceError.invalidConversation }
+            }
         }
     }
 
-    private func writeRecord(_ turns: [WhitegramAIConversationTurn]) throws -> WhitegramAIConversationSnapshot {
+    private func writeRecord(_ turns: [WhitegramAIConversationTurn], legacyHistory: WhitegramAILegacyHistory?) throws -> WhitegramAIConversationSnapshot {
         guard self.directory.isFileURL else { throw WhitegramServiceError.conversationStorage }
         try self.validate(turns)
+        try legacyHistory?.validate(provider: self.provider)
         let revision = UUID()
-        let record = Record(version: 1, accountId: self.accountId, provider: self.provider, revision: revision, turns: turns)
+        let record = Record(version: 1, accountId: self.accountId, provider: self.provider, revision: revision, turns: turns, legacyHistory: legacyHistory)
         do {
             let data = try JSONEncoder().encode(record)
             guard data.count <= WhitegramServiceLimits.maximumAIHistoryBytes else { throw WhitegramServiceError.conversationFull }
@@ -139,7 +161,7 @@ final class WhitegramAIConversationStore: WhitegramAIConversationStorage {
             #else
             try data.write(to: self.fileURL, options: .atomic)
             #endif
-            return WhitegramAIConversationSnapshot(revision: revision, turns: turns)
+            return WhitegramAIConversationSnapshot(revision: revision, turns: turns, legacyHistory: legacyHistory)
         } catch let error as WhitegramServiceError {
             throw error
         } catch {
@@ -151,6 +173,7 @@ final class WhitegramAIConversationStore: WhitegramAIConversationStorage {
 /// Main-queue conversation lifecycle shared by the native UI and offline XCTest host.
 final class WhitegramAIConversationSession {
     typealias Sender = ([WhitegramAIMessage], String, @escaping (Result<WhitegramAIResponse, WhitegramServiceError>) -> Void) -> WhitegramServiceTask
+    typealias StreamingSender = ([WhitegramAIMessage], String, @escaping (String) -> Void, @escaping (Result<WhitegramAIResponse, WhitegramServiceError>) -> Void) -> WhitegramServiceTask
 
     let provider: WhitegramAIProvider
     private let storage: WhitegramAIConversationStorage
@@ -182,24 +205,36 @@ final class WhitegramAIConversationSession {
     }
 
     func send(text: String, model: String, sender: Sender) throws {
-        try self.submit(text: text, model: model, retry: false, sender: sender)
+        try self.submit(text: text, model: model, retry: false, sender: { messages, model, _, completion in sender(messages, model, completion) })
     }
 
     func retry(model: String, sender: Sender) throws {
         guard self.canRetry, let turn = self.snapshot.turns.last else { throw WhitegramServiceError.invalidConversation }
+        try self.submit(text: turn.prompt, model: model, retry: true, sender: { messages, model, _, completion in sender(messages, model, completion) })
+    }
+
+    func sendStreaming(text: String, model: String, sender: StreamingSender) throws {
+        try self.submit(text: text, model: model, retry: false, sender: sender)
+    }
+
+    func retryStreaming(model: String, sender: StreamingSender) throws {
+        guard self.canRetry, let turn = self.snapshot.turns.last else { throw WhitegramServiceError.invalidConversation }
         try self.submit(text: turn.prompt, model: model, retry: true, sender: sender)
     }
 
-    private func submit(text: String, model: String, retry: Bool, sender: Sender) throws {
+    private func submit(text: String, model: String, retry: Bool, sender: StreamingSender) throws {
         precondition(Thread.isMainThread)
         guard !self.isRequesting else { throw WhitegramServiceError.busy }
         if let error = self.storageError { throw error }
         let model = try self.provider.validatedModel(model)
         var turns = self.snapshot.turns
         let previous = retry ? turns.removeLast() : nil
+        // An explicit new prompt can supersede an interrupted pending turn after a restart.
+        // Saving the new revision also prevents another screen's old request from overwriting it.
+        if turns.last?.state == .pending { turns[turns.count - 1].state = .cancelled }
         guard turns.count < WhitegramServiceLimits.maximumAIConversationTurns else { throw WhitegramServiceError.conversationFull }
         // Failed/cancelled prompts are visible in history but have no assistant reply to send as context.
-        let messages = turns.flatMap { turn -> [WhitegramAIMessage] in
+        let messages = (self.snapshot.legacyHistory?.completedMessages ?? []) + turns.flatMap { turn -> [WhitegramAIMessage] in
             guard let response = turn.response else { return [] }
             return [WhitegramAIMessage(role: .user, text: turn.prompt), WhitegramAIMessage(role: .assistant, text: response.text)]
         } + [WhitegramAIMessage(role: .user, text: text)]
@@ -214,9 +249,18 @@ final class WhitegramAIConversationSession {
         let id = UUID()
         self.requestId = id
         self.lastResult = nil
-        self.request = sender(messages, model) { [weak self] result in
+        self.request = sender(messages, model, { [weak self] text in
+            DispatchQueue.main.async { self?.receivedPartial(text, id: id) }
+        }, { [weak self] result in
             DispatchQueue.main.async { self?.finished(result, id: id) }
-        }
+        })
+        self.changed?()
+    }
+
+    private func receivedPartial(_ text: String, id: UUID) {
+        guard self.requestId == id, !self.snapshot.turns.isEmpty,
+              text.utf8.count <= WhitegramServiceLimits.maximumAIResponseBytes else { return }
+        self.snapshot.turns[self.snapshot.turns.count - 1].partialText = text
         self.changed?()
     }
 
@@ -233,6 +277,7 @@ final class WhitegramAIConversationSession {
         case let .success(response):
             turns[turns.count - 1].state = .answered
             turns[turns.count - 1].response = response
+            turns[turns.count - 1].partialText = nil
         case let .failure(error):
             turns[turns.count - 1].state = error == .cancelled ? .cancelled : .failed
         }

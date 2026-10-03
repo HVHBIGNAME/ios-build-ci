@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import NaturalLanguage
 import SwiftSignalKit
 import TelegramCore
 import TelegramUIPreferences
@@ -20,7 +21,7 @@ struct WhitegramTranslationDraftSnapshot: Equatable {
     init(_ state: ChatPresentationInterfaceState) {
         self.state = state
         self.settings = WhitegramTranslationSettings.current
-        self.provider = WhiteGramOtherSettings.current.translationService
+        self.provider = self.settings.localTranslationRequested ? .gTranslate : WhiteGramOtherSettings.current.translationService
     }
 
     static func == (lhs: WhitegramTranslationDraftSnapshot, rhs: WhitegramTranslationDraftSnapshot) -> Bool {
@@ -103,16 +104,20 @@ final class WhitegramTranslationSendCoordinator {
         self.progress = nil
     }
 
-    /// Returning true consumes this tap. Only a later user tap may enter Telegram's send path.
-    func intercept(context: AccountContext, state: ChatPresentationInterfaceState, controller: ViewController?, current: @escaping () -> ChatPresentationInterfaceState?, apply: @escaping (ChatTextInputState) -> Void) -> Bool {
+    /// Ordinary send uses the separate review option. The original menu action supplies explicit send intent.
+    func intercept(context: AccountContext, state: ChatPresentationInterfaceState, controller: ViewController?, current: @escaping () -> ChatPresentationInterfaceState?, apply: @escaping (ChatTextInputState) -> Void, sendTranslated: (() -> Void)? = nil) -> Bool {
         let snapshot = WhitegramTranslationDraftSnapshot(state)
-        guard snapshot.settings.beforeSending else {
+        guard sendTranslated == nil ? snapshot.settings.reviewBeforeSending : snapshot.settings.showsSendAction else {
             self.cancel()
             return false
         }
         self.observe(state)
         self.readCurrent = current
-        if self.draftGuard.isReviewed(snapshot) { return false }
+        if self.draftGuard.isReviewed(snapshot) {
+            self.promptId = nil
+            if let sendTranslated { sendTranslated(); return true }
+            return false
+        }
         if self.draftGuard.isPending { return true }
 
         let interfaceState = state.interfaceState
@@ -127,26 +132,25 @@ final class WhitegramTranslationSendCoordinator {
         if input.content.isEmpty { return false }
         guard let controller else { return true }
 
-        if snapshot.settings.localTranslationRequested {
-            self.showFailure(.localUnavailable, context: context, controller: controller, snapshot: snapshot, current: current)
-            return true
-        }
         guard input.content.isEntityExpressible() else {
             self.showFailure(.unsupportedContent, context: context, controller: controller, snapshot: snapshot, current: current)
             return true
         }
-        guard let target = snapshot.settings.resolvedTarget(baseLanguage: state.strings.baseLanguageCode, supportedLanguages: supportedTranslationLanguages) else {
+        let source = convertMarkdownToAttributes(expandedInputStateAttributedString(input.inputText))
+        if !WhitegramTranslationTextRules.hasText(source.string) { return false }
+        let target = sendTranslated == nil
+            ? snapshot.settings.resolvedTarget(baseLanguage: state.strings.baseLanguageCode, supportedLanguages: supportedTranslationLanguages)
+            : snapshot.settings.resolvedOutgoingTarget(detectedLanguage: NLLanguageRecognizer.dominantLanguage(for: source.string)?.rawValue, preferredLanguages: Locale.preferredLanguages, supportedLanguages: supportedTranslationLanguages)
+        guard let target else {
             self.showFailure(.invalidTarget, context: context, controller: controller, snapshot: snapshot, current: current)
             return true
         }
-        let source = convertMarkdownToAttributes(expandedInputStateAttributedString(input.inputText))
-        if !WhitegramTranslationTextRules.hasText(source.string) { return false }
         let entities = generateTextEntities(source.string, enabledTypes: .all, currentEntities: generateChatInputTextEntities(source, maxAnimatedEmojisInText: 0))
-        self.start(context: context, controller: controller, snapshot: snapshot, source: source, entities: entities, target: target, current: current, apply: apply)
+        self.start(context: context, controller: controller, snapshot: snapshot, source: source, entities: entities, target: target, current: current, apply: apply, sendTranslated: sendTranslated)
         return true
     }
 
-    private func start(context: AccountContext, controller: ViewController, snapshot: WhitegramTranslationDraftSnapshot, source: NSAttributedString, entities: [MessageTextEntity], target: String, current: @escaping () -> ChatPresentationInterfaceState?, apply: @escaping (ChatTextInputState) -> Void) {
+    private func start(context: AccountContext, controller: ViewController, snapshot: WhitegramTranslationDraftSnapshot, source: NSAttributedString, entities: [MessageTextEntity], target: String, current: @escaping () -> ChatPresentationInterfaceState?, apply: @escaping (ChatTextInputState) -> Void, sendTranslated: (() -> Void)?) {
         self.stopPresentation()
         let id = self.draftGuard.begin(snapshot)
         let progress = OverlayStatusController(theme: snapshot.state.theme, type: .loading(cancelled: { [weak self] in self?.cancel() }))
@@ -175,15 +179,36 @@ final class WhitegramTranslationSendCoordinator {
             let reviewed = WhitegramTranslationDraftSnapshot(installed)
             guard reviewed == expected else { return }
             self.draftGuard.markForReview(reviewed)
-            self.showReady(context: context, controller: controller, original: snapshot, reviewed: reviewed, target: target, current: current, apply: apply)
+            if let sendTranslated {
+                self.scheduleExplicitSend(reviewed, current: current, send: sendTranslated)
+            } else {
+                self.showReady(context: context, controller: controller, original: snapshot, reviewed: reviewed, target: target, current: current, apply: apply)
+            }
         }, error: { [weak self, weak controller] error in
             guard let self, self.draftGuard.isCurrent(id, snapshot: snapshot) else { return }
             guard let controller, let state = current() else { self.cancel(); return }
             self.observe(state)
             guard self.draftGuard.finish(id, snapshot: WhitegramTranslationDraftSnapshot(state)) else { return }
             self.stopPresentation()
-            self.showFailure(error, context: context, controller: controller, snapshot: snapshot, current: current)
+            if let sendTranslated {
+                // The original explicit action sends the original text when the provider yields no translation.
+                self.scheduleExplicitSend(snapshot, current: current, send: sendTranslated)
+            } else {
+                self.showFailure(error, context: context, controller: controller, snapshot: snapshot, current: current)
+            }
         }))
+    }
+
+    private func scheduleExplicitSend(_ snapshot: WhitegramTranslationDraftSnapshot, current: @escaping () -> ChatPresentationInterfaceState?, send: @escaping () -> Void) {
+        self.draftGuard.markForReview(snapshot)
+        let id = UUID()
+        self.promptId = id
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.promptId == id, self.draftGuard.isReviewed(snapshot),
+                  let state = current(), WhitegramTranslationDraftSnapshot(state) == snapshot else { return }
+            self.promptId = nil
+            send()
+        }
     }
 
     private static func sameEntities(_ lhs: [MessageTextEntity], _ rhs: [MessageTextEntity]) -> Bool {
@@ -215,7 +240,8 @@ final class WhitegramTranslationSendCoordinator {
         let id = UUID()
         self.promptId = id
         let language = Locale(identifier: reviewed.state.strings.baseLanguageCode).localizedString(forIdentifier: target) ?? target
-        let alert = textAlertController(context: context, title: "Translation Ready", text: "Translated with \(reviewed.provider.title) to \(language). Review the draft, then tap Send again. Nothing has been sent.", actions: [
+        let providerTitle = reviewed.settings.appleTranslationRequested ? "Apple · On Device" : reviewed.provider.title
+        let alert = textAlertController(context: context, title: "Translation Ready", text: "Translated with \(providerTitle) to \(language). Review the draft, then tap Send again. Nothing has been sent.", actions: [
             TextAlertAction(type: .defaultAction, title: "Review Draft", action: {}),
             TextAlertAction(type: .genericAction, title: "Restore Original", action: { [weak self] in
                 guard let self, self.promptId == id, let state = current(), WhitegramTranslationDraftSnapshot(state) == reviewed else { return }

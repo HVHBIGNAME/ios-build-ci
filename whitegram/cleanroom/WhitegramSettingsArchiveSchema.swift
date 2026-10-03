@@ -29,9 +29,9 @@ enum WhitegramSettingsArchiveRule {
                 if hex.utf8.count == 6, hex.utf8.allSatisfy({ (48...57).contains($0) || (65...70).contains($0) || (97...102).contains($0) }) { return "#" + hex.uppercased() }
             }
         case .bands:
-            if let values = value as? [Any], !values.isEmpty, values.count <= 32 {
+            if let values = value as? [Any], values.count == 10 {
                 return try values.map { value -> Double in
-                    guard let normalized = try WhitegramSettingsArchiveRule.number(-24...24).validate(value, key: key) as? Double else {
+                    guard let normalized = try WhitegramSettingsArchiveRule.number(-12...12).validate(value, key: key) as? Double else {
                         throw WhitegramSettingsArchiveError.invalidValue(key)
                     }
                     return normalized
@@ -83,10 +83,18 @@ enum WhitegramSettingsArchiveSchema {
         """
         for key in booleans.split(whereSeparator: { $0.isWhitespace }) { result[String(key)] = .boolean }
         result["useTelegramCameraSettings"] = .boolean
+        for key in ["translationUseApple", "translationReviewBeforeSending", "translationTranslateTranscripts", "virusTotalUseProxy", "siriTranscriptionWarningDismissed"] {
+            result[key] = .boolean
+        }
+        result["roundCameraWideAngle"] = .boolean
         for key in ["backCameraPreset", "frontCameraPreset"] { result[key] = .string(128) }
         for key in ["backCameraFPS", "frontCameraFPS"] { result[key] = .integer(0...60) }
-        result["roundVideoBitrate"] = .choice(["", "500000", "1000000", "2000000", "4000000", "8000000"])
-        for key in ["stickerSizeScale", "photoCompressionQuality", "deletedMessagesOpacity"] { result[key] = .number(0...1) }
+        result["roundVideoBitrate"] = .choice(["", "low", "medium", "high", "500000", "1000000", "2000000", "4000000", "8000000"])
+        for key in ["photoCompressionQuality", "deletedMessagesOpacity"] { result[key] = .number(0...1) }
+        result["stickerSizeScale"] = .number(0...2)
+        result["downloadAccelMode"] = .integer(0...3)
+        for key in ["tabBarScale", "tabBarWidthScale"] { result[key] = .number(50...150) }
+        result["menuLanguage"] = .integer(0...2)
         result["localStarsCount"] = .integer(0...Int64.max)
         result["videoMessageCamera"] = .integer(0...2)
         result["voiceChangerMode"] = .integer(0...1)
@@ -98,8 +106,8 @@ enum WhitegramSettingsArchiveSchema {
         result["voiceChangerClarity"] = .number(-100...100)
         result["fakeLat"] = .number(-90...90)
         result["fakeLon"] = .number(-180...180)
-        result["musicPlaybackSpeed"] = .number(0.25...4)
-        result["musicCrossfadeDuration"] = .integer(0...30)
+        result["musicPlaybackSpeed"] = .number(0.1...3)
+        result["musicCrossfadeDuration"] = .integer(0...Int64.max)
         result["musicEqualizerBands"] = .bands
         result["messageBorderColorHex"] = .color
         result["aiProvider"] = .choice(["", "gemini", "groq"])
@@ -139,6 +147,11 @@ enum WhitegramSettingsArchiveSchema {
         }
         if let action = result["public.chat.personalChatDoubleTapAction"] as? String,
            let edit = result["doubleTapEditEnabled"] as? Bool, edit != (action == "edit") {
+            throw WhitegramSettingsArchiveError.conflictingSettings
+        }
+        if let code = result["menuLanguageCode"] as? String,
+           let index = result["menuLanguage"].flatMap(WhitegramPreferences.exactInteger),
+           let codeIndex = ["ru", "uk", "en"].firstIndex(of: code.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()), index != Int64(codeIndex) {
             throw WhitegramSettingsArchiveError.conflictingSettings
         }
         return (result, migrated)

@@ -1,0 +1,25 @@
+{
+  "role": "accounts",
+  "status": "in_progress_implementation_and_regression_tests",
+  "files_changed": ["whitegram/cleanroom/WhitegramAccountsSettingsController.swift", "whitegram/cleanroom/WhitegramAccountActions.swift", "whitegram/cleanroom/WhitegramAccountDocuments.swift", "whitegram/cleanroom/WhitegramAccountFrozenStore.swift", "whitegram/cleanroom/WhitegramAccountImport.swift", "whitegram/cleanroom/WhitegramAccountImportState.swift", "whitegram/cleanroom/WhitegramAccountSwitcher.swift", "whitegram/cleanroom/WhitegramSessionModels.swift", "whitegram/cleanroom/WhitegramSessionCrypto.swift", "whitegram/cleanroom/WhitegramSessionFiles.swift", "whitegram/cleanroom/WhitegramSessionTelethon.swift", "whitegram/cleanroom/WhitegramSessionTData.swift", "whitegram/cleanroom/WhitegramSessionZip.swift", "whitegram/cleanroom/WhitegramSessionKeychain.swift", "whitegram/account_patches.py", "whitegram/tests/test_account_patches.py", "whitegram/parity/accounts.json"],
+  "original_evidence": [
+    {"image_id": 55, "address": "0xc79fa8", "symbol": "WGAccountTransfer.readTelethonSession"},
+    {"image_id": 55, "address": "0xc7b018", "symbol": "WGAccountTransfer.writeTelethonSession"},
+    {"image_id": 55, "address": "0xc7c7e0", "symbol": "WGTDataReader.read"},
+    {"image_id": 55, "address": "0x326f0d8", "symbol": "WGSessionBackup.encode"},
+    {"image_id": 55, "address": "0x328c0fc", "symbol": "WGKeychainBackupManager.saveSession"},
+    {"image_id": 46, "address": "0x222a88", "symbol": "wgAuthorizeBot"},
+    {"image_id": 46, "address": "0x23fcb4", "symbol": "WGFrozenAccountsStore.markFrozen"}
+  ],
+  "implemented_keys": ["keychainAccounts", "accountTransfer", "botAccounts", "keepUnavailableAccounts", "accountSwitcherEnabled"],
+  "remaining_keys": [
+    {"key": "all_accounts_features", "reason": "Native Swift build and device verification pending; current code is not yet a parity claim. Independent crypto/SQLite/Keychain fixtures are being added."}
+  ],
+  "runtime_files": {"manifest": "whitegram/account_patches.py:ACCOUNTS_RUNTIME_FILES", "count": 14},
+  "patch_entrypoint": "whitegram/account_patches.py:apply_account_patches",
+  "controller_entrypoints": ["whitegramAccountsSettingsController(context:)", "whitegramKeychainAccountsController(context:)", "whitegramAccountTransferController(context:)", "whitegramBotAccountsController(context:)"],
+  "required_dependencies": [{"target": "TelegramCore", "dependencies": ["//submodules/sqlcipher:sqlcipher"], "sdk_modules": ["CryptoKit", "CommonCrypto", "zlib"]}, {"target": "SettingsUI", "sdk_modules": ["Security"]}, {"target": "ChatListUI", "dependencies": ["//submodules/TelegramUI/Components/AvatarComponent", "//submodules/TelegramUI/Components/ChatListHeaderComponent"]}],
+  "parent_integration": ["Merge ACCOUNTS_RUNTIME_FILES into runtime installation; invoke apply_account_patches on the assembled build tree. Tested on pristine and current assembled source, including folder bridging.", "Route keychainAccounts -> whitegramKeychainAccountsController, accountTransfer -> whitegramAccountTransferController, botAccounts -> whitegramBotAccountsController. Keep the accounts landing entrypoint.", "Enable keepUnavailableAccounts and accountSwitcherEnabled preference/catalog consumers after native checks. Both recovered defaults are false.", "No generic preference, catalog, CI, coverage, or main-menu files were modified by this worker."],
+  "tests_run": [{"command": "python -B -m unittest discover -s whitegram/tests -p test_account_patches.py -v (WHITEGRAM_ASSEMBLED_SOURCE set)", "result": "11 passed: native source anchors, fail-before-write, idempotence, syntax, API checks; further native fixture tests in progress"}],
+  "device_checks_needed": ["Native Swift build, explicit session import/export, device Keychain access, Telegram authorization error paths"]
+}

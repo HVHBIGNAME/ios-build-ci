@@ -1,0 +1,279 @@
+{
+  "schema_version": 2,
+  "role": "privacy",
+  "status": "source_verified_handoff_with_explicit_parity_gaps",
+  "verification_date": "2026-10-02",
+  "qualification": "Connected production source and original contracts have been checked. This is not full original-client parity or an iOS build certificate. Native Swift, XCTest, device and live RPC checks were not run on Windows.",
+  "roots": {
+    "repository": "C:/coding/telegram/whitegram/ios-build-ci",
+    "assembled_reference": "C:/coding/telegram/whitegram/source-12.9.2",
+    "reference_ready": "C:/coding/telegram/whitegram/recovery_20261002/campaign/reference-ready.json",
+    "campaign_evidence": "C:/coding/telegram/whitegram/recovery_20261002/campaign/privacy",
+    "original_evidence": "C:/coding/telegram/whitegram/whitegram-rebuild",
+    "source_check_python": "C:/coding/telegram/whitegram/whitegram-check-env/Scripts/python.exe",
+    "original_tooling_python": "C:/coding/telegram/whitegram/whitegram-rebuild/.venv/Scripts/python.exe"
+  },
+  "reference_identity": {
+    "source_revision": "6ad963e5b62d354da79040f388ae2b9132fb17b8",
+    "public_revision": "db18308774f863074278feedc4df4507b0fb174e",
+    "baseline_overlay_revision": "dba65e0a2c3b573f5f92a68807b9bc5771e6514c",
+    "policy": "All source transforms were staged in memory. The assembled baseline and original evidence were not mutated. It is the old assembled baseline, not the current candidate."
+  },
+  "original_identity": {
+    "ipa": "C:/coding/telegram/whitegram/Whitegram Beta 3.1.1 (12.9.2).ipa",
+    "sha256": "bd6d3a13046d5857c1389e2d794c4c2ca44cee89bb22880004bd77f84fe29837",
+    "version": "12.9.2",
+    "build": "71",
+    "core_image": 46,
+    "ui_image": 55
+  },
+  "files_changed": [
+    "whitegram/content_control_patches.py",
+    "whitegram/cleanroom/WhitegramContentSettings.swift",
+    "whitegram/cleanroom/WhitegramContentPolicy.swift",
+    "whitegram/cleanroom/WhitegramContentMedia.swift",
+    "whitegram/cleanroom/WhitegramContentPhotoExporter.swift",
+    "whitegram/cleanroom/WhitegramContentStoryPrompt.swift",
+    "whitegram/cleanroom/WhitegramContentLocation.swift",
+    "whitegram/cleanroom/WhitegramContentLocationController.swift",
+    "whitegram/cleanroom/WhitegramPrivacySettingsController.swift",
+    "whitegram/tests/test_content_control_patches.py",
+    "whitegram/tests/privacy/run_native.py",
+    "whitegram/tests/privacy/WhitegramPrivacySettingsTests.swift",
+    "whitegram/tests/privacy/WhitegramReadActionTests.swift",
+    "whitegram/tests/privacy/WhitegramContentLocationTests.swift",
+    "whitegram/tests/privacy/test_original_contracts.py",
+    "whitegram/parity/privacy.json"
+  ],
+  "completed_this_resume": [
+    "Resolved the real voice/privacy sendMediaRecording anchor collision using its draft guard, independently of the optional processed-audio parameter. Both actual transforms compose in either order and replay without losing record-once eligibility or processed audio/video sending.",
+    "Recovered the original comma-only per-chat ID parser and the original restriction-reason sets from image 46. Replaced blanket restriction suppression with the original reason-specific policy.",
+    "Restored the original chat-list avatar story prompt, including archive stories, exact original ru/uk/en strings, cancel/open/enable choices and a single-use confirmation. Enable persists only disableStoryReadReceipts before opening.",
+    "Connected a real LocationPickerController to atomic fakeLat/fakeLon storage and the original LocationMapNode current-position, initial-value and update consumers. Added live preference refresh and the original both-zero unset rule.",
+    "Added post-lookup receipt guards for queued cloud/secret history reads, and preserved raw requested presence so turning ghost/offline suppression off restores the foreground online state.",
+    "Added viewer/playlist-scoped observation of normal downloads so timed/view-once media completing after opening can be retained. Capture rechecks preferences; Photos rechecks the export switch after authorization. Existing local expiry/service-operation behavior remains coherent.",
+    "Connected keepBannedChats to the actual channel-ban dismissal transition and a read-only input-panel state; preserve the prior title/avatar without fabricating membership or rights.",
+    "Bound existing privacy row titles, call prompts and per-chat ghost actions to the parent's recovered localization resolver."
+  ],
+  "original_evidence": [
+    {
+      "contract": "Per-chat storage and parser",
+      "addresses": ["46:0x203d48", "46:0x2033d8", "46:0x203e8c"],
+      "result": "The property perChatGhostModeString reads wg_perChatGhost. Parsing splits on comma, trims CharacterSet.whitespaces and converts signed decimal Int64 values; semicolons and whitespace inside a token are not separators.",
+      "exports": ["core-perchat-parse-2033d8.asm"]
+    },
+    {
+      "contract": "Local read and network receipt gates differ",
+      "addresses": ["46:0x206550", "46:0x4f5c98", "46:0x6c83dc", "55:0x2bcd00"],
+      "result": "Global/per-chat ghost blocks automatic local reads, with an explicit action exception. disableReadReceipts alone does not block the local read. Network suppression for disableReadReceipts/global/per-chat ghost precedes the readOnAction exception. The recovered implementation carries a one-use account/peer/thread/index permit instead of the original global pending byte.",
+      "exports": ["core-synchronize-read-4f5c98.asm", "core-local-read-policy-6c83dc.asm"],
+      "existing_original_export": "recovered-3.1.1/native/TelegramUIFramework-0/assembly/002bcd00-9b735d750a.asm"
+    },
+    {
+      "contract": "Content restriction reasons",
+      "addresses": ["46:0x236e88", "46:0x1144768", "46:0x11447d0", "46:0x20e268"],
+      "result": "Reasons are lowercased. child_abuse, child_pornography, csae and csam are never bypassed by this policy. pornography, tos_violation, apple and age_restriction are bypassed even when the broad switch is off. Other reasons follow bypassContentRestrictions, whose missing-value fallback is true.",
+      "exports": ["core-restriction-policy-236e88.asm", "core-restriction-never-236e1c.asm", "core-restriction-always-236e30.asm"],
+      "regression": "tests/privacy/test_original_contracts.py decodes both original static Swift string arrays and compares the production sets."
+    },
+    {
+      "contract": "Story prompt",
+      "addresses": ["55:0x16827a4", "55:0x1682d20"],
+      "result": "The verified avatar handler prompts when suggestGhostForStories is true and disableStoryReadReceipts is false. The enable callback writes the latter flag, then invokes the bound opening closure. It does not enable global ghost mode.",
+      "exports": ["ui-story-ghost-prompt-16827a4.asm", "ui-story-ghost-enable-1682d20.asm"]
+    },
+    {
+      "contract": "Record-once and viewed-media selection",
+      "addresses": ["55:0x182860", "55:0x19a63c", "55:0x11f484"],
+      "result": "ghostModeRecordOnce supplies the view-once argument to sending. saveViewOnceMedia has a real opening consumer selecting image representations and video/instant-video or video MIME resources. Audio is retained as a local file by this port, not exported as a Photos asset.",
+      "exports": ["ui-record-once-1827cc.asm", "ui-record-once-19a578.asm", "ui-save-view-once-11f484.asm"]
+    },
+    {
+      "contract": "Map-coordinate override",
+      "addresses": ["55:0x22cdf4c", "55:0x22ce3dc", "55:0x22cfa90", "46:0x1ffe88", "46:0x1fff3c"],
+      "result": "LocationMapNode reads fakeLocationEnabled/fakeLat/fakeLon for currentUserLocation, didLoad and didUpdate. Only (0,0), not either zero axis alone, means unset. This evidence does not establish a raw GPS or live-broadcast override.",
+      "exports": ["ui-location-helper-22cdf4c.asm", "ui-location-initializer-22ce3dc.asm", "ui-location-update-22cfa90.asm"]
+    },
+    {
+      "contract": "Banned-channel presentation",
+      "addresses": ["55:0x1f9b10", "55:0x201020", "55:0x201040"],
+      "result": "The original helper is specific to a kicked channel. At the channel transition, shouldDismiss is the inverse of keepBannedChats. Legacy group removal and secret-chat termination are separate branches.",
+      "exports": ["ui-keep-banned-helper-1f9b10.asm", "ui-input-panels-200b0c.asm"]
+    },
+    {
+      "contract": "Device-name setting evidence only",
+      "addresses": ["46:0x204a88", "46:0x204b08", "55:0xe0e968"],
+      "result": "wg_fakeDeviceName getter/setter and UI editor are established. The bounded all-image direct-call/string-reference queries did not establish its MTProto API-environment consumer. No device-name runtime implementation is claimed."
+    }
+  ],
+  "implemented_keys": [
+    "ghostModeEnabled", "alwaysOnline", "disableOnlineStatus", "disableTypingStatus",
+    "disableRecordingStatus", "disableUploadingStatus", "disableReadReceipts",
+    "disableStoryReadReceipts", "perChatGhost", "readOnAction", "disableAds",
+    "saveProtectedContent", "removeSpoilers", "bypassContentRestrictions", "keepBannedChats",
+    "saveViewOnceMedia", "warnBeforeCall", "ghostModeRecordOnce", "suggestGhostForStories",
+    "fakeLocationEnabled", "fakeLat", "fakeLon"
+  ],
+  "implementation_scopes": {
+    "ghost": "Per-peer activity, history/discussion/saved-history/content/mention/reaction/poll/live-location-seen guards; global presence and story guards. Secret encrypted service sequence slots remain valid, using no-op or empty-ID actions at supported layers.",
+    "readOnAction": "Bound visible incoming index at a successful local enqueue or reaction. Account, peer, namespace and thread cannot widen or reuse the permit. Ghost/explicit receipt suppression still wins. Scheduled/custom/preview/support contexts are excluded; no read-all or story/content receipt is authorized by this exception.",
+    "localContent": "Protected local copy/text selection/file export/gallery save and capture-protection consumers, text/media spoiler rendering, reason-specific restricted content, cached kicked-channel retention/read-only presentation.",
+    "retainedMedia": "Incoming downloaded timed/view-once image/video/voice resources, captured before consumption or when the normal viewer download completes. Account-local retained copies and a browser/export/delete UI. View-once images/videos can be saved through Photos with explicit authorization and persisted success identifiers.",
+    "recordOnce": "Immediate and draft voice sends and video-message camera sends; excludes scheduled messages, bots, self-chat, non-cloud users and paid-message contexts through target eligibility checks. Voice postprocessing remains active.",
+    "stories": "The original chat-list avatar and archive-avatar prompt is connected. Global story receipt/view suppression remains in the parent baseline runtime patch. Broader opening surfaces are listed under remaining validation.",
+    "location": "A real map picker, persisted coordinates, initial/current MapKit position and subsequent LocationMapNode emissions. Live-location broadcasts and OS location APIs are not covered by this consumer."
+  },
+  "runtime_source_directory": "whitegram/cleanroom",
+  "runtime_manifest": "content_control_patches.PRIVACY_RUNTIME_FILES (alias CONTENT_CONTROL_RUNTIME_FILES)",
+  "runtime_files": {
+    "WhitegramGhost.swift": "submodules/TelegramCore/Sources/WhitegramGhost.swift",
+    "WhitegramContentSettings.swift": "submodules/TelegramCore/Sources/WhitegramContentSettings.swift",
+    "WhitegramContentPolicy.swift": "submodules/TelegramCore/Sources/WhitegramContentPolicy.swift",
+    "WhitegramReadActionState.swift": "submodules/TelegramCore/Sources/WhitegramReadActionState.swift",
+    "WhitegramReadAction.swift": "submodules/TelegramCore/Sources/WhitegramReadAction.swift",
+    "WhitegramContentMediaStore.swift": "submodules/TelegramCore/Sources/WhitegramContentMediaStore.swift",
+    "WhitegramContentMedia.swift": "submodules/TelegramCore/Sources/WhitegramContentMedia.swift",
+    "WhitegramReadActionUI.swift": "submodules/TelegramUI/Sources/WhitegramReadActionUI.swift",
+    "WhitegramPrivacySettings.swift": "submodules/TelegramUIPreferences/Sources/WhitegramPrivacySettings.swift",
+    "WhitegramPrivacySettingsController.swift": "submodules/SettingsUI/Sources/WhitegramPrivacySettingsController.swift",
+    "WhitegramContentMediaController.swift": "submodules/SettingsUI/Sources/WhitegramContentMediaController.swift",
+    "WhitegramContentPhotoExporter.swift": "submodules/SettingsUI/Sources/WhitegramContentPhotoExporter.swift",
+    "WhitegramContentStoryPrompt.swift": "submodules/ChatListUI/Sources/WhitegramContentStoryPrompt.swift",
+    "WhitegramContentLocation.swift": "submodules/TelegramCore/Sources/WhitegramContentLocation.swift",
+    "WhitegramContentLocationController.swift": "submodules/SettingsUI/Sources/WhitegramContentLocationController.swift"
+  },
+  "patch_entrypoint": "content_control_patches.apply_content_control_patches(root: Path) -> dict[str, list[str]]",
+  "patch_apis": {
+    "staged": "content_control_patches.content_control_patches(patches: SourcePatches) -> None",
+    "compatibility_alias": "content_control_patches.apply_privacy_patches(root: Path)",
+    "order": "After parent runtime_patches, interface_patches and message_actions_patches. Voice may run before or after privacy; both real orders and replay are tested. The parent's actual complete installer order also passes.",
+    "stages": ["receipt_patches", "read_action_patches", "restriction_patches", "spoiler_patches", "local_export_patches", "call_patches", "story_prompt_patches", "location_patches", "retained_media_patches", "live_privacy_patches"],
+    "atomicity": "All exact anchors are checked in one SourcePatches instance before production write(). Missing/duplicate/partial installations fail without earlier file writes. Read-only fixtures call the staged API."
+  },
+  "controller_entrypoints": [
+    "whitegramPrivacySettingsController(context: AccountContext) -> ViewController",
+    "whitegramContentMediaController(context: AccountContext) -> ViewController",
+    "whitegramContentLocationPicker(context: AccountContext, completion: @escaping (Bool) -> Void) -> ViewController"
+  ],
+  "runtime_entrypoints": [
+    "WhitegramGhost.isEnabled(for:), toggle(for:), suppressReadReceipts(for:), suppressAutomaticHistoryReads(for:), suppressLocalHistoryRead(for:), canReadOnAction(for:)",
+    "WhitegramReadAction.read(account:index:threadId:applyLocalRead:) and applyLocalRead(account:index:)",
+    "Injected ChatHistoryListNodeImpl.whitegramReadOnActionSignal() and AccountContextImpl.whitegramLocalReadAction(for:contextHolder:messageIndex:)",
+    "WhitegramContentMedia.captureBeforeConsumption(postbox:messageId:), observeViewedMedia(message:mediaBox:) and captureAvailable(message:mediaBox:)",
+    "WhitegramContentPhotoExporter.install() is injected in AppDelegate startup",
+    "whitegramOpenStoriesWithGhostPrompt(context:present:open:) is internal to ChatListUI",
+    "WhitegramContentLocation.configured, effective and set(latitude:longitude:)"
+  ],
+  "required_dependencies": {
+    "manifest": "content_control_patches.PRIVACY_REQUIRED_DEPENDENCIES",
+    "new_target_dependency": {"SettingsUI": ["//submodules/LocationUI:LocationUI"]},
+    "existing": "TelegramCore uses Postbox, SwiftSignalKit, TelegramApi and MtProtoKit. TelegramUIPreferences uses TelegramCore. SettingsUI and ChatListUI use AccountContext, Display, PresentationDataUtils, SwiftSignalKit, TelegramCore and TelegramPresentationData; the privacy lists also use ItemListUI. LocationUI now imports TelegramCore, already present in the reference target.",
+    "system_frameworks": ["Foundation", "CoreFoundation", "Photos", "CoreLocation", "UIKit", "MapKit"],
+    "localization": "Parent must install WhitegramLocalization and its generated strings/store/pack in TelegramCore. New native story/call/ghost and existing row titles use recovered keys. Port-specific explanatory/error text has explicit fallbacks."
+  },
+  "defaults_and_schema": {
+    "storage": "WhitegramSettingsState.v1 canonical JSON takes precedence over wg_* primitive mirrors. Reads do not rewrite imported values. Boolean/number readers reject Boolean-number coercion.",
+    "boolean_defaults": {
+      "ghostModeEnabled": false, "alwaysOnline": false,
+      "disableOnlineStatus": false, "disableTypingStatus": false,
+      "disableRecordingStatus": false, "disableUploadingStatus": false,
+      "disableReadReceipts": false, "disableStoryReadReceipts": false,
+      "disableAds": false, "saveProtectedContent": false, "removeSpoilers": false,
+      "bypassContentRestrictions": true, "keepBannedChats": false,
+      "saveViewOnceMedia": false, "warnBeforeCall": false, "readOnAction": false,
+      "ghostModeRecordOnce": false, "suggestGhostForStories": false, "fakeLocationEnabled": false
+    },
+    "perChatGhost": "String, default empty. Comma-separated signed PeerId.toInt64 values, globally scoped as in the original primitive. Explicit toggles serialize a sorted unique list and mirror wg_perChatGhost.",
+    "coordinates": "fakeLat/fakeLon are finite Double values in -90...90 and -180...180, default 0.0. Only both zero is unset. The picker commits both in one preference update and does not implicitly enable the switch.",
+    "parent_schema_actions": [
+      "Add perChatGhost as a string archive rule and accept its wg_perChatGhost primitive spelling. It is absent from the inspected shared schema. A bounded archive size such as 65536 bytes is a port limit, not a recovered original limit.",
+      "Add suggestGhostForStories as a Boolean archive rule, default false. It is absent from the inspected shared schema.",
+      "fakeLocationEnabled, fakeLat, fakeLon and ghostModeRecordOnce already have shared archive rules; the coordinate picker uses those exact keys.",
+      "The original perChatGhostModeString property name must not replace the real perChatGhost storage key."
+    ],
+    "retained_media_store": {
+      "root": "URL(mediaBox.basePath).deletingLastPathComponent()/whitegram-retained-media",
+      "entry_directory": "peerId_namespace_messageId_mediaOffset",
+      "entry_file": "entry.json",
+      "fields": ["id", "fileName", "kind", "timestamp", "byteCount", "viewOnce", "photoLibraryIdentifier"],
+      "kinds_and_files": {"image": "media.jpg", "video": "media.mp4", "audio": "media.ogg"},
+      "photos_default": "photoLibraryIdentifier is nil until Photos returns a real success identifier",
+      "scope": "Account-local port retention format, not an original archive interchange format. Error state is last-error.txt. These binary copies are not settings-archive payloads."
+    }
+  },
+  "inventory_disposition": {
+    "ghost": "Per-chat/global priority and queued/discussion/secret/history/action consumers are connected and source-tested; outbound device observation remains.",
+    "ads": "Existing and new ad contexts are cleared/cancelled and can reactivate when enabled. Sponsored-search and impression/click guards consume the canonical setting. Original per-message reveal semantics remain unverified.",
+    "content": "Real copy/spoiler/restriction/ban/view-once/call/recording consumers are present. Original inline retention, protected forwarding reconstruction and paid-media blur semantics remain gaps, not completed by the local file browser.",
+    "location": "Original MapNode consumers and a functioning picker are connected. Device-name and active live-broadcast paths remain separate gaps.",
+    "chat_lock": "No per-chat lock runtime was added; original setup/unlock/settings controllers and lock persistence/lifecycle remain unresolved."
+  },
+  "parent_integration": [
+    "Consume the 15-entry PRIVACY_RUNTIME_FILES map, including the three new story/location Swift files. The final parent runtime-manifest check finds every runtime source installed once.",
+    "Add/verify the SettingsUI -> LocationUI Bazel dependency published by PRIVACY_REQUIRED_DEPENDENCIES. Source parsing and runtime-map coverage do not type-check Bazel dependencies.",
+    "Apply the two shared archive-rule additions above; preferences, archives and generated state remain parent-owned.",
+    "Route the original fakeLocationPicker action to whitegramContentLocationPicker if exposing it outside the dedicated privacy screen. The dedicated screen already provides the picker, story-prompt toggle and retained-media browser.",
+    "Preserve the parent's full composition order and the audio worker's processed-audio callback. The regression applies both modules' real transformations and checks equal final sources and replay in both orders.",
+    "No production build, CI launch, staging, commit or push was performed by this worker."
+  ],
+  "remaining_keys": [
+    {
+      "key": "fakeDeviceName",
+      "reason": "Original getter/setter/editor are known, but MTProto initConnection/API environment and Sessions presentation consumers are not restored. A stored string is not a device-name override.",
+      "next_step": "Trace the original API-environment construction across the app/MTProto images before defining the transport override; preserve the empty-string hardware-default behavior."
+    },
+    {
+      "key": "fakeLocationEnabled.liveBroadcasts",
+      "reason": "submodules/LiveLocationManager/Sources/LiveLocationManager.swift continues to obtain live device updates. The mapped LocationUI override supplies map/current-position selection, not every later live-broadcast update or OS location API.",
+      "next_step": "Recover and test the original broadcast/proximity/nearby scope. Do not advertise full GPS spoofing from the MapNode hook alone."
+    },
+    {
+      "key": "saveProtectedContent.originalInlineLifecycle",
+      "reason": "The local retained-copy store does not reproduce original inline view-once persistence, protected-message forwarding by rebuilding local content, or paid-media preview blur behavior. Original di.privacy describes a broader feature. Existing timer/service-action and forwarding eligibility fixes were preserved.",
+      "next_step": "Coordinate original expired-media message attributes/rendering and deletion ownership with history; recover local forward reconstruction and delivered paid-preview semantics separately."
+    },
+    {
+      "key": "disableAds.perMessageReveal",
+      "reason": "Global ad suppression/reactivation is connected; no verified original per-message reveal/hide-state consumer has been reconstructed. Proxy-promoted channels are a separate parent/appearance setting."
+    },
+    {
+      "key": "suggestGhostForStories.otherOpeners",
+      "reason": "The original direct caller proven here is the chat-list/avatar archive handler. Header-strip, search, notification and direct StoryContainerScreen openers do not share this new prompt. Their original prompt eligibility still needs comparison; global story RPC suppression already applies independently."
+    },
+    {
+      "key": "chat_lock",
+      "reason": "WGChatLockSetupViewController, WGChatLockUnlockViewController and WGChatLockSettingsViewController exist in original image 55 metadata. Their lock storage, credential verification, unlock lifetime and navigation enforcement are not implemented. Telegram's global app lock is not counted as per-chat lock parity."
+    }
+  ],
+  "tests_run": [
+    {
+      "command": "WHITEGRAM_ASSEMBLED_SOURCE=C:/coding/telegram/whitegram/source-12.9.2 <source-check-python> -B -m unittest whitegram.tests.test_content_control_patches whitegram.tests.test_full_composition -v",
+      "result": "PASS: 25 tests (22 privacy source/integration tests plus 3 parent complete-composition/manifest tests)",
+      "coverage": "All 15 privacy runtime Swift files and four XCTest files parse; transformed-source parser errors do not increase; exact anchor failures do not write; replay, async privacy gates, local cleanup, media observation/disposal, original reason rules, banned-channel read-only presentation, map hooks and real two-order voice composition pass. The actual parent installer order and each stage's replay pass."
+    },
+    {
+      "command": "WHITEGRAM_ORIGINAL_EVIDENCE=C:/coding/telegram/whitegram/whitegram-rebuild <original-tooling-python> -B -m unittest discover -s whitegram/tests/privacy -p test_original_contracts.py -v",
+      "result": "PASS: 5 tests",
+      "coverage": "Original IPA SHA-256, bound static restriction arrays, comma/whitespace parser, story enable callback, both-zero coordinate sentinel and inverted channel-dismissal gate. This is static Mach-O inspection, not native execution."
+    },
+    {
+      "command": "git diff --check -- <owned privacy paths>",
+      "result": "PASS; only Git's existing LF/CRLF conversion notices"
+    }
+  ],
+  "native_tests": {
+    "runner": "whitegram/tests/privacy/run_native.py",
+    "command_on_mac": "python3 whitegram/tests/privacy/run_native.py",
+    "methods_provided": 26,
+    "status": "NOT RUN on Windows",
+    "coverage": "Production Foundation preference/location policy, per-action permit/confirmation state and retained-media store. Full TelegramCore RPC integration and UIKit/Photos are not compiled by this small native package."
+  },
+  "device_checks_needed": [
+    "Parent macOS Swift/XCTest and full iOS/Bazel build, including the LocationUI dependency and cross-module symbol visibility.",
+    "Outbound RPC observation for global/per-chat ghost, typing/recording/upload, restored presence, actions after chat/thread/account navigation, queued reads, discussions/monoforums and secret service-layer sequence validity.",
+    "View-once/timed image/video/voice with initially complete and late downloads; dismiss during download; Photos denied/limited/granted, switch disabled during authorization, export failure and account-local retained-copy deletion.",
+    "Processed voice/video record-once sending with immediate/draft/scheduled/bot/self/paid contexts; confirm the final media attribute and processed audio both survive.",
+    "Channel kick transition and re-entry to already cached history, title/avatar retention and absent send/delete banner without changed membership/rights.",
+    "Original story prompt placement and choices, current-location selection with zero axes and denied GPS permission, and original screenshots/layout/localization parity."
+  ]
+}

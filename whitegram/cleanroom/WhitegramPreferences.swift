@@ -16,7 +16,7 @@ public enum WhitegramPreferences {
         let data = defaults.data(forKey: storageKey)
         let legacyData = defaults.data(forKey: "WhitegramPrivacySettings.v1")
         if let cachedValues, data == cachedData, legacyData == cachedLegacyData {
-            return migrateLocalStarsCount(cachedValues, defaults: defaults)
+            return migrateRecoveredValues(cachedValues, defaults: defaults)
         }
         var result = dictionary(data)
         if let legacy = defaults.data(forKey: "WhitegramPrivacySettings.v1") {
@@ -28,7 +28,7 @@ public enum WhitegramPreferences {
         cachedData = data
         cachedLegacyData = legacyData
         cachedValues = result
-        return migrateLocalStarsCount(result, defaults: defaults)
+        return migrateRecoveredValues(result, defaults: defaults)
     }
 
     private static func dictionary(_ data: Data?) -> [String: Any] {
@@ -64,11 +64,24 @@ public enum WhitegramPreferences {
         return Decimal(integer) == decimal ? integer : nil
     }
 
-    private static func migrateLocalStarsCount(_ values: [String: Any], defaults: UserDefaults) -> [String: Any] {
-        guard let old = values["localStarsCount"] as? NSNumber, CFGetTypeID(old) == CFBooleanGetTypeID() else { return values }
+    private static func migrateRecoveredValues(_ values: [String: Any], defaults: UserDefaults) -> [String: Any] {
         var result = values
-        let mirrored = defaults.object(forKey: "wg_localStarsCount").flatMap(exactInteger)
-        result["localStarsCount"] = mirrored.flatMap { $0 >= 0 ? $0 : nil } ?? Int64(0)
+        if let old = values["localStarsCount"] as? NSNumber, CFGetTypeID(old) == CFBooleanGetTypeID() {
+            let mirrored = defaults.object(forKey: "wg_localStarsCount").flatMap(exactInteger)
+            result["localStarsCount"] = mirrored.flatMap { $0 > 0 ? $0 : nil } ?? Int64(9999)
+        }
+        let accountKey = "activeWhitegramAccountId"
+        if let stored = values[accountKey] {
+            if let exact = exactInteger(stored) {
+                result[accountKey] = exact
+            } else if let old = stored as? NSNumber, CFGetTypeID(old) == CFBooleanGetTypeID() {
+                result[accountKey] = defaults.object(forKey: "wg_" + accountKey).flatMap(exactInteger)
+            } else {
+                result.removeValue(forKey: accountKey)
+            }
+        } else {
+            result[accountKey] = defaults.object(forKey: "wg_" + accountKey).flatMap(exactInteger)
+        }
         return result
     }
 
@@ -85,7 +98,7 @@ public enum WhitegramPreferences {
                 result[name] = value
             }
         }
-        return migrateLocalStarsCount(result, defaults: defaults)
+        return migrateRecoveredValues(result, defaults: defaults)
     }
 
     static func readForTransfer<T>(_ read: (UserDefaults, [String: Any]) throws -> T) throws -> T {

@@ -46,8 +46,10 @@ def main() -> int:
     if any("import UIKit" in text or "import TelegramUIPreferences" in text for text in core):
         failures.append("Archive core gained a UI/public-fork dependency")
     state = texts["WhitegramSettingsState.swift"]
-    if "public var localStarsCount: Int64 = 0" not in state:
-        failures.append("Recovered localStarsCount Int64 type was lost")
+    if "public var localStarsCount: Int64 = 9999" not in state:
+        failures.append("Recovered localStarsCount Int64 type/default was lost")
+    if "public var activeWhitegramAccountId: Int64? = nil" not in state:
+        failures.append("Recovered optional account ID type was lost")
     keychain = texts["WhitegramSettingsArchiveKeychain.swift"]
     if "kSecAttrAccessibleWhenUnlockedThisDeviceOnly" not in keychain or "kSecAttrSynchronizable as String: false" not in keychain:
         failures.append("Settings Keychain must be unlocked/device-local/non-synchronizing")

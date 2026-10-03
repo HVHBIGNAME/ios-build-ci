@@ -1,0 +1,199 @@
+{
+  "role": "camera",
+  "status": "source_verified_native_validation_pending",
+  "last_verified_date": "2026-10-02",
+  "workspace": "C:/coding/telegram/whitegram/ios-build-ci",
+  "reference": {
+    "ready_manifest": "C:/coding/telegram/whitegram/recovery_20261002/campaign/reference-ready.json",
+    "path": "C:/coding/telegram/whitegram/source-12.9.2",
+    "source_revision": "6ad963e5b62d354da79040f388ae2b9132fb17b8",
+    "public_revision": "db18308774f863074278feedc4df4507b0fb174e",
+    "baseline_overlay_revision": "dba65e0a2c3b573f5f92a68807b9bc5771e6514c",
+    "use": "Read-only assembled baseline plus git-show pristine release fixtures; candidate transforms and replay stay in memory. Reference files were compared with their input after testing."
+  },
+  "resumed_implementation": [
+    "Corrected the original dual-main wide-preview branch: only additional or exclusive-wide capture selects 1920x1440; a dual main camera retains selected 720p/1080p.",
+    "Camera choices probe exclusive sensor capabilities, so an unrelated MultiCam probe does not hide valid 4K/60 options. Applying the format still validates the actual session's MultiCam constraint.",
+    "Restored original regular encoder width/height and source-FPS overrides from the actual configured capture device. VideoCaptureResult uses that encoded size with the native portrait swap; round output remains 400x400.",
+    "Forwarded recorder initialization errors through the public Camera.startRecording signal instead of discarding the inner error event.",
+    "Connected verified camera/photo/metadata/remember/static-zoom/transfer labels to the parent's localization runtime and live pack updates. Supplemental port explanations support ru/uk/en; the mode-0 label reflects the legacy 16-part override.",
+    "Extended migration, capture/encoder and ImageIO native fixtures; made the native runner explicitly Apple-only. Source tests now include combined media/transfer order, pristine replay, complete transfer-body preservation and public recorder error propagation."
+  ],
+  "files_changed": [
+    "whitegram/media_camera_patches.py",
+    "whitegram/transfer_patches.py",
+    "whitegram/cleanroom/WhitegramCameraConfiguration.swift",
+    "whitegram/cleanroom/WhitegramMediaSettings.swift",
+    "whitegram/cleanroom/WhitegramMediaSettingsController.swift",
+    "whitegram/cleanroom/WhitegramPhotoExport.swift",
+    "whitegram/cleanroom/WhitegramPhotoMetadata.swift",
+    "whitegram/cleanroom/WhitegramPhotoQualitySliderItem.swift",
+    "whitegram/cleanroom/WhitegramTransferSettings.swift",
+    "whitegram/tests/media/WhitegramMediaTests.swift",
+    "whitegram/tests/media/WhitegramTransferTests.swift",
+    "whitegram/tests/media/run_native.py",
+    "whitegram/tests/test_media_camera_patches.py",
+    "whitegram/tests/test_transfer_patches.py",
+    "whitegram/MEDIA_CAMERA_PORT.md",
+    "whitegram/parity/camera.json"
+  ],
+  "original_evidence": [
+    {
+      "path": "C:/coding/telegram/whitegram/whitegram-rebuild/audit-full-3.1.1/audit.sqlite3",
+      "ipa_sha256": "bd6d3a13046d5857c1389e2d794c4c2ca44cee89bb22880004bd77f84fe29837",
+      "images": {"TelegramCore": 46, "TelegramUI": 55}
+    },
+    {
+      "path": "C:/coding/telegram/whitegram/recovery_20261002/campaign/camera",
+      "recovered_provenance": "C:/coding/telegram/whitegram/recovery_20261002/campaign/recovery-manifest.json",
+      "exports": "Recovered hash-qualified ui-*.asm/core-*.asm plus new core-0x200438.asm, ui-0xddc85c.asm, ui-0x2825b28.asm, ui-0x28f28e4.asm and ui-0x28f41e4.asm. constants.json is reproduced by read_constants.py using the original IPA and both dyld bindings and indirect-symbol tables.",
+      "reverified_constants": {"download_modes_1_2_3": [4, 8, 16], "photo_quality_double": 0.7, "photo_quality_float": 0.699999988079071, "migration_key_count": 6},
+      "camera": ["46:0x200438", "46:0x200690", "46:0x2007c4", "46:0x2008f8", "46:0x2009fc", "46:0x213448", "55:0xcab938", "55:0xcaba64", "55:0x28e7884", "55:0x28e7a1c", "55:0x28e7c14", "55:0x28ecbcc", "55:0x115cc44", "55:0x1157208"],
+      "round_encoder": ["46:0x200d70", "55:0xcabb30", "55:0x28f41e4", "55:0x28f4b14", "55:0x28f43d4"],
+      "regular_encoder": ["55:0x28f2968..0x28f29a8", "55:0x28f3f9c..0x28f40b8", "55:0x28f44ac..0x28f452c"],
+      "photo": ["46:0x202784", "46:0xd62180", "55:0x31cb588", "55:0x4951f88", "55:0xddc85c", "55:0x31ca954", "55:0x1f61c54"],
+      "metadata": ["55:0x2825b28", "55:0x2830a78", "55:0x282f7a0", "55:0x2825eac"],
+      "transfer": ["46:0x178644", "46:0xd5f708", "46:0x175fb8", "46:0x179784", "46:0x1798a8", "46:0x17a1ac", "46:0x199b68"]
+    },
+    {
+      "path": "whitegram/generated/WhitegramLocalizationStrings.swift",
+      "source": "Parent-recovered original image 55 initializer 0x324f5e4; 1597 original ru/uk/en entries. Camera/media tests verify every literal lookup used by this controller exists in the recovered table."
+    }
+  ],
+  "implemented_keys": [
+    "useTelegramCameraSettings", "backCameraPreset", "frontCameraPreset", "backCameraFPS", "frontCameraFPS",
+    "roundCameraWideAngle", "staticZoomEnabled", "rememberLastCamera", "videoMessageCamera", "roundVideoBitrate",
+    "photoCompressionQuality", "sendLargePhotos", "alwaysSendHD", "cleanMetadataOnSend",
+    "downloadAccelMode", "maxDownloadSpeed", "sendAccelerationEnabled"
+  ],
+  "remaining_keys": [
+    {
+      "key": "staticZoomEnabled", "catalog_id": "staticZoom", "scope": "parent catalog route",
+      "reason": "Native consumer and media-controller toggle are implemented. At the last read the catalog ID still lacked its media capability route."
+    },
+    {
+      "key": "maxDownloadSpeed", "catalog_id": "maxDownloadSpeed", "scope": "parent catalog route",
+      "reason": "Native transfer consumers and media-controller toggle are implemented. At the last read the catalog ID still lacked its media capability route."
+    },
+    {
+      "key": "sendAccelerationEnabled", "catalog_id": "sendAcceleration", "scope": "parent catalog route",
+      "reason": "Native upload consumer and media-controller toggle are implemented. At the last read the catalog ID still lacked its media capability route."
+    },
+    {
+      "key": "downloadAccelMode", "catalog_id": "downloadAccelPicker", "scope": "parent catalog route",
+      "reason": "Native download consumers and media-controller picker are implemented. At the last read the catalog ID still lacked its media capability route."
+    }
+  ],
+  "runtime_files": {
+    "WhitegramMediaSettings.swift": "submodules/TelegramCore/Sources/WhitegramMediaSettings.swift",
+    "WhitegramTransferSettings.swift": "submodules/TelegramCore/Sources/WhitegramTransferSettings.swift",
+    "WhitegramCameraConfiguration.swift": "submodules/Camera/Sources/WhitegramCameraConfiguration.swift",
+    "WhitegramPhotoExport.swift": "submodules/LocalMediaResources/Sources/WhitegramPhotoExport.swift",
+    "WhitegramPhotoMetadata.swift": "submodules/LocalMediaResources/Sources/WhitegramPhotoMetadata.swift",
+    "WhitegramMediaSettingsController.swift": "submodules/SettingsUI/Sources/WhitegramMediaSettingsController.swift",
+    "WhitegramPhotoQualitySliderItem.swift": "submodules/SettingsUI/Sources/WhitegramPhotoQualitySliderItem.swift"
+  },
+  "patch_entrypoint": ["apply_media_camera_patches(root)", "apply_transfer_patches(root)"],
+  "exports": ["MEDIA_RUNTIME_FILES", "CAMERA_RUNTIME_FILES", "TRANSFER_RUNTIME_FILES", "media_camera_patches(patches)", "transfer_patches(patches)", "apply_camera_patches(root) alias"],
+  "patch_order": [
+    "Assemble release-12.9.2 plus the public/baseline compatibility overlay; retain native camera/filter/zoom compatibility fixes.",
+    "Install all seven runtime files from cleanroom using MEDIA_RUNTIME_FILES and TRANSFER_RUNTIME_FILES, together with parent preferences/localization dependencies.",
+    "Invoke the two writing entrypoints as compat currently does, or compose media_camera_patches and transfer_patches into one SourcePatches transaction and write only after both validate. The two orders produce identical pending output and replay is idempotent.",
+    "The maps contain runtime source installation only; they do not add BUILD dependencies or catalog routes themselves. Parent handles imports, BUILD composition and final platform builds."
+  ],
+  "patched_native_files": {
+    "media-camera": {
+      "submodules/Camera/Sources/Camera.swift": "Mode/session policy, wide reset, valid dual enable, remember-camera, single-front zoom routing, initial round compositor position and public recorder error relay.",
+      "submodules/Camera/Sources/CameraDevice.swift": "Locked validated format application, FPS reset/propagation and bounded finite zoom inputs.",
+      "submodules/Camera/Sources/CameraOutput.swift": "Actual capture dimensions/FPS snapshot, regular encoder overrides/result dimensions, round bitrate/FPS, initial compositor position and per-recording timing reset.",
+      "submodules/LegacyMediaPickerUI/Sources/LegacyMediaPickers.swift": "Persist photo dimensions/quality, metadata-cleaned file ownership and Photos-video conversion choice.",
+      "submodules/LocalMediaResources/Sources/FetchPhotoLibraryImageResource.swift": "Queued dimension/quality policy and retained 4096-pixel export path.",
+      "submodules/MediaPickerUI/Sources/MediaPickerScreen.swift": "Initialize visible HD choice from native remembered preference OR alwaysSendHD.",
+      "submodules/TelegramUI/Components/VideoMessageCameraScreen/Sources/VideoMessageCameraScreen.swift": "Static-zoom release/cancel behavior."
+    },
+    "transfer": {
+      "submodules/TelegramCore/Sources/Network/FetchV2.swift": "All four maxPendingParts state-creation sites: initial DC, CDN, reference refresh and CDN reupload.",
+      "submodules/TelegramCore/Sources/Network/MultipartFetch.swift": "Explicit acceleration opts eligible TelegramCloudMediaResource requests into existing FetchV2.",
+      "submodules/TelegramCore/Sources/Network/MultipartUpload.swift": "Original 30/16/3 parallel upload precedence at manager initialization."
+    }
+  },
+  "controller_entrypoints": ["whitegramMediaSettingsController(context:)"],
+  "runtime_api_dependencies": [
+    "WhitegramPreferences.values/update/set/updatedNotification in TelegramCore.",
+    "WhitegramLocalization.string/selectedLanguage and WhitegramLocalizationStore.changedNotification in TelegramCore; install the parent's localization pack/store/generated strings together.",
+    "CameraDevice.configureWhitegramFormat(multiCam:policy:) and WhitegramCameraConfiguration.apply(to:multiCam:policy:) must be updated together.",
+    "CameraOutput uses WhitegramMediaSettings.videoRecordingDimensions(encodedWidth:encodedHeight:portrait:); copy the current media policy file before compiling current hooks.",
+    "Native PhotoLibraryMediaResource(width:height:quality:forceHd:) and VideoLibraryMediaResource.conversion are existing 12.9.2 serialization APIs; no new resource codec/schema was introduced."
+  ],
+  "required_dependencies": [
+    "TelegramCore: Foundation/CoreFoundation (existing)",
+    "Camera: TelegramCore, AVFoundation (existing)",
+    "LocalMediaResources: TelegramCore, UIKit, ImageIO (existing)",
+    "SettingsUI: AccountContext, Camera, TelegramCore, ItemListUI, Display, AsyncDisplayKit, SwiftSignalKit, PresentationDataUtils, TelegramPresentationData (existing baseline target dependencies)",
+    "LegacyMediaPickerUI, MediaPickerUI and VideoMessageCameraScreen: TelegramCore (existing)"
+  ],
+  "defaults_and_schema": [
+    {"keys": ["useTelegramCameraSettings"], "type": "Bool", "default": "Absent explicit choice: true if none of the original six custom-camera keys exists; false if any exists. Reset writes true.", "schema": "Parent Boolean rule present."},
+    {"keys": ["backCameraPreset", "frontCameraPreset"], "type": "String", "default": "1080p", "choices": ["4k", "1080p", "720p"], "compatibility": "AVCaptureSessionPreset aliases and saved 480p are read without deleting saved state.", "schema": "Parent bounded String rules present."},
+    {"keys": ["backCameraFPS", "frontCameraFPS"], "type": "Int", "default": 30, "choices": [30, 60], "compatibility": "Saved 24 FPS is retained; malformed/zero/unsupported values read as 30.", "schema": "Parent integer 0...60 rules retained for archive compatibility."},
+    {"keys": ["roundCameraWideAngle", "staticZoomEnabled", "rememberLastCamera"], "type": "Bool", "default": false, "schema": "Parent Boolean rules present, including the new wide-camera rule."},
+    {"keys": ["videoMessageCamera"], "type": "Int?", "default": "Absent is nil so bridge/native choice survives; explicit/reset 0=front, 1=back, 2=ask.", "schema": "Parent integer 0...2; bridge now reads legacy wg_ choice before save."},
+    {"keys": ["roundVideoBitrate"], "type": "String", "default": "medium", "choices_bps": {"low": 500000, "medium": 1000000, "high": 3000000}, "compatibility": "Stock uses the native 1000000 bitrate. Bounded prior numeric strings remain readable.", "schema": "Parent accepts low/medium/high plus empty and prior 500000/1000000/2000000/4000000/8000000 choices."},
+    {"keys": ["sendLargePhotos", "alwaysSendHD", "cleanMetadataOnSend"], "type": "Bool", "default": false, "schema": "Existing Boolean rules."},
+    {"keys": ["photoCompressionQuality"], "type": "Double", "default": 0.7, "range": "Original slider 10...100 percent; reader bounds positive values to 0.1...1 and maps zero/invalid to 0.7.", "schema": "Parent generated default is now 0.7; archive 0...1 accepts legacy zero. Explicit saved 0.8 or other valid values survive."},
+    {"keys": ["downloadAccelMode"], "type": "Int", "default": 0, "choices": {"0": "legacy switch: 6 or 16", "1": 4, "2": 8, "3": 16}, "schema": "Parent integer 0...3 rule present."},
+    {"keys": ["maxDownloadSpeed", "sendAccelerationEnabled"], "type": "Bool", "default": false, "precedence": "Explicit upload increaseParallelParts=30 wins; otherwise either switch gives 16, otherwise 3. Explicit download modes override maxDownloadSpeed.", "schema": "Existing Boolean rules."}
+  ],
+  "parent_integration": [
+    "Observed complete in parent source: compat imports/installs TRANSFER_RUNTIME_FILES and invokes apply_transfer_patches beside apply_media_camera_patches; MEDIA_RUNTIME_FILES includes the photo slider.",
+    "Observed complete in parent source: 0.7 generated photo default; wide-camera Boolean; download mode 0...3; low/medium/high bitrate archive choices; legacy videoMessageCamera bridge read.",
+    "Route staticZoom, maxDownloadSpeed, sendAcceleration, downloadAccelPicker to the existing media capability/controller. Canonical key mappings: staticZoom->staticZoomEnabled; sendAcceleration->sendAccelerationEnabled; downloadAccelPicker->downloadAccelMode; photoQualitySlider->photoCompressionQuality.",
+    "Keep lazy custom-camera defaults and existing user values; do not populate the six custom keys before evaluating the original stock/custom migration.",
+    "Run the Apple-native media harness and full iOS target checks using the latest runtime maps. Check actual device capture, metadata codecs and transfer scheduling before claiming native/device parity."
+  ],
+  "inventory_resolution": [
+    {"family": "camera", "resolved": "Original defaults, slider bounds, six-key migration, mode restrictions, active-format regular encoder settings, round output/zoom/selection consumers, queued legacy dimensions and source-level bridge/installer/schema issues are covered.", "remaining": "Four parent catalog routes and Apple/device validation; original UI pixel/layout equivalence has not been verified on Windows."},
+    {"family": "transfer", "resolved": "Original 4/8/16 table and upload precedence reverified; all state-creation sites wired; full native scheduler/crypto/cancellation bodies preserved by source comparison; parent installer now present.", "remaining": "Catalog routes and live/native cancellation, resume, CDN integrity, encryption and server backpressure validation."}
+  ],
+  "policy_notes": [
+    "Original camera presets 4k/1080p/720p, defaults 1080p and 30 FPS; menu FPS 30/60; inferred legacy custom mode follows six original keys.",
+    "Round low/medium/high bitrates are 0.5/1/3 Mbps; final frame remains 400x400. Original exclusive round/lower-rate sensor restrictions remain in effect.",
+    "Regular recording now uses the actual configured capture dimensions and explicit FPS in its encoder settings, with orientation-correct result dimensions. Invalid initialization reaches the public error signal.",
+    "The selected initial camera now reaches the round compositor before recording, fixing the upstream hardcoded-front stream/mirroring state; per-recording transition/time-offset state is reset.",
+    "Large/HD new-photo limit is 2560. Existing queued 4096 dimensions and legacy 24 FPS/640x480/numeric bitrate preferences are retained for baseline compatibility.",
+    "Metadata cleaner keeps verified lossless copies when possible, with original JPEG-0.95 rebuild fallback; 128 MiB input and 64 megapixel fallback-decode limits are explicit port bounds, not original recovered limits.",
+    "Photos video-as-file cleanup is persisted as native conversion; arbitrary document/video formats are not claimed to be covered by this original two-hook cleaner.",
+    "Explicit download acceleration opts eligible cloud resources into existing FetchV2 as a port integration adaptation. V1-only resources retain native scheduling. Native encryption/hash/flood-wait logic and part sizes are preserved."
+  ],
+  "tests_run": [
+    {
+      "command": "C:/coding/telegram/whitegram/whitegram-check-env/Scripts/python.exe -B -m unittest test_media_camera_patches test_transfer_patches -v",
+      "workdir": "C:/coding/telegram/whitegram/ios-build-ci/whitegram/tests",
+      "environment": {"WHITEGRAM_ASSEMBLED_SOURCE": "C:/coding/telegram/whitegram/source-12.9.2"},
+      "platform": "Windows; in-memory source transformations and tree-sitter Swift parsing, not native typechecking or execution",
+      "result": "PASS: 20 tests, zero skipped. Pristine and assembled replay, both composition orders, native scheduler-body preservation, all four transfer transition sites, atomic anchor failures, photo queue/ownership, actual encoder dimensions/FPS, public recording errors, initial round compositor state, format/zoom consumers and recovered localization lookups/refresh."
+    },
+    {"command": "git diff --check -- <owned tracked paths>", "result": "PASS"},
+    {"command": "wgtool audit-query / audit-function and role read_constants.py", "result": "Read-only original evidence queries; IPA hash verified for disassembly/numeric exports."}
+  ],
+  "native_tests_prepared_not_run": [
+    "On macOS: python3 -B whitegram/tests/media/run_native.py. Twenty XCTest methods across WhitegramMediaTests and WhitegramTransferTests exercise production Foundation policies and ImageIO code in a unique disposable package.",
+    "New fixtures cover each of the six migration keys, camera legacy/reset precedence, dual-main wide policy, encoder dimension/orientation bounds, non-empty GPS/IPTC/EXIF source metadata, all eight EXIF orientations with pixel comparisons and oversized image rejection; existing PNG/TIFF/animation and transfer mode/type-bound tests remain.",
+    "Full iOS compile/typecheck and device execution for Camera/SettingsUI/LocalMediaResources. The macOS harness does not compile UIKit/AVCaptureDevice-dependent UI/capture modules."
+  ],
+  "precise_remaining_blockers": [
+    {"owner": "parent", "kind": "catalog", "detail": "WhitegramPortCapabilities.screens still lacks staticZoom/maxDownloadSpeed/sendAcceleration/downloadAccelPicker at the handoff read. Their controls are reachable through the already-routed media controller, but those original catalog rows need routes."},
+    {"owner": "parent", "kind": "Apple build/test host", "detail": "No macOS/Xcode execution is available in this Windows worker. Native harness, full target compilation and on-device settings layout remain unexecuted."},
+    {"owner": "parent", "kind": "capture/codec/transport validation", "detail": "Actual hardware format availability, encoder output, A/V timing, HEIC/HDR behavior, Photos conversion and MTProto runtime backpressure require Apple/device runs; source tests do not prove those runtime results."}
+  ],
+  "device_checks_needed": [
+    "Per-front/back supported and unsupported 720p/1080p/4K at 30/60; active-format validation and actual MultiCam limitations.",
+    "Regular encoder dimensions/FPS and portrait/upside-down/landscape result size, including 720p and 4K; recorder initialization error delivery.",
+    "Single-camera round selection with custom 4K/60/wide settings; available/unavailable ultra-wide; front/back pinch, static release/cancel, and remember-last-camera across launches.",
+    "Legacy wg_videoMessageCamera migration before parent fork save.",
+    "400x400 H.264 output, low/medium/high measured bitrate, source-FPS hint and audio/video timing through camera switches.",
+    "HEIC/HDR orientation/profile preservation, ImageIO codec fallback and metadata rejection, iCloud/Photos video-as-file conversion and resource ownership.",
+    "Cloud download/upload modes with cancellation/resume, secret-file encryption, CDN hashes/reupload/reference refresh and server flood waits. No live user media was sent during development.",
+    "Original-language and custom-pack controller labels, live refresh and long-label layout on iPhone/iPad."
+  ]
+}

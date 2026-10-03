@@ -6,6 +6,7 @@ public enum WhitegramForkBridge {
         private var chat = WhiteGramChatSettings.current
         private var tabs = WhiteGramTabSettings.current
         private var stories = WhiteGramStorySettings.current
+        private var foldersAtBottom = WhiteGramChatFolderSettings.current.foldersAtBottom
         private var observer: NSObjectProtocol?
 
         init() {
@@ -18,6 +19,7 @@ public enum WhitegramForkBridge {
             let chat = WhiteGramChatSettings.current
             let tabs = WhiteGramTabSettings.current
             let stories = WhiteGramStorySettings.current
+            let foldersAtBottom = WhiteGramChatFolderSettings.current.foldersAtBottom
             if self.chat != chat {
                 self.chat = chat
                 NotificationCenter.default.post(name: WhiteGramChatSettings.updatedNotification, object: nil)
@@ -30,6 +32,10 @@ public enum WhitegramForkBridge {
                 self.stories = stories
                 NotificationCenter.default.post(name: WhiteGramStorySettings.updatedNotification, object: nil)
             }
+            if self.foldersAtBottom != foldersAtBottom {
+                self.foldersAtBottom = foldersAtBottom
+                NotificationCenter.default.post(name: WhiteGramChatFolderSettings.updatedNotification, object: nil)
+            }
         }
 
         deinit { if let observer { NotificationCenter.default.removeObserver(observer) } }
@@ -39,6 +45,15 @@ public enum WhitegramForkBridge {
 
     public static func migrate() {
         _ = relay
+        if !WhitegramPreferences.bool("forkFolderSettingsMigrated") {
+            var enabled = (WhitegramPreferences.values()["foldersAtBottom"] as? Bool)
+                ?? (UserDefaults.standard.object(forKey: "wg_foldersAtBottom") as? Bool) ?? false
+            if let data = UserDefaults.standard.data(forKey: "WhiteGramChatFolderSettings.v1"),
+               let original = try? JSONDecoder().decode(WhiteGramChatFolderSettings.self, from: data) {
+                enabled = original.foldersAtBottom
+            }
+            WhitegramPreferences.update(["foldersAtBottom": enabled, "forkFolderSettingsMigrated": true])
+        }
         guard !WhitegramPreferences.bool("forkSettingsMigrated") else { return }
         saveChat(WhiteGramChatSettings.current)
         saveTabs(WhiteGramTabSettings.current)
@@ -87,17 +102,17 @@ public enum WhitegramForkBridge {
         Binding("wideChannelPosts", \.wideChannelPosts),
         Binding("disableChatSwipeOptions", \.chatSwipeOptions, inverted: true),
         Binding("noChannelSwitch", \.channelSwipeToNext, inverted: true),
-        Binding("hideRecordButton", \.voiceMessageButton, inverted: true),
-        Binding("hideReactions", \.channelPostReactions, inverted: true)
+        Binding("hideRecordButton", \.voiceMessageButton, inverted: true)
     ]
 
     public static func chat(_ source: WhiteGramChatSettings) -> WhiteGramChatSettings {
         var value = apply(source, chatBindings)
         let preferences = WhitegramPreferences.values()
         if let scale = preferences["stickerSizeScale"] as? Double {
-            value.stickerSizePercent = Int32((min(1.0, max(0.0, scale)) * 100.0).rounded())
+            let scale = scale == 0 ? 1.0 : min(2.0, max(0.1, scale))
+            value.stickerSizePercent = Int32((scale * 100.0).rounded())
         }
-        if let camera = preferences["videoMessageCamera"] as? Int {
+        if let camera = WhitegramMediaSettings.current.videoMessageCamera {
             value.videoMessageCamera = camera == 1 ? .back : (camera == 2 ? .ask : .front)
         }
         if let edit = preferences["doubleTapEditEnabled"] as? Bool {
@@ -126,8 +141,7 @@ public enum WhitegramForkBridge {
         Binding("hideContactsTab", \.hideContactsTab),
         Binding("hideCallsTab", \.hideCallsTab),
         Binding("hideTabLabels", \.hideTabTitles),
-        Binding("hideSearchBar", \.hideSearchButton),
-        Binding("hideBottomTabBar", \.compactPanel)
+        Binding("hideSearchBar", \.hideSearchButton)
     ]
 
     public static func tabs(_ value: WhiteGramTabSettings) -> WhiteGramTabSettings { return apply(value, tabBindings) }
@@ -140,6 +154,13 @@ public enum WhitegramForkBridge {
 
     public static func stories(_ value: WhiteGramStorySettings) -> WhiteGramStorySettings { return apply(value, storyBindings) }
     public static func saveStories(_ value: WhiteGramStorySettings) { save(value, storyBindings) }
+
+    private static let folderBindings: [Binding<WhiteGramChatFolderSettings>] = [
+        Binding("foldersAtBottom", \.foldersAtBottom)
+    ]
+
+    public static func folders(_ value: WhiteGramChatFolderSettings) -> WhiteGramChatFolderSettings { return apply(value, folderBindings) }
+    public static func saveFolders(_ value: WhiteGramChatFolderSettings) { save(value, folderBindings) }
 
     private static let otherBindings: [Binding<WhiteGramOtherSettings>] = [
         Binding("translateMessagesEnabled", \.autoTranslate),

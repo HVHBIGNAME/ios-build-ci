@@ -1,267 +1,217 @@
 import Foundation
 
-/// A queue-confined, mono signed-Int16 PCM processor. The caller owns every
-/// buffer; processing is synchronous, in-place and always N samples in / N out.
+/// Queue-confined mono processor. Every borrowed buffer remains caller-owned.
 public final class WhitegramVoiceProcessor {
     public let isActive: Bool
     public let pitchDelayUpperBound: Double
-
     private let parameters: WhitegramVoiceParameters?
     private let bleepMode: WhitegramVoiceBleepMode?
-    private let pitchShifter: WhitegramVoicePitchShifter?
-    private let echoLine: WhitegramVoiceEchoLine?
-    private let timbreAlpha: Double
-    private let rumbleAlpha: Double
-    private let presenceAlpha: Double
-    private let smoothingAlpha: Double
-    private let radioLowAlpha: Double
-    private let radioHighAlpha: Double
-    private let envelopeAttack: Double
-    private let envelopeRelease: Double
-    private let ringStep: Double
-    private let beepStep: Double
-    private let beepAttackSamples: Int
-
-    private var timbreLow = 0.0
-    private var rumbleLow = 0.0
-    private var presenceLow = 0.0
-    private var smoothingLow = 0.0
-    private var radioLow = 0.0
-    private var radioHigh = 0.0
-    private var envelope = 0.0
+    private let rate: Double
+    private let initialNoiseState: UInt32
+    private let pitchRatio: Double
+    private let minimumDelay: Double
+    private let maximumDelay: Double
+    private let echoDelay: Int
+    private var pitchSamples: [Float]
+    private var echoSamples: [Float]
+    private var pitchIndex = 0
+    private var echoIndex = 0
+    private var pitchDelay: Double
+    private var warmupFrames = 0
+    private var lowPass: Float = 0
+    private var highPass: Float = 0
+    private var previousInput: Float = 0
     private var ringPhase = 0.0
+    private var noiseState: UInt32
     private var beepPhase = 0.0
-    private var beepAttackPosition = 0
-    private var noiseState: UInt32 = 0x57475631
+    private var beepAttack = 0
 
-    public init(settings: WhitegramVoiceSettings, sampleRate: Double = 48000.0) {
-        let validRate = sampleRate.isFinite && (8000.0 ... 192000.0).contains(sampleRate)
-        let rate = validRate ? sampleRate : 48000.0
-        let bleepMode = validRate ? settings.activeBleepMode : nil
-        let parameters = validRate && bleepMode == nil ? settings.parameters : nil
-        self.parameters = parameters
-        self.bleepMode = bleepMode
-        self.isActive = parameters != nil || bleepMode != nil
-        if let parameters, parameters.pitch != 0.0 {
-            self.pitchShifter = WhitegramVoicePitchShifter(sampleRate: rate, semitones: parameters.pitch)
-            self.pitchDelayUpperBound = 0.04 + 2.0 / rate
-        } else {
-            self.pitchShifter = nil
-            self.pitchDelayUpperBound = 0.0
-        }
-        if let parameters, parameters.echo > 0.0 {
-            self.echoLine = WhitegramVoiceEchoLine(sampleRate: rate, delay: parameters.echoDelay, amount: parameters.echo / 100.0)
-        } else {
-            self.echoLine = nil
-        }
-        self.timbreAlpha = Self.lowPassAlpha(900.0, rate: rate)
-        self.rumbleAlpha = Self.lowPassAlpha(100.0, rate: rate)
-        self.presenceAlpha = Self.lowPassAlpha(2500.0, rate: rate)
-        self.smoothingAlpha = Self.lowPassAlpha(1600.0, rate: rate)
-        self.radioLowAlpha = Self.lowPassAlpha(300.0, rate: rate)
-        self.radioHighAlpha = Self.lowPassAlpha(3400.0, rate: rate)
-        self.envelopeAttack = exp(-1.0 / (rate * 0.005))
-        self.envelopeRelease = exp(-1.0 / (rate * 0.050))
-        self.ringStep = (parameters?.ringFrequency ?? 0.0) / rate
-        self.beepStep = 1000.0 / rate
-        self.beepAttackSamples = max(1, Int(rate * 0.005))
+    public init(settings: WhitegramVoiceSettings, sampleRate: Double = 48000.0, channel: Int = 0) {
+        let valid = sampleRate.isFinite && (8000.0 ... 192000.0).contains(sampleRate)
+        self.rate = valid ? sampleRate : 48000
+        self.bleepMode = valid ? settings.activeBleepMode : nil
+        self.parameters = valid && self.bleepMode == nil ? settings.parameters : nil
+        self.isActive = self.parameters != nil || self.bleepMode != nil
+        let size = max(1024, Int(self.rate * 0.09))
+        self.pitchSamples = Array(repeating: 0, count: self.parameters?.pitch != 0 && self.parameters != nil ? size : 0)
+        self.minimumDelay = Double(size) * 0.16
+        self.maximumDelay = Double(size) * 0.84
+        self.pitchDelay = Double(size) * 0.58
+        self.pitchRatio = pow(2, (self.parameters?.pitch ?? 0) / 12)
+        self.pitchDelayUpperBound = self.pitchSamples.isEmpty ? 0 : self.maximumDelay / self.rate
+        let echo = (self.parameters?.echo ?? 0) / 100
+        self.echoSamples = Array(repeating: 0, count: echo > 0.001 ? max(2048, Int(self.rate * 0.72)) : 0)
+        self.echoDelay = min(max(1, Int(self.rate * (0.16 + echo * 0.22))), max(1, self.echoSamples.count - 1))
+        self.initialNoiseState = 0x4e47564f &+ UInt32(truncatingIfNeeded: channel) &* 0x44f
+        self.noiseState = self.initialNoiseState
     }
 
-    /// No preference reads, locks, allocations or audio-session operations occur
-    /// here. Disabled and neutral configurations return before touching PCM.
     public func process(_ samples: UnsafeMutableBufferPointer<Int16>) {
-        guard self.isActive, !samples.isEmpty else { return }
+        guard self.isActive else { return }
+        for index in samples.indices { samples[index] = self.processInt16(samples[index]) }
+    }
+
+    public func process(_ samples: UnsafeMutableBufferPointer<Float>) {
+        guard self.isActive else { return }
+        for index in samples.indices { samples[index] = self.processFloat(samples[index]) }
+    }
+
+    fileprivate func processInt16(_ input: Int16) -> Int16 {
+        guard self.isActive else { return input }
         if let bleepMode = self.bleepMode {
-            self.replaceRecording(samples, mode: bleepMode)
-            return
+            return Int16(min(32767, max(-32768, (self.bleep(bleepMode) * 32768).rounded())))
         }
-        guard let parameters = self.parameters else { return }
-
-        for index in samples.indices {
-            var sample = Double(samples[index]) / 32768.0
-            if let pitchShifter = self.pitchShifter {
-                sample = pitchShifter.process(sample)
-            }
-            sample = self.filter(sample, parameters: parameters)
-            if parameters.ringMix > 0.0 {
-                sample *= 1.0 - parameters.ringMix + parameters.ringMix * cos(2.0 * .pi * self.ringPhase)
-                self.ringPhase += self.ringStep
-                if self.ringPhase >= 1.0 { self.ringPhase -= 1.0 }
-            }
-            if parameters.noiseMix > 0.0 {
-                let magnitude = abs(sample)
-                let coefficient = magnitude > self.envelope ? self.envelopeAttack : self.envelopeRelease
-                self.envelope = coefficient * self.envelope + (1.0 - coefficient) * magnitude
-                self.noiseState ^= self.noiseState << 13
-                self.noiseState ^= self.noiseState >> 17
-                self.noiseState ^= self.noiseState << 5
-                let noise = Double(self.noiseState) / Double(UInt32.max) * 2.0 - 1.0
-                sample = sample * (1.0 - parameters.noiseMix) + noise * self.envelope * parameters.noiseMix
-            }
-            if let echoLine = self.echoLine {
-                sample = echoLine.process(sample)
-            }
-            samples[index] = Self.quantize(sample)
-        }
+        let output = self.effect(Float(input) / 32768) * 36000
+        return output.isFinite ? Int16(min(32767, max(-32768, output))) : 0
     }
 
-    /// Start a new uninterrupted segment without retaining echoes or delayed
-    /// samples from a discarded/trimmed segment. Call on the recording queue.
-    public func reset() {
-        self.pitchShifter?.reset()
-        self.echoLine?.reset()
-        self.timbreLow = 0.0
-        self.rumbleLow = 0.0
-        self.presenceLow = 0.0
-        self.smoothingLow = 0.0
-        self.radioLow = 0.0
-        self.radioHigh = 0.0
-        self.envelope = 0.0
-        self.ringPhase = 0.0
-        self.beepPhase = 0.0
-        self.beepAttackPosition = 0
-        self.noiseState = 0x57475631
+    fileprivate func processFloat(_ input: Float) -> Float {
+        guard self.isActive else { return input }
+        if let bleepMode = self.bleepMode { return Float(self.bleep(bleepMode)) }
+        let output = self.effect(input.isFinite ? min(1, max(-1, input)) : 0) * 1.1
+        return output.isFinite ? min(1, max(-1, output)) : 0
     }
 
-    private static func lowPassAlpha(_ frequency: Double, rate: Double) -> Double {
-        return 1.0 - exp(-2.0 * .pi * min(frequency, rate * 0.45) / rate)
-    }
-
-    private func filter(_ input: Double, parameters: WhitegramVoiceParameters) -> Double {
-        var sample = input
-        let timbre = parameters.timbre / 100.0
-        if timbre != 0.0 {
-            self.timbreLow += self.timbreAlpha * (sample - self.timbreLow)
-            let high = sample - self.timbreLow
-            if timbre < 0.0 {
-                sample = self.timbreLow + high * (1.0 + 0.85 * timbre)
-            } else {
-                sample += high * (0.75 * timbre)
-            }
+    private func effect(_ input: Float) -> Float {
+        guard let p = self.parameters else { return input }
+        var sample = self.pitch(input)
+        let blend = Float(min(1, Double(self.warmupFrames) / (self.rate * 0.055)))
+        if blend < 1 { self.warmupFrames += 1 }
+        sample = input * (1 - blend) + sample * blend
+        sample = self.tone(sample, timbre: p.timbre / 100, clarity: p.clarity / 100)
+        if p.ringFrequency > 0 {
+            sample *= Float(sin(self.ringPhase)) * 0.72 + 0.28
+            self.ringPhase += 2 * .pi * p.ringFrequency / self.rate
+            if self.ringPhase >= 2 * .pi { self.ringPhase -= 2 * .pi }
         }
-        let clarity = parameters.clarity / 100.0
-        if clarity > 0.0 {
-            self.rumbleLow += self.rumbleAlpha * (sample - self.rumbleLow)
-            self.presenceLow += self.presenceAlpha * (sample - self.presenceLow)
-            sample = sample - clarity * self.rumbleLow + clarity * 0.4 * (sample - self.presenceLow)
-        } else if clarity < 0.0 {
-            self.smoothingLow += self.smoothingAlpha * (sample - self.smoothingLow)
-            sample = sample * (1.0 + clarity) - self.smoothingLow * clarity
+        if p.noiseMix > 0 {
+            self.noiseState = self.noiseState &* 1664525 &+ 1013904223
+            let noise = Float(Int32(bitPattern: self.noiseState)) / 2147483648
+            let envelope = min(1, abs(sample) * 4.5)
+            sample = sample * Float(1 - p.noiseMix) + noise * envelope * Float(p.noiseMix * 0.72)
         }
-        if parameters.radio {
-            self.radioLow += self.radioLowAlpha * (sample - self.radioLow)
-            let high = sample - self.radioLow
-            self.radioHigh += self.radioHighAlpha * (high - self.radioHigh)
-            sample = 0.8 * tanh(2.0 * self.radioHigh)
+        if p.distortion > 0 {
+            let drive = Float(1 + p.distortion * 10)
+            sample = min(1, max(-1, sample * drive)) / max(1, drive * 0.42)
         }
-        return sample
+        if !self.echoSamples.isEmpty {
+            let amount = p.echo / 100
+            let index = (self.echoIndex - self.echoDelay + self.echoSamples.count) % self.echoSamples.count
+            let delayed = self.echoSamples[index]
+            self.echoSamples[self.echoIndex] = sample + delayed * Float(0.18 + amount * 0.48)
+            self.echoIndex = (self.echoIndex + 1) % self.echoSamples.count
+            sample = sample * Float(1 - amount * 0.28) + delayed * Float(amount * 0.78)
+        }
+        return sample / (1 + abs(sample))
     }
 
-    private func replaceRecording(_ samples: UnsafeMutableBufferPointer<Int16>, mode: WhitegramVoiceBleepMode) {
-        for index in samples.indices {
-            switch mode {
-            case .silence:
-                samples[index] = 0
-            case .beep:
-                let attack = Double(self.beepAttackPosition) / Double(self.beepAttackSamples)
-                samples[index] = Self.quantize(0.16 * attack * sin(2.0 * .pi * self.beepPhase))
-                self.beepAttackPosition = min(self.beepAttackSamples, self.beepAttackPosition + 1)
-                self.beepPhase += self.beepStep
-                if self.beepPhase >= 1.0 { self.beepPhase -= 1.0 }
-            }
+    private func tone(_ input: Float, timbre: Double, clarity: Double) -> Float {
+        let lowAlpha: Float = timbre < 0 ? Float(0.025 + (timbre + 1) * 0.19) : 0.24
+        self.lowPass += lowAlpha * (input - self.lowPass)
+        self.highPass = Float(0.82 + max(0, timbre) * 0.14) * (self.highPass + input - self.previousInput)
+        self.previousInput = input
+        var result = input
+        if timbre < 0 {
+            result = input * Float(1 + timbre) - self.lowPass * Float(timbre)
+        } else if timbre > 0 {
+            result = input * Float(1 - timbre * 0.48) + self.highPass * Float(timbre * 0.9)
         }
-    }
-
-    private static func quantize(_ value: Double) -> Int16 {
-        guard value.isFinite else { return 0 }
-        let scaled = (min(1.0, max(-1.0, value)) * 32768.0).rounded()
-        return Int16(min(32767.0, max(-32768.0, scaled)))
-    }
-}
-
-/// Two fractional-delay read heads with complementary Hann windows. Moving
-/// delay at 1-ratio reads at ratio speed without changing the output clock.
-private final class WhitegramVoicePitchShifter {
-    private let window: Double
-    private let phaseStep: Double
-    private let inputAlpha: Double
-    private let filterInput: Bool
-    private var samples: [Double]
-    private var writeIndex = 0
-    private var phase = 0.0
-    private var inputLow1 = 0.0
-    private var inputLow2 = 0.0
-
-    init(sampleRate: Double, semitones: Double) {
-        let ratio = pow(2.0, semitones / 12.0)
-        self.window = sampleRate * 0.04
-        self.phaseStep = (1.0 - ratio) / self.window
-        self.samples = Array(repeating: 0.0, count: Int(ceil(self.window)) + 4)
-        self.filterInput = ratio > 1.0
-        self.inputAlpha = 1.0 - exp(-2.0 * .pi * (0.40 / max(1.0, ratio)))
-    }
-
-    func process(_ input: Double) -> Double {
-        var sample = input
-        if self.filterInput {
-            self.inputLow1 += self.inputAlpha * (sample - self.inputLow1)
-            self.inputLow2 += self.inputAlpha * (self.inputLow1 - self.inputLow2)
-            sample = self.inputLow2
+        if clarity < 0 {
+            result = result * Float(1 + clarity * 0.55) + self.lowPass * Float(clarity * -0.55)
+        } else {
+            result += (input - self.lowPass) * Float(clarity * 0.7)
         }
-        self.samples[self.writeIndex] = sample
-        let secondPhase = self.phase < 0.5 ? self.phase + 0.5 : self.phase - 0.5
-        let weight = 0.5 - 0.5 * cos(2.0 * .pi * self.phase)
-        let first = self.read(delay: 2.0 + self.phase * self.window)
-        let second = self.read(delay: 2.0 + secondPhase * self.window)
-        let output = first * weight + second * (1.0 - weight)
-        self.writeIndex += 1
-        if self.writeIndex == self.samples.count { self.writeIndex = 0 }
-        self.phase += self.phaseStep
-        if self.phase < 0.0 { self.phase += 1.0 }
-        if self.phase >= 1.0 { self.phase -= 1.0 }
+        return result
+    }
+
+    private func pitch(_ input: Float) -> Float {
+        guard !self.pitchSamples.isEmpty, abs((self.parameters?.pitch) ?? 0) > 0.01 else { return input }
+        self.pitchSamples[self.pitchIndex] = input
+        let width = self.maximumDelay - self.minimumDelay
+        let secondDelay = self.minimumDelay + (self.pitchDelay - self.minimumDelay + width * 0.5).truncatingRemainder(dividingBy: width)
+        let weight = Float(1 - abs(2 * (self.pitchDelay - self.minimumDelay) / width - 1))
+        let secondWeight = Float(1 - abs(2 * (secondDelay - self.minimumDelay) / width - 1))
+        let output = (self.readPitch(self.pitchDelay) * weight + self.readPitch(secondDelay) * secondWeight) / max(0.001, weight + secondWeight)
+        self.pitchDelay += 1 - self.pitchRatio
+        if self.pitchDelay < self.minimumDelay { self.pitchDelay += width }
+        if self.pitchDelay >= self.maximumDelay { self.pitchDelay -= width }
+        self.pitchIndex = (self.pitchIndex + 1) % self.pitchSamples.count
         return output
     }
 
-    private func read(delay: Double) -> Double {
-        var position = Double(self.writeIndex) - delay
-        if position < 0.0 { position += Double(self.samples.count) }
+    private func readPitch(_ delay: Double) -> Float {
+        var position = Double(self.pitchIndex) - delay
+        if position < 0 { position += Double(self.pitchSamples.count) }
         let lower = Int(position)
-        let upper = lower + 1 == self.samples.count ? 0 : lower + 1
-        let fraction = position - Double(lower)
-        return self.samples[lower] * (1.0 - fraction) + self.samples[upper] * fraction
+        let fraction = Float(position - floor(position))
+        return self.pitchSamples[lower] * (1 - fraction) + self.pitchSamples[(lower + 1) % self.pitchSamples.count] * fraction
     }
 
-    func reset() {
-        for index in self.samples.indices { self.samples[index] = 0.0 }
-        self.writeIndex = 0
-        self.phase = 0.0
-        self.inputLow1 = 0.0
-        self.inputLow2 = 0.0
+    private func bleep(_ mode: WhitegramVoiceBleepMode) -> Double {
+        if mode == .silence { return 0 }
+        let attackCount = max(1, Int(self.rate * 0.005))
+        let output = 0.16 * Double(self.beepAttack) / Double(attackCount) * sin(2 * .pi * self.beepPhase)
+        self.beepAttack = min(attackCount, self.beepAttack + 1)
+        self.beepPhase += 1000 / self.rate
+        if self.beepPhase >= 1 { self.beepPhase -= 1 }
+        return output
+    }
+
+    public func reset() {
+        for index in self.pitchSamples.indices { self.pitchSamples[index] = 0 }
+        for index in self.echoSamples.indices { self.echoSamples[index] = 0 }
+        self.pitchIndex = 0
+        self.echoIndex = 0
+        self.pitchDelay = Double(max(1024, Int(self.rate * 0.09))) * 0.58
+        self.warmupFrames = 0
+        self.lowPass = 0
+        self.highPass = 0
+        self.previousInput = 0
+        self.ringPhase = 0
+        self.noiseState = self.initialNoiseState
+        self.beepPhase = 0
+        self.beepAttack = 0
     }
 }
 
-private final class WhitegramVoiceEchoLine {
-    private let wet: Double
-    private let feedback: Double
-    private var samples: [Double]
-    private var writeIndex = 0
+public final class WhitegramVoicePCMProcessor {
+    private let channels: [WhitegramVoiceProcessor]
+    public let channelCount: Int
 
-    init(sampleRate: Double, delay: Double, amount: Double) {
-        self.samples = Array(repeating: 0.0, count: max(1, Int((sampleRate * delay).rounded())))
-        self.wet = 0.6 * amount
-        self.feedback = 0.5 * amount
+    public init(settings: WhitegramVoiceSettings, sampleRate: Double, channelCount: Int) {
+        self.channelCount = (1 ... 8).contains(channelCount) ? channelCount : 0
+        self.channels = (0 ..< self.channelCount).map { WhitegramVoiceProcessor(settings: settings, sampleRate: sampleRate, channel: $0) }
     }
 
-    func process(_ input: Double) -> Double {
-        let delayed = self.samples[self.writeIndex]
-        self.samples[self.writeIndex] = min(4.0, max(-4.0, input + delayed * self.feedback))
-        self.writeIndex += 1
-        if self.writeIndex == self.samples.count { self.writeIndex = 0 }
-        return (input + delayed * self.wet) / (1.0 + self.wet)
+    public func processInterleaved(_ samples: UnsafeMutableBufferPointer<Int16>, frameCount: Int) {
+        guard self.channelCount > 0, frameCount >= 0, frameCount <= samples.count / self.channelCount else { return }
+        for frame in 0 ..< frameCount {
+            for channel in self.channels.indices {
+                let index = frame * self.channelCount + channel
+                samples[index] = self.channels[channel].processInt16(samples[index])
+            }
+        }
     }
 
-    func reset() {
-        for index in self.samples.indices { self.samples[index] = 0.0 }
-        self.writeIndex = 0
+    public func processInterleaved(_ samples: UnsafeMutableBufferPointer<Float>, frameCount: Int) {
+        guard self.channelCount > 0, frameCount >= 0, frameCount <= samples.count / self.channelCount else { return }
+        for frame in 0 ..< frameCount {
+            for channel in self.channels.indices {
+                let index = frame * self.channelCount + channel
+                samples[index] = self.channels[channel].processFloat(samples[index])
+            }
+        }
     }
+
+    public func processPlanar(_ samples: UnsafeMutableBufferPointer<Int16>, channel: Int) {
+        guard self.channels.indices.contains(channel) else { return }
+        self.channels[channel].process(samples)
+    }
+
+    public func processPlanar(_ samples: UnsafeMutableBufferPointer<Float>, channel: Int) {
+        guard self.channels.indices.contains(channel) else { return }
+        self.channels[channel].process(samples)
+    }
+
+    public func reset() { for channel in self.channels { channel.reset() } }
 }

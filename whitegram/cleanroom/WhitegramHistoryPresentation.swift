@@ -37,6 +37,31 @@ struct WhitegramHistoryPresentation {
         return order == .originalTime ? self.text("Original message time", "Исходное время сообщения") : self.text("Archive capture time", "Время сохранения в архив")
     }
 
+    func action(_ action: WhitegramHistoryAction) -> String {
+        switch action {
+        case .clearDeletedCache: return self.text("Clear deletion markers", "Очистить кеш удалённых")
+        case .clearEditedCache: return self.text("Clear edit history", "Очистить кеш изменений")
+        case .clearSavedChatHistory: return self.text("Clear saved history", "Очистить сохранённую историю")
+        case .restoreChatsView: return self.text("Restore local chat history", "Восстановить историю чата локально")
+        case .exportDeletedBackup: return self.text("Export deleted-message backup", "Экспорт копии удалённых сообщений")
+        case .importDeletedBackup: return self.text("Import deleted-message backup", "Импорт копии удалённых сообщений")
+        }
+    }
+
+    func actionDescription(_ action: WhitegramHistoryAction) -> String {
+        switch action {
+        case .clearDeletedCache: return self.text("Reset deletion markers in this scope. The retained message text and native media remain as local copies. The separate JSON backup is kept.", "Снять метки удаления в выбранной области. Сохранённые сообщения и нативные вложения останутся локальными копиями. Отдельная JSON-копия сохраняется.")
+        case .clearEditedCache: return self.text("Erase saved original text, entities and edit versions in this scope, including the separate edit archive. Current message content stays intact.", "Удалить сохранённые исходные тексты, форматирование и версии изменений в выбранной области, включая отдельный архив изменений. Текущее содержимое сообщений сохраняется.")
+        case .clearSavedChatHistory: return self.text("Clear received-message archive copies in this scope and reset deletion markers for those saved messages. Separate deleted-message backups are kept.", "Очистить архив полученных сообщений в выбранной области и снять метки удаления с этих сохранённых сообщений. Отдельные копии удалённых сообщений сохраняются.")
+        case .restoreChatsView: return self.text("Restore retained messages and create missing text copies from this account's archive, using their original message IDs and times. This only changes local history. Live messages are never overwritten. JSON does not contain media files; unavailable, media-only and truncated copies will be reported.", "Восстановить сохранённые сообщения и недостающие текстовые копии из архива этого аккаунта с исходными ID и временем. Изменится только локальная история. Существующие сообщения не перезаписываются. JSON не содержит медиафайлов; недоступные, обрезанные и нетекстовые копии будут указаны в результате.")
+        case .exportDeletedBackup, .importDeletedBackup: return self.text("Account-scoped local text backup.", "Локальная текстовая копия этого аккаунта.")
+        }
+    }
+
+    func operationResult(_ result: WhitegramHistoryOperationResult) -> String {
+        return self.text("Reset markers: \(result.restoredMarkers). Cleared edits: \(result.clearedEdits). Created text copies: \(result.createdTextCopies). Kept live: \(result.skippedLive). Already restored: \(result.skippedExisting). Unavailable: \(result.skippedUnavailable). Copies without media: \(result.copiesWithoutMedia).", "Снято меток: \(result.restoredMarkers). Удалено версий изменений: \(result.clearedEdits). Создано текстовых копий: \(result.createdTextCopies). Существующих сообщений: \(result.skippedLive). Уже восстановлено: \(result.skippedExisting). Недоступно: \(result.skippedUnavailable). Копий без медиа: \(result.copiesWithoutMedia).") + (result.cancelled ? self.text(" Cancelled; completed local changes were retained.", " Отменено; выполненные локальные изменения сохранены.") : "")
+    }
+
     func mediaKind(_ kind: WhitegramHistoryMedia.Kind) -> String {
         switch kind {
         case .photo: return self.text("Photo", "Фото")
@@ -139,7 +164,7 @@ func whitegramHistoryEntryController(context: AccountContext, entry: WhitegramHi
         info("captured", "\(strings.text("Captured locally", "Сохранено на устройстве")): \(strings.date(entry.capturedAt))\n\(strings.text("The capture time is when this device observed the event, not a server deletion timestamp.", "Время сохранения — момент получения события этим устройством, а не время удаления на сервере."))")
         info("text", entry.text.isEmpty ? strings.summary(entry) : entry.text, section: 1)
         if entry.textTruncated == true {
-            info("truncated", strings.text("The archived text was truncated to the 8 KiB per-version limit.", "Текст в архиве сокращён до лимита 8 КиБ на версию."), section: 1)
+            info("truncated", strings.text("This archived version was truncated when captured. Its missing text cannot be reconstructed.", "Эта версия была обрезана при сохранении. Отсутствующую часть текста восстановить нельзя."), section: 1)
         }
         for (index, media) in (entry.media ?? []).enumerated() {
             info("media:\(index)", strings.metadata(media), section: 2)

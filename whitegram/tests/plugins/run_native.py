@@ -28,10 +28,12 @@ let package = Package(name: "WhitegramNativeChecks", platforms: [.macOS(.v12)], 
     .testTarget(name: "SettingsUITests", dependencies: ["SettingsUI", "TelegramCore"])
 ])
 ''', encoding="utf-8")
-        for name in ("WhitegramPluginStorage.swift", "WhitegramPluginHTTP.swift"):
+        for name in ("WhitegramPluginStorage.swift", "WhitegramPluginHTTP.swift", "WhitegramPluginArchive.swift"):
             shutil.copyfile(overlay / "cleanroom" / name, source / name)
         shutil.copyfile(overlay / "cleanroom" / "WhitegramPreferences.swift", core / "WhitegramPreferences.swift")
         shutil.copyfile(overlay / "cleanroom" / "WhitegramPluginEventHub.swift", core / "WhitegramPluginEventHub.swift")
+        shutil.copyfile(overlay / "cleanroom" / "WhitegramPluginInterception.swift", core / "WhitegramPluginInterception.swift")
+        shutil.copyfile(overlay / "cleanroom" / "WhitegramPluginContributions.swift", core / "WhitegramPluginContributions.swift")
         shutil.copyfile(overlay / "generated" / "WhitegramSettingsState.swift", core / "WhitegramSettingsState.swift")
         for path in here.glob("*Tests.swift"):
             shutil.copyfile(path, tests / path.name)

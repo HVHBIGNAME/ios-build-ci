@@ -6,17 +6,27 @@ import sys
 from pathlib import Path
 
 from runtime_patches import apply_runtime_patches
-from appearance_patches import apply_appearance_patches
+from appearance_patches import APPEARANCE_RUNTIME_FILES, apply_appearance_patches
+from appearance_parity_patches import APPEARANCE_PARITY_RUNTIME_FILES, apply_appearance_parity_patches
+from appearance_icon_pack_patches import APPEARANCE_ICON_PACK_RUNTIME_FILES, apply_appearance_icon_pack_patches
+from appearance_glass_patches import APPEARANCE_GLASS_RUNTIME_FILES, apply_appearance_glass_patches
 from appearance_extension_patches import apply_appearance_extensions
 from public_api_adaptations import apply_public_api_adaptations
-from voice_patches import VOICE_RUNTIME_FILES, apply_voice_patches
+from voice_patches import VOICE_RUNTIME_FILES, VOICE_REQUIRED_DEPENDENCIES, apply_voice_patches
+from player_patches import PLAYER_RUNTIME_FILES, apply_player_patches
 from plugin_resources import install_plugin_resources
 from interface_patches import apply_interface_patches
-from history_patches import apply_history_patches
+from history_patches import HISTORY_RUNTIME_FILES, apply_history_patches
 from plugin_hook_patches import PLUGIN_HOOK_RUNTIME_FILES, apply_plugin_hook_patches
 from translation_patches import TRANSLATION_RUNTIME_FILES, apply_translation_patches
-from service_patches import apply_service_patches
+from service_patches import SERVICES_RUNTIME_FILES, apply_service_patches
 from media_camera_patches import MEDIA_RUNTIME_FILES, apply_media_camera_patches
+from message_actions_patches import apply_message_action_patches
+from account_patches import ACCOUNTS_RUNTIME_FILES, ACCOUNTS_REQUIRED_DEPENDENCIES, apply_account_patches
+from content_control_patches import PRIVACY_RUNTIME_FILES, apply_content_control_patches
+from transfer_patches import TRANSFER_RUNTIME_FILES, apply_transfer_patches
+from backend_patches import BACKEND_RUNTIME_FILES, apply_backend_patches
+from traffic_patches import TRAFFIC_RUNTIME_FILES, apply_traffic_patches
 from swift_syntax_patches import apply_swift_syntax_patches
 from build_patches import apply_build_patches
 
@@ -154,6 +164,12 @@ cleanroom_files = {
     "cleanroom/WhitegramSettingsPlaceholderController.swift": "submodules/SettingsUI/Sources/WhitegramSettingsPlaceholderController.swift",
     "generated/WhitegramSettingsState.swift": "submodules/TelegramCore/Sources/WhitegramSettingsState.swift",
     "generated/WhitegramSettingsCatalog.swift": "submodules/SettingsUI/Sources/WhitegramSettingsCatalog.swift",
+    "generated/WhitegramLocalizationStrings.swift": "submodules/TelegramCore/Sources/WhitegramLocalizationStrings.swift",
+    "cleanroom/WhitegramLocalization.swift": "submodules/TelegramCore/Sources/WhitegramLocalization.swift",
+    "cleanroom/WhitegramLocalizationPack.swift": "submodules/TelegramCore/Sources/WhitegramLocalizationPack.swift",
+    "cleanroom/WhitegramLocalizationStore.swift": "submodules/TelegramCore/Sources/WhitegramLocalizationStore.swift",
+    "cleanroom/WhitegramLocalizationController.swift": "submodules/SettingsUI/Sources/WhitegramLocalizationController.swift",
+    "cleanroom/WhitegramLocalizationUI.swift": "submodules/SettingsUI/Sources/WhitegramLocalizationUI.swift",
     "cleanroom/WhitegramGhost.swift": "submodules/TelegramCore/Sources/WhitegramGhost.swift",
     "cleanroom/WhitegramPreferences.swift": "submodules/TelegramCore/Sources/WhitegramPreferences.swift",
     "cleanroom/WhitegramFontRegistry.swift": "submodules/Display/Source/WhitegramFontRegistry.swift",
@@ -173,6 +189,12 @@ cleanroom_files.update({"cleanroom/" + name: destination for name, destination i
 cleanroom_files.update({"cleanroom/" + name: destination for name, destination in PLUGIN_HOOK_RUNTIME_FILES.items()})
 cleanroom_files.update({"cleanroom/" + name: destination for name, destination in TRANSLATION_RUNTIME_FILES.items()})
 cleanroom_files.update({"cleanroom/" + name: destination for name, destination in MEDIA_RUNTIME_FILES.items()})
+for manifest in (
+    APPEARANCE_RUNTIME_FILES, APPEARANCE_PARITY_RUNTIME_FILES, APPEARANCE_ICON_PACK_RUNTIME_FILES,
+    APPEARANCE_GLASS_RUNTIME_FILES, HISTORY_RUNTIME_FILES, ACCOUNTS_RUNTIME_FILES,
+    PRIVACY_RUNTIME_FILES, TRANSFER_RUNTIME_FILES, PLAYER_RUNTIME_FILES, BACKEND_RUNTIME_FILES, TRAFFIC_RUNTIME_FILES,
+):
+    cleanroom_files.update({"cleanroom/" + name: destination for name, destination in manifest.items()})
 for name in (
     "WhitegramSettingsArchive.swift", "WhitegramSettingsArchiveJSON.swift",
     "WhitegramSettingsArchiveSchema.swift", "WhitegramSettingsArchiveMirrors.swift",
@@ -191,6 +213,8 @@ for name in (
     "WhitegramSettingsArchiveKeychain.swift", "WhitegramSettingsTransferController.swift",
     "WhitegramSettingsTransferDocuments.swift",
 ):
+    cleanroom_files["cleanroom/" + name] = "submodules/SettingsUI/Sources/Whitegram/" + name
+for name in SERVICES_RUNTIME_FILES:
     cleanroom_files["cleanroom/" + name] = "submodules/SettingsUI/Sources/Whitegram/" + name
 missing = [name for name in cleanroom_files if not (source_base / name).is_file()]
 if missing:
@@ -244,19 +268,42 @@ def patch_file(relative_path, anchor, replacement):
     print("  patched: " + relative_path)
 
 
-apply_runtime_patches(source_root)
-apply_build_patches(source_root)
-apply_public_api_adaptations(source_root)
-apply_appearance_patches(source_root)
-apply_interface_patches(source_root)
-apply_history_patches(source_root)
-apply_plugin_hook_patches(source_root)
-apply_appearance_extensions(source_root)
-apply_translation_patches(source_root)
-apply_service_patches(source_root)
-apply_media_camera_patches(source_root)
-apply_swift_syntax_patches(source_root)
-apply_voice_patches(source_root)
+patched_sources = set(cleanroom_files.values()) | set(changed)
+for patcher in (
+    apply_runtime_patches, apply_build_patches, apply_public_api_adaptations,
+    apply_appearance_patches, apply_interface_patches, apply_history_patches,
+    apply_account_patches, apply_plugin_hook_patches, apply_appearance_extensions,
+    apply_appearance_parity_patches, apply_appearance_icon_pack_patches, apply_appearance_glass_patches,
+    apply_translation_patches, apply_service_patches, apply_media_camera_patches,
+    apply_transfer_patches, apply_message_action_patches, apply_content_control_patches,
+    apply_player_patches, apply_swift_syntax_patches, apply_voice_patches,
+    apply_backend_patches, apply_traffic_patches,
+):
+    report = patcher(source_root)
+    if isinstance(report, dict):
+        for paths in report.values():
+            patched_sources.update(paths)
+
+for relative in sorted(patched_sources):
+    source = source_root / relative
+    if source.suffix != ".swift" or not source.is_file():
+        continue
+    build = nearest_build(source)
+    if build is None:
+        raise SystemExit("Missing BUILD for installed source: " + relative)
+    package = build.parent.relative_to(source_root).as_posix()
+    for module in sorted(imports(source.read_text(encoding="utf-8")) & modules.keys()):
+        label = modules[module]
+        if label[2:].split(":", 1)[0] != package and add_dep(build, label):
+            build_count += 1
+for relative, dependencies in ACCOUNTS_REQUIRED_DEPENDENCIES.items():
+    for label in dependencies:
+        if add_dep(source_root / relative, label):
+            build_count += 1
+for module, dependencies in VOICE_REQUIRED_DEPENDENCIES.items():
+    for label in dependencies:
+        if add_dep(source_root / "submodules" / module / "BUILD", label):
+            build_count += 1
 install_plugin_resources(source_root, source_base)
 patch_file(
     "submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/PeerInfoScreenSettingsActions.swift",

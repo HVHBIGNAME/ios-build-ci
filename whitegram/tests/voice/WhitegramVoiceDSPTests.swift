@@ -141,7 +141,7 @@ private func packetPartitionInvariance() throws {
 }
 
 private func echoPersistenceAndReset() throws {
-    let delay = 8640 // Documented custom echo: 180 ms at 48 kHz.
+    let delay = 18240 // Original custom echo at 100%: 0.16 + 0.22 seconds.
     var impulse = Array(repeating: Int16(0), count: delay * 3)
     impulse[0] = 24000
     let processor = WhitegramVoiceProcessor(settings: settings(["voiceChangerEcho": 100.0]))
@@ -171,7 +171,8 @@ private func fullScaleSaturation() throws {
         let input = Array(repeating: Int16(sign * 24000), count: 144000)
         let output = render(input, settings: settings(["voiceChangerEcho": 100.0]))
         try expect(output.allSatisfy({ sign > 0 ? $0 >= 0 : $0 <= 0 }), "Saturation wrapped the Int16 sign")
-        try expect(sign > 0 ? output.max() == Int16.max : output.min() == Int16.min, "Full-scale output did not saturate at the Int16 limit")
+        try expect(output.allSatisfy({ abs(Int($0)) < 32768 }), "Original soft-knee limiter was replaced by wrapping or hard clipping")
+        try expect(output.suffix(960).contains(where: { abs(Int($0)) > 20000 }), "Limiter unexpectedly silenced a sustained input")
     }
     let extremes: [Int16] = (0 ..< 50001).map { $0.isMultiple(of: 2) ? .min : .max }
     for preset in WhitegramVoicePreset.allCases {
@@ -197,7 +198,7 @@ private func pitchMovesFrequencyWithoutChangingDuration() throws {
         let processor = WhitegramVoiceProcessor(settings: settings(["voiceChangerPitch": semitones]))
         let output = render(input, processor: processor)
         try expect(output.count == input.count, "Pitch changed duration/playback sample rate")
-        try expect(processor.pitchDelayUpperBound > 0.0 && processor.pitchDelayUpperBound < 0.041, "Pitch delay exceeded the stated bound")
+        try expect(abs(processor.pitchDelayUpperBound - 0.0756) < 0.000001, "Pitch delay differs from the recovered 90 ms buffer / 84% read bound")
         let settled = Array(output[9600 ..< 57600])
         let target = 500.0 * pow(2.0, semitones / 12.0)
         let shiftedPower = tonePower(settled, frequency: target)
@@ -276,6 +277,53 @@ private func invalidSampleRatesAndImmutableSnapshot() throws {
     try expect(render(input, settings: WhitegramVoiceSettings(values: values)) != input, "A new recorder did not take updated settings")
 }
 
+private func originalPresetParameters() throws {
+    let data = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1]))
+    let fixture = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+    let presets = fixture["voice_presets"] as! [[Double]]
+    try expect(presets.count == WhitegramVoicePreset.allCases.count, "Original preset count drift")
+    for preset in WhitegramVoicePreset.allCases {
+        let value = settings(["voiceChangerPreset": preset.rawValue]).parameters ?? WhitegramVoiceParameters()
+        let actual = [value.pitch, value.timbre, value.echo, value.clarity, value.ringFrequency, value.distortion, value.noiseMix]
+        for (actual, expected) in zip(actual, presets[preset.rawValue]) {
+            try expect(abs(actual - expected) < 0.000001, "Preset coefficients differ from the original IPA table: \(preset)")
+        }
+    }
+}
+
+private func stereoAndFloatAdapters() throws {
+    let configuration = settings(["voiceChangerPreset": 4])
+    let left = sine(330, count: 48001)
+    let right = sine(700, count: left.count)
+    let expectedLeft = render(left, processor: WhitegramVoiceProcessor(settings: configuration, channel: 0))
+    let expectedRight = render(right, processor: WhitegramVoiceProcessor(settings: configuration, channel: 1))
+    var interleaved = zip(left, right).flatMap { [$0.0, $0.1] }
+    interleaved += [1234, -1234]
+    let processor = WhitegramVoicePCMProcessor(settings: configuration, sampleRate: 48000, channelCount: 2)
+    interleaved.withUnsafeMutableBufferPointer { buffer in
+        for offset in stride(from: 0, to: left.count, by: 337) {
+            let count = min(337, left.count - offset)
+            processor.processInterleaved(UnsafeMutableBufferPointer(start: buffer.baseAddress!.advanced(by: offset * 2), count: count * 2), frameCount: count)
+        }
+    }
+    for index in left.indices {
+        try expect(interleaved[index * 2] == expectedLeft[index] && interleaved[index * 2 + 1] == expectedRight[index], "Interleaved adapter mixed channel state")
+    }
+    try expect(interleaved.suffix(2) == [1234, -1234], "Stereo adapter wrote past the frame count")
+    processor.reset()
+    var planar = left
+    planar.withUnsafeMutableBufferPointer { processor.processPlanar($0, channel: 0) }
+    try expect(planar == expectedLeft, "Planar and interleaved adapters disagree")
+    let untouched = interleaved
+    interleaved.withUnsafeMutableBufferPointer { processor.processInterleaved($0, frameCount: Int.max) }
+    try expect(interleaved == untouched, "Invalid frame count wrote memory")
+    var floats: [Float] = [.nan, .infinity, -.infinity, .greatestFiniteMagnitude, -.greatestFiniteMagnitude] + Array(repeating: 0.2, count: 4800)
+    let floatProcessor = WhitegramVoiceProcessor(settings: configuration)
+    floats.withUnsafeMutableBufferPointer { floatProcessor.process($0) }
+    try expect(floats.allSatisfy { $0.isFinite && abs($0) <= 1 }, "Float PCM was not finite and bounded")
+    try expect(floats.suffix(960).contains(where: { $0 != 0 }), "Malformed input poisoned subsequent Float PCM")
+}
+
 @main
 private struct WhitegramVoiceDSPTests {
     static func main() throws {
@@ -293,6 +341,8 @@ private struct WhitegramVoiceDSPTests {
             ("simultaneous recorders have independent state", simultaneousProcessorsAreIndependent),
             ("bleep opt-in, masking, frequency and reset", bleepRequiresExplicitOptInAndReplacesInput),
             ("invalid rates and immutable per-recorder settings", invalidSampleRatesAndImmutableSnapshot),
+            ("original IPA preset coefficients", originalPresetParameters),
+            ("stereo, planar, Float and invalid frame adapters", stereoAndFloatAdapters),
         ]
         for (name, run) in tests {
             try run()

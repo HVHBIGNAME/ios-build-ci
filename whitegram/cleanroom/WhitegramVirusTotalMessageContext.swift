@@ -1,6 +1,8 @@
 import Foundation
 #if canImport(TelegramCore) && canImport(Security)
 import TelegramCore
+import AccountContext
+import SwiftSignalKit
 
 /// Extracts only targets from message text and its actual link entities; performs no request.
 public func whitegramVirusTotalTargets(text: String, entities: [MessageTextEntity]) -> [WhitegramVirusTotalTarget] {
@@ -20,6 +22,7 @@ public func whitegramVirusTotalTargets(text: String, entities: [MessageTextEntit
 public func whitegramLookupVirusTotalTarget(_ target: WhitegramVirusTotalTarget, completion: @escaping (Result<WhitegramVirusTotalTargetLookupResult, WhitegramServiceError>) -> Void) -> WhitegramServiceTask {
     do {
         guard WhitegramPreferences.bool("virusTotalEnabled") else { throw WhitegramServiceError.disabled }
+        try WhitegramServiceRoute.configuredVirusTotal.requireAvailable()
         guard let key = try WhitegramServiceCredentials.vault.token(for: .virusTotal) else { throw WhitegramServiceError.missingAPIKey }
         return WhitegramVirusTotalService.shared.lookup(target: target, apiKey: key, completion: completion)
     } catch {
@@ -27,5 +30,77 @@ public func whitegramLookupVirusTotalTarget(_ target: WhitegramVirusTotalTarget,
         operation.finish(.failure(error as? WhitegramServiceError ?? .preferences))
         return operation.task
     }
+}
+
+func whitegramWithVirusTotalCredential<Value>(completion: @escaping (Result<Value, WhitegramServiceError>) -> Void, request: (String) -> WhitegramServiceTask) -> WhitegramServiceTask {
+    do {
+        guard WhitegramPreferences.bool("virusTotalEnabled") else { throw WhitegramServiceError.disabled }
+        try WhitegramServiceRoute.configuredVirusTotal.requireAvailable()
+        guard let key = try WhitegramServiceCredentials.vault.token(for: .virusTotal) else { throw WhitegramServiceError.missingAPIKey }
+        return request(key)
+    } catch {
+        let operation = WhitegramServiceOperation(completion: completion)
+        operation.finish(.failure(error as? WhitegramServiceError ?? .preferences))
+        return operation.task
+    }
+}
+
+@discardableResult
+public func whitegramScanVirusTotalTarget(_ target: WhitegramVirusTotalTarget, progress: @escaping (WhitegramVirusTotalScanProgress) -> Void, completion: @escaping (Result<WhitegramVirusTotalAnalysis, WhitegramServiceError>) -> Void) -> WhitegramServiceTask {
+    return whitegramWithVirusTotalCredential(completion: completion) { key in
+        WhitegramVirusTotalService.shared.scan(target: target, progress: progress, apiKey: key, completion: completion)
+    }
+}
+
+@discardableResult
+public func whitegramUploadAndScanVirusTotalFile(url: URL, fileName: String? = nil, expectedHash: String? = nil, progress: @escaping (WhitegramVirusTotalScanProgress) -> Void, completion: @escaping (Result<WhitegramVirusTotalAnalysis, WhitegramServiceError>) -> Void) -> WhitegramServiceTask {
+    return whitegramWithVirusTotalCredential(completion: completion) { key in
+        WhitegramVirusTotalService.shared.uploadAndScan(fileURL: url, fileName: fileName, expectedHash: expectedHash, progress: progress, apiKey: key, completion: completion)
+    }
+}
+
+struct WhitegramVirusTotalMessageFile {
+    let url: URL
+    let fileName: String
+}
+
+/// Downloads only the selected Telegram attachment. Upload still requires a separate explicit action.
+func whitegramFetchVirusTotalMessageFile(context: AccountContext, message: EngineMessage, progress: @escaping (Int64) -> Void, completion: @escaping (Result<WhitegramVirusTotalMessageFile, WhitegramServiceError>) -> Void) -> WhitegramServiceTask {
+    let operation = WhitegramServiceOperation(completion: completion)
+    guard let file = message.media.first(where: { $0 is TelegramMediaFile }) as? TelegramMediaFile else {
+        operation.finish(.failure(.notRegularFile))
+        return operation.task
+    }
+    if let size = file.size, size > WhitegramServiceLimits.maximumFileBytes {
+        operation.finish(.failure(.fileTooLarge))
+        return operation.task
+    }
+    let fetch = MetaDisposable()
+    let data = MetaDisposable()
+    let timeout = WhitegramServiceMainScheduler().schedule(after: 300) {
+        fetch.dispose()
+        data.dispose()
+        operation.finish(.failure(.timedOut))
+    }
+    operation.task.onCancel { fetch.dispose(); data.dispose(); timeout.cancel() }
+    fetch.set(context.engine.resources.fetch(reference: FileMediaReference.message(message: MessageReference(message._asMessage()), media: file).resourceReference(file.resource), userLocation: .peer(message.id.peerId), userContentType: .file).start(error: { _ in
+        data.dispose()
+        timeout.cancel()
+        operation.finish(.failure(.fileUnreadable))
+    }))
+    data.set((context.engine.resources.data(resource: EngineMediaResource(file.resource), incremental: true)
+    |> deliverOnMainQueue).start(next: { value in
+        guard !operation.task.isCancelled else { return }
+        if value.availableSize > WhitegramServiceLimits.maximumFileBytes {
+            fetch.dispose(); data.dispose(); timeout.cancel()
+            operation.finish(.failure(.fileTooLarge))
+        } else if value.isComplete {
+            fetch.dispose(); data.dispose(); timeout.cancel()
+            operation.finish(.success(WhitegramVirusTotalMessageFile(url: URL(fileURLWithPath: value.path), fileName: file.fileName ?? "file")))
+        } else {
+            progress(value.availableSize)
+        }
+    }))
+    return operation.task
 }
 #endif

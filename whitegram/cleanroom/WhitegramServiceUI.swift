@@ -5,6 +5,7 @@ import Display
 import ItemListUI
 import PresentationDataUtils
 import SwiftSignalKit
+import TelegramCore
 import TelegramPresentationData
 
 protocol WhitegramServiceListActions: AnyObject {
@@ -49,11 +50,17 @@ struct WhitegramServiceEntry: ItemListNodeEntry {
     }
 }
 
-func whitegramServiceListController(context: AccountContext, title: String, entries: Signal<[WhitegramServiceEntry], NoError>, actions: WhitegramServiceListActions) -> ItemListController {
-    let signal = combineLatest(context.sharedContext.presentationData, entries)
+func whitegramServiceListController(context: AccountContext, title: String, entries: Signal<[WhitegramServiceEntry], NoError>, actions: WhitegramServiceListActions, titleKey: String? = nil) -> ItemListController {
+    let localization = Signal<Bool, NoError> { subscriber in
+        let observer = NotificationCenter.default.addObserver(forName: WhitegramLocalizationStore.changedNotification, object: nil, queue: .main) { _ in subscriber.putNext(true) }
+        subscriber.putNext(true)
+        return ActionDisposable { NotificationCenter.default.removeObserver(observer) }
+    }
+    let signal = combineLatest(context.sharedContext.presentationData, entries, localization)
     |> deliverOnMainQueue
-    |> map { presentationData, entries -> (ItemListControllerState, (ItemListNodeState, Any)) in
+    |> map { presentationData, entries, _ -> (ItemListControllerState, (ItemListNodeState, Any)) in
         let data = ItemListPresentationData(presentationData)
+        let title = titleKey.map { WhitegramLocalization.string($0, baseLanguage: presentationData.strings.baseLanguageCode) } ?? title
         let controllerState = ItemListControllerState(presentationData: data, title: .text(title), leftNavigationButton: nil,
             rightNavigationButton: nil, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back), animateChanges: false)
         return (controllerState, (ItemListNodeState(presentationData: data, entries: entries, style: .blocks, animateChanges: false), actions))

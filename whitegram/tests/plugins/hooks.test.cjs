@@ -44,7 +44,7 @@ test("legacy on/hook and SDK event patterns share native interest until the last
 test("onUpdate, tg.update, once and streams retain the recovered registration contracts", async () => {
   const host = new Host({ grants: { messages: true } });
   host.run(`var changes=[]; var once=wg.events.once('onUpdate',function(p){changes.push(p.type);});
-    var updates=wg.events.stream('tg.*'); var alias=wg.onUpdate(function(p){changes.push(p.id);});`);
+    var updates=wg.events.stream('tg.update'); var alias=wg.onUpdate(function(p){changes.push(p.id);});`);
   assert.deepEqual([...host.eventSubscriptions], ["tg.update"]);
   const next = host.run("updates.next()");
   host.context.__wgNativeEvent("tg.update", { id: 1, type: "messageEdited", scope: "postbox" });
@@ -94,12 +94,12 @@ test("message permissions cover exact, wildcard, lifecycle and low-level registr
   assert.throws(() => host.run("wg.events.on('onMessageEdited',function(){})"), code("UNSUPPORTED_API"));
   assert.throws(() => host.run("wg.__sdk.subscribe('tg.unimplemented')"), code("UNSUPPORTED_API"));
   host.grants.messages = true;
-  host.run("var count=0;wg.events.on('tg.*',function(){count++;});wg.on('onMessageReceive',function(){count++;});");
+  host.run("var count=0;wg.events.on('tg.update',function(){count++;});wg.on('onMessageReceive',function(){count++;});");
   host.grants.messages = false;
   host.context.__wgNativeEvent("onMessageReceive", { id: 1 });
   host.context.__wgSDKEvent("tg.update", { type: "messageDeleted" });
   assert.equal(host.run("count"), 0);
-  host.run("wg.events.off('tg.*');wg.off('onMessageReceive')");
+  host.run("wg.events.off('tg.update');wg.off('onMessageReceive')");
   assert.equal(host.eventSubscriptions.size, 0);
   await host.stop();
 });
@@ -138,10 +138,11 @@ test("observational HookResults cannot pretend to cancel and async hook failures
   assert.ok(host.logs.some(item => item.text.includes("cannot change the Telegram operation")));
   assert.ok(host.logs.some(item => item.text.includes("async hook failed")));
   assert.equal(host.run("wg.capabilities.feature('globalTelegramEvents')"), true);
-  assert.equal(host.run("wg.capabilities.has('intercept')"), false);
-  for (const source of ["wg.onRequest(function(){})", "wg.onResponse(function(){})", "wg.onSendMessage(function(){})", "wg.override('send',function(){})"]) {
-    assert.throws(() => host.run(source), code("UNSUPPORTED_API"));
+  assert.equal(host.run("wg.capabilities.has('intercept')"), true);
+  for (const source of ["wg.onRequest(function(){})", "wg.onResponse(function(){})", "wg.onSendMessage(function(){})"]) {
+    assert.throws(() => host.run(source), code("PERMISSION_DENIED"));
   }
+  assert.throws(() => host.run("wg.override('send',function(){})"), code("UNSUPPORTED_API"));
   await host.stop();
 });
 

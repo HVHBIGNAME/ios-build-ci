@@ -1,0 +1,21 @@
+{
+  "role": "plugins",
+  "status": "in_progress",
+  "files_changed": [],
+  "original_evidence": [
+    "audit-full-3.1.1/audit.sqlite3: images.id=46 TelegramCore; images.id=55 TelegramUI",
+    "recovered-3.1.1/embedded-source/plugin-lifecycle-477330d74d61.js",
+    "recovered-3.1.1/embedded-source/sdk-extensions-8c7bf3946b42.js"
+  ],
+  "implemented_keys": [],
+  "remaining_keys": [
+    {"key": "pluginsOpen", "reason": "Tracing native archive import, send/request/update interception, providers and boot lifecycle before implementation."}
+  ],
+  "runtime_files": {},
+  "patch_entrypoint": "apply_plugin_hook_patches(root)",
+  "controller_entrypoints": ["whitegramPluginManagerController(context:)"],
+  "required_dependencies": [],
+  "parent_integration": [],
+  "tests_run": [],
+  "device_checks_needed": ["Native build/type-check and real Telegram/UIKit execution are not available on this Windows worker."]
+}

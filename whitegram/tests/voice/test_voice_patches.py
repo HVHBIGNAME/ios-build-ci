@@ -143,7 +143,7 @@ def source_roots():
 class VoicePatchTests(unittest.TestCase):
     def test_only_owned_pcm_packet_is_processed_before_waveform_and_encode(self):
         root = MemoryRoot()
-        report = voice.apply_voice_patches(root)
+        report = voice.apply_voice_pcm_patches(root)
         self.assertEqual(report, {voice.FEATURE: [voice.RECORDER]})
         result = root.text()
         self.assertEqual(remove_hooks(result), RECORDER_FIXTURE)
@@ -156,7 +156,7 @@ class VoicePatchTests(unittest.TestCase):
 
     def test_resume_resets_before_trim_and_start(self):
         root = MemoryRoot()
-        voice.apply_voice_patches(root)
+        voice.apply_voice_pcm_patches(root)
         result = root.text()
         self.assertLess(result.index(voice.RESUME_HOOK), result.index("if let trimRange"))
         self.assertLess(result.index(voice.RESUME_HOOK), result.index("self.start()"))
@@ -164,17 +164,17 @@ class VoicePatchTests(unittest.TestCase):
 
     def test_repeated_application_is_byte_identical_and_does_not_write(self):
         root = MemoryRoot()
-        first_report = voice.apply_voice_patches(root)
+        first_report = voice.apply_voice_pcm_patches(root)
         first = dict(root.files)
         root.writes.clear()
-        self.assertEqual(voice.apply_voice_patches(root), first_report)
+        self.assertEqual(voice.apply_voice_pcm_patches(root), first_report)
         self.assertEqual(root.files, first)
         self.assertEqual(root.writes, [])
 
     def test_no_encoder_chat_menu_or_other_source_is_written(self):
         root = MemoryRoot()
         other = {path: data for path, data in root.files.items() if path != voice.RECORDER}
-        voice.apply_voice_patches(root)
+        voice.apply_voice_pcm_patches(root)
         self.assertEqual(root.writes, [voice.RECORDER])
         self.assertEqual({path: data for path, data in root.files.items() if path != voice.RECORDER}, other)
 
@@ -186,7 +186,7 @@ class VoicePatchTests(unittest.TestCase):
                     root.change(voice.RECORDER, anchor, replacement)
                     before = dict(root.files)
                     with self.assertRaisesRegex(ValueError, "expected 1 anchors"):
-                        voice.apply_voice_patches(root)
+                        voice.apply_voice_pcm_patches(root)
                     self.assertEqual(root.files, before)
                     self.assertEqual(root.writes, [])
 
@@ -210,7 +210,7 @@ class VoicePatchTests(unittest.TestCase):
                 root.change(path, before, after)
                 original = dict(root.files)
                 with self.assertRaisesRegex(ValueError, "PCM contract"):
-                    voice.apply_voice_patches(root)
+                    voice.apply_voice_pcm_patches(root)
                 self.assertEqual(root.files, original)
                 self.assertEqual(root.writes, [])
 
@@ -220,14 +220,14 @@ class VoicePatchTests(unittest.TestCase):
                 root = MemoryRoot()
                 del root.files[path]
                 with self.assertRaises(FileNotFoundError):
-                    voice.apply_voice_patches(root)
+                    voice.apply_voice_pcm_patches(root)
                 self.assertNotIn(path, root.files)
                 self.assertEqual(root.writes, [])
 
     def test_crlf_uses_parent_source_patches_normalization(self):
         root = MemoryRoot()
         root.files = {path: data.replace(b"\n", b"\r\n") for path, data in root.files.items()}
-        voice.apply_voice_patches(root)
+        voice.apply_voice_pcm_patches(root)
         self.assertEqual(remove_hooks(root.text()), RECORDER_FIXTURE)
 
 
@@ -238,14 +238,14 @@ class VoiceUpstreamTests(unittest.TestCase):
             with self.subTest(source=source):
                 originals = {path: (source / path).read_bytes() for path in (voice.RECORDER, voice.ENCODER, voice.CHAT)}
                 root = MemoryRoot(dict(originals))
-                voice.apply_voice_patches(root)
+                voice.apply_voice_pcm_patches(root)
                 clean_original = originals[voice.RECORDER].decode().replace("\r\n", "\n")
                 self.assertEqual(remove_hooks(root.text()), remove_hooks(clean_original))
                 for insertion in (voice.PROCESSOR_PROPERTY, voice.FRAME_HOOK, voice.RESUME_HOOK):
                     self.assertEqual(root.text().count(insertion), 1)
                 first = dict(root.files)
                 root.writes.clear()
-                voice.apply_voice_patches(root)
+                voice.apply_voice_pcm_patches(root)
                 self.assertEqual(first, root.files)
                 self.assertEqual(root.writes, [])
                 for path, original in originals.items():
@@ -260,10 +260,9 @@ class VoiceUpstreamTests(unittest.TestCase):
                     build = (source / "submodules" / module / "BUILD").read_text(encoding="utf-8")
                     self.assertIn("Sources/**/*.swift", build)
                     imports = set(re.findall(r"^import (\w+)$", code, re.MULTILINE))
-                    if module == "TelegramCore":
-                        self.assertLessEqual(imports, {"Foundation", "CoreFoundation"})
-                    for dependency in imports - {"Foundation", "CoreFoundation", "UIKit"}:
-                        self.assertRegex(build, r'"//[^"\n]*(?:/|:)' + re.escape(dependency) + r'"')
+                    for dependency in imports - {"Foundation", "CoreFoundation", "FoundationNetworking", "UIKit", "AVFoundation", "Speech", "Security"}:
+                        declared = "\n".join(voice.VOICE_REQUIRED_DEPENDENCIES.get(module, []))
+                        self.assertRegex(build + declared, r'//[^"\n]*(?:/|:)' + re.escape(dependency) + r'(?:"|\n|$)')
 
     def test_item_list_api_signatures_match_used_controls(self):
         expected = {
@@ -296,13 +295,15 @@ class VoiceSwiftSyntaxTests(unittest.TestCase):
             node = nodes.pop()
             if node.type == "ERROR" or node.is_missing:
                 errors.append(f"{name}:{node.start_point.row + 1}:{node.start_point.column + 1}: {node.type}")
+            elif node.has_error and not any(child.has_error for child in node.children):
+                errors.append(f"{name}:{node.start_point.row + 1}:{node.start_point.column + 1}: {node.type}: {node.text[:120]!r}")
             nodes.extend(reversed(node.children))
         self.assertFalse(root.has_error, "\n".join(errors))
         self.assertEqual(errors, [])
 
     def test_all_runtime_swift_and_native_test_harness_parse(self):
         files = [WHITEGRAM / "cleanroom" / filename for filename in voice.VOICE_RUNTIME_FILES]
-        files.append(Path(__file__).with_name("WhitegramVoiceDSPTests.swift"))
+        files.extend(Path(__file__).parent.glob("WhitegramVoice*Tests.swift"))
         for path in files:
             with self.subTest(file=path.name):
                 self.assert_parses(path.name, path.read_bytes())
@@ -313,7 +314,7 @@ class VoiceSwiftSyntaxTests(unittest.TestCase):
             fixtures.append((str(source), MemoryRoot({path: (source / path).read_bytes() for path in (voice.RECORDER, voice.ENCODER, voice.CHAT)})))
         for name, root in fixtures:
             with self.subTest(source=name):
-                voice.apply_voice_patches(root)
+                voice.apply_voice_pcm_patches(root)
                 self.assert_parses(name, root.files[voice.RECORDER])
 
 

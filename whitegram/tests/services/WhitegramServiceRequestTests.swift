@@ -20,6 +20,17 @@ private func assertFailure<Value>(_ error: WhitegramServiceError, _ result: Resu
 }
 
 final class WhitegramAIRequestTests: XCTestCase {
+    func testAbsentModelUsesRecoveredDefaultButExplicitModelIsNotSilentlyReplaced() throws {
+        XCTAssertEqual(WhitegramAIProvider.gemini.modelId(storedValue: nil), "gemini-3-flash-preview")
+        XCTAssertEqual(WhitegramAIProvider.groq.modelId(storedValue: nil), "llama-3.3-70b-versatile")
+        XCTAssertEqual(WhitegramAIProvider.gemini.modelId(storedValue: "my-selected-model"), "my-selected-model")
+        XCTAssertEqual(WhitegramAIProvider.groq.modelId(storedValue: ""), "")
+        for provider in WhitegramAIProvider.allCases {
+            let invalid = provider.modelId(storedValue: true)
+            XCTAssertThrowsError(try WhitegramAIWire.request(text: "prompt", provider: provider, model: invalid, apiKey: fixtureKey))
+        }
+    }
+
     func testGeminiUsesHeaderAuthenticationAndOnlySubmittedText() throws {
         let text = "  A quoted \"prompt\"\nПривет 🙂  "
         let request = try WhitegramAIWire.request(text: text, provider: .gemini, model: "models/test-model", apiKey: fixtureKey)
@@ -123,7 +134,14 @@ final class WhitegramAIRequestTests: XCTestCase {
         let refused = try json(["choices": [["finish_reason": "content_filter", "message": ["content": NSNull()]]]])
         assertFailure(.outputBlocked, whitegramServiceResult { try WhitegramAIWire.response(.init(statusCode: 200, data: refused), provider: .groq, model: "test") })
         let tool = try json(["choices": [["finish_reason": "tool_calls", "message": ["content": "not a completed answer"]]]])
-        assertFailure(.invalidResponse, whitegramServiceResult { try WhitegramAIWire.response(.init(statusCode: 200, data: tool), provider: .groq, model: "test") })
+        assertFailure(.unsupportedToolCall, whitegramServiceResult { try WhitegramAIWire.response(.init(statusCode: 200, data: tool), provider: .groq, model: "test") })
+    }
+
+    func testMixedTextAndToolResponsesAreNotMarkedAsCompletedAnswers() throws {
+        let gemini = try json(["candidates": [["finishReason": "STOP", "content": ["parts": [["text": "I will send it"], ["functionCall": ["name": "sendMessage"]]]]]]])
+        assertFailure(.unsupportedToolCall, whitegramServiceResult { try WhitegramAIWire.response(.init(statusCode: 200, data: gemini), provider: .gemini, model: "test") })
+        let groq = try json(["choices": [["finish_reason": "stop", "message": ["content": "I will send it", "tool_calls": [["id": "fixture-call"]]]]]])
+        assertFailure(.unsupportedToolCall, whitegramServiceResult { try WhitegramAIWire.response(.init(statusCode: 200, data: groq), provider: .groq, model: "test") })
     }
 
     func testStatusErrorsDoNotExposeProviderBody() throws {

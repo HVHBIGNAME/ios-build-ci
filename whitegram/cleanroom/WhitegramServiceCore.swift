@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 
 public enum WhitegramServiceError: Error, Equatable, LocalizedError {
     case disabled
@@ -12,6 +13,10 @@ public enum WhitegramServiceError: Error, Equatable, LocalizedError {
     case conversationStorage
     case conversationChanged
     case conversationFull
+    case legacyHistoryFormat
+    case originalProxyUnavailable
+    case streamingUnavailable
+    case unsupportedToolCall
     case invalidHash
     case invalidTarget
     case busy
@@ -33,6 +38,8 @@ public enum WhitegramServiceError: Error, Equatable, LocalizedError {
     case fileUnreadable
     case fileChanged
     case hashingUnavailable
+    case uploadUnavailable
+    case analysisPending(String)
 
     public var errorDescription: String? {
         switch self {
@@ -47,6 +54,10 @@ public enum WhitegramServiceError: Error, Equatable, LocalizedError {
         case .conversationStorage: return "Could not read or save this conversation. Reload it or clear its history before sending again."
         case .conversationChanged: return "This conversation changed in another screen. Reload it before sending again."
         case .conversationFull: return "This conversation has reached its local history limit. Clear its history to start a new conversation."
+        case .legacyHistoryFormat: return "The original v5 history is not a supported role/text JSON array. It has been preserved without modification."
+        case .originalProxyUnavailable: return "The original Whitegram proxy requires an authenticated, signed Whitegram API session. That session is unavailable. Select Direct API explicitly to use your provider key."
+        case .streamingUnavailable: return "This transport does not support the provider's streaming protocol. No fallback request was sent."
+        case .unsupportedToolCall: return "The model requested a Telegram tool that is not connected in this client. No tool was executed."
         case .invalidHash: return "A SHA-256 hash must contain exactly 64 hexadecimal characters."
         case .invalidTarget: return "Enter an HTTP(S) URL without a username or password, a valid IPv4/IPv6 address, or a SHA-256 hash."
         case .busy: return "A request is already running. Wait for it or cancel it."
@@ -76,7 +87,9 @@ public enum WhitegramServiceError: Error, Equatable, LocalizedError {
         case .fileTooLarge: return "The file exceeds the 512 MiB local hashing limit. You can enter its SHA-256 hash instead."
         case .fileUnreadable: return "The file provider could not supply a readable local file."
         case .fileChanged: return "The file changed while it was being hashed. Select it again."
-        case .hashingUnavailable: return "Local SHA-256 hashing requires iOS 13 or later. You can enter a hash instead."
+        case .hashingUnavailable: return "Local SHA-256 hashing requires iOS 13.4 or later. You can enter a hash instead."
+        case .uploadUnavailable: return "File upload is unavailable on this system or transport. No file was submitted."
+        case let .analysisPending(id): return "VirusTotal has not completed analysis \(id) within the polling limit. Check its status again; do not upload the file again."
         }
     }
 }
@@ -91,9 +104,26 @@ public enum WhitegramServiceLimits {
     public static let maximumVirusTotalResponseBytes = 4 * 1024 * 1024
     public static let maximumOutputTokens = 4096
     public static let maximumFileBytes: Int64 = 512 * 1024 * 1024
+    public static let directUploadFileBytes: Int64 = 32 * 1024 * 1024
+    public static let maximumUploadBodyBytes: Int64 = maximumFileBytes + 4096
+    public static let maximumAnalysisPolls = 20
     public static let fileChunkBytes = 1024 * 1024
     public static let requestTimeout: TimeInterval = 45
     public static let resourceTimeout: TimeInterval = 90
+}
+
+public enum WhitegramServiceRoute: String, Equatable {
+    case direct
+    case originalProxy
+
+    static func fromProxyFlag(_ value: Any?) -> WhitegramServiceRoute {
+        guard let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() else { return .originalProxy }
+        return number.boolValue ? .originalProxy : .direct
+    }
+
+    func requireAvailable() throws {
+        guard self == .direct else { throw WhitegramServiceError.originalProxyUnavailable }
+    }
 }
 
 public protocol WhitegramServiceCancellable: AnyObject {

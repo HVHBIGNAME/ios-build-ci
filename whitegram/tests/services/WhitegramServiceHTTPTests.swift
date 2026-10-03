@@ -181,4 +181,46 @@ final class WhitegramServiceHTTPTests: XCTestCase {
         throw XCTSkip("FoundationNetworking's URLProtocol redirect callback is not implemented; run this transport test on macOS.")
         #endif
     }
+
+    func testStreamingTransportFeedsSuccessfulChunksAndPropagatesParserFailure() throws {
+        FixtureURLProtocol.handler = { $0.respond(chunks: [Data("data: invalid\n\n".utf8)], headers: ["Content-Type": "text/event-stream"]) }
+        let completed = expectation(description: "parser failure")
+        self.transport().stream(try self.request(), maximumResponseBytes: 1024, received: { _ in
+            throw WhitegramServiceError.invalidResponse
+        }) { result in
+            if case let .failure(error) = result { XCTAssertEqual(error, .invalidResponse) } else { XCTFail("Parser error must terminate the request") }
+            completed.fulfill()
+        }
+        wait(for: [completed], timeout: 5)
+    }
+
+    func testHTTPErrorBodyIsNeverDeliveredAsStreamText() throws {
+        FixtureURLProtocol.handler = { $0.respond(status: 401, chunks: [Data("data: secret-error-body\n\n".utf8)]) }
+        let completed = expectation(description: "HTTP error")
+        self.transport().stream(try self.request(), maximumResponseBytes: 1024, received: { _ in XCTFail("Error bodies must not reach the model stream decoder") }) { result in
+            if case let .success(response) = result { XCTAssertEqual(response.statusCode, 401) } else { XCTFail("Expected status for service error mapping") }
+            completed.fulfill()
+        }
+        wait(for: [completed], timeout: 5)
+    }
+
+    func testModelPaginationQueryIsAllowedButCredentialQueryIsRefused() throws {
+        FixtureURLProtocol.handler = { fixture in
+            XCTAssertEqual(fixture.request.value(forHTTPHeaderField: "x-goog-api-key"), "fixture-key")
+            fixture.respond(chunks: [Data(#"{"models":[]}"#.utf8)])
+        }
+        let completed = expectation(description: "model page")
+        self.transport().send(try WhitegramAIModelsWire.request(provider: .gemini, apiKey: "fixture-key", pageToken: "opaque"), maximumResponseBytes: 1024) { result in
+            XCTAssertNotNil(try? result.get())
+            completed.fulfill()
+        }
+        wait(for: [completed], timeout: 5)
+        FixtureURLProtocol.handler = { _ in XCTFail("Credential query must be rejected") }
+        let rejected = expectation(description: "credential in query")
+        self.transport().send(URLRequest(url: URL(string: "https://generativelanguage.googleapis.com/v1beta/models?key=fixture-key")!), maximumResponseBytes: 1024) { result in
+            if case let .failure(error) = result { XCTAssertEqual(error, .invalidResponse) } else { XCTFail("Expected URL rejection") }
+            rejected.fulfill()
+        }
+        wait(for: [rejected], timeout: 5)
+    }
 }

@@ -101,7 +101,8 @@ def syntax_errors(source):
     while pending:
         node = pending.pop()
         if node.type == "ERROR" or node.is_missing:
-            errors.append((node.start_point.row + 1, node.start_point.column + 1, node.type))
+            text = source[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
+            errors.append((node.start_point.row + 1, node.start_point.column + 1, node.type, text[:120]))
         pending.extend(reversed(node.children))
     return errors
 

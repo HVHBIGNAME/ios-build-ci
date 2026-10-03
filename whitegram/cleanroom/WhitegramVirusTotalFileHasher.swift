@@ -11,7 +11,7 @@ public struct WhitegramVirusTotalFileHash: Equatable {
 }
 
 public enum WhitegramVirusTotalFileHasher {
-    private static let queue = DispatchQueue(label: "Whitegram.VirusTotal.Hash", qos: .userInitiated)
+    static let queue = DispatchQueue(label: "Whitegram.VirusTotal.Hash", qos: .userInitiated)
 
     /// Reads a security-scoped file in bounded chunks on a background queue. No bytes are uploaded or copied to app storage.
     /// Completion and optional (bytes read, total bytes) progress run on the main queue.
@@ -41,7 +41,7 @@ public enum WhitegramVirusTotalFileHasher {
 #if canImport(CryptoKit) && canImport(Darwin)
 extension WhitegramVirusTotalFileHasher {
     @available(iOS 13.4, macOS 10.15.4, *)
-    private static func coordinatedHash(url: URL, coordinator: NSFileCoordinator, task: WhitegramServiceTask, progress: ((Int64, Int64) -> Void)?) throws -> WhitegramVirusTotalFileHash {
+    static func coordinatedHash(url: URL, coordinator: NSFileCoordinator, task: WhitegramServiceTask, progress: ((Int64, Int64) -> Void)?, consume: ((Data) throws -> Void)? = nil) throws -> WhitegramVirusTotalFileHash {
         guard !task.isCancelled else { throw WhitegramServiceError.cancelled }
         guard url.isFileURL else { throw WhitegramServiceError.fileUnreadable }
         let scoped = url.startAccessingSecurityScopedResource()
@@ -55,7 +55,7 @@ extension WhitegramVirusTotalFileHasher {
         var coordinationError: NSError?
         var result: Result<WhitegramVirusTotalFileHash, WhitegramServiceError>?
         coordinator.coordinate(readingItemAt: url, options: .withoutChanges, error: &coordinationError) { readableURL in
-            result = whitegramServiceResult { try self.readHash(url: readableURL, task: task, progress: progress) }
+            result = whitegramServiceResult { try self.readHash(url: readableURL, task: task, progress: progress, consume: consume) }
         }
         guard !task.isCancelled else { throw WhitegramServiceError.cancelled }
         guard coordinationError == nil, let result = result else { throw WhitegramServiceError.fileUnreadable }
@@ -63,7 +63,7 @@ extension WhitegramVirusTotalFileHasher {
     }
 
     @available(iOS 13.4, macOS 10.15.4, *)
-    private static func readHash(url: URL, task: WhitegramServiceTask, progress: ((Int64, Int64) -> Void)?) throws -> WhitegramVirusTotalFileHash {
+    private static func readHash(url: URL, task: WhitegramServiceTask, progress: ((Int64, Int64) -> Void)?, consume: ((Data) throws -> Void)?) throws -> WhitegramVirusTotalFileHash {
         do {
             guard !task.isCancelled else { throw WhitegramServiceError.cancelled }
             let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .isPackageKey])
@@ -84,6 +84,7 @@ extension WhitegramVirusTotalFileHasher {
                 count += Int64(chunk.count)
                 guard count <= WhitegramServiceLimits.maximumFileBytes else { throw WhitegramServiceError.fileTooLarge }
                 hasher.update(data: chunk)
+                try consume?(chunk)
                 let now = ProcessInfo.processInfo.systemUptime
                 if let progress = progress, now - lastProgress >= 0.2 {
                     lastProgress = now

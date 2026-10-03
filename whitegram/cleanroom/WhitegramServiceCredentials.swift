@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 #if canImport(Security) && canImport(TelegramCore)
 import Security
 import TelegramCore
@@ -163,6 +164,15 @@ enum WhitegramServiceCredentials {
     static let vault = WhitegramServiceCredentialVault(secrets: WhitegramServiceKeychainStorage(), legacy: WhitegramServicePreferenceCredentials())
 }
 
+extension WhitegramServiceRoute {
+    static var configuredVirusTotal: WhitegramServiceRoute {
+        let value = WhitegramPreferences.values()["virusTotalUseProxy"] ?? UserDefaults.standard.object(forKey: "wg_virusTotalUseProxy")
+        // The original VirusTotal manager always used Whitegram's signed proxy.
+        // This new flag permits an explicit Direct API choice without silently changing that route.
+        return self.fromProxyFlag(value)
+    }
+}
+
 /// Call at app startup and before a settings export to migrate legacy API tokens.
 /// The returned failures contain fixed errors only. A failed migration never falls back to a plaintext request.
 public func whitegramMigrateServiceCredentials() -> [WhitegramServiceCredential: WhitegramServiceError] {
@@ -182,9 +192,22 @@ public func whitegramMigrateServiceCredentials() -> [WhitegramServiceCredential:
 extension WhitegramAIProvider {
     var credential: WhitegramServiceCredential { return self == .gemini ? .gemini : .groq }
     var modelPreference: String { return self == .gemini ? "geminiModelId" : "groqModelId" }
+    var proxyPreference: String { return self == .gemini ? "geminiUseProxy" : "groqUseProxy" }
+
+    var configuredModel: String {
+        return self.modelId(storedValue: WhitegramPreferences.values()[self.modelPreference] ?? UserDefaults.standard.object(forKey: "wg_" + self.modelPreference))
+    }
+
+    var configuredRoute: WhitegramServiceRoute {
+        let value = WhitegramPreferences.values()[self.proxyPreference] ?? UserDefaults.standard.object(forKey: "wg_" + self.proxyPreference)
+        // Both original getters default to true. An explicit false selects the direct API.
+        return .fromProxyFlag(value)
+    }
 
     static var configured: WhitegramAIProvider? {
-        return WhitegramAIProvider(rawValue: WhitegramPreferences.string("aiProvider").lowercased())
+        let value = WhitegramPreferences.values()["aiProvider"] ?? UserDefaults.standard.object(forKey: "wg_aiProvider")
+        guard let value else { return .gemini }
+        return (value as? String).flatMap { WhitegramAIProvider(rawValue: $0.lowercased()) }
     }
 }
 
@@ -195,7 +218,7 @@ public func whitegramGenerateAIText(_ text: String, completion: @escaping (Resul
         guard WhitegramPreferences.bool("geminiEnabled") else { throw WhitegramServiceError.disabled }
         guard let provider = WhitegramAIProvider.configured else { throw WhitegramServiceError.invalidProvider }
         guard let key = try WhitegramServiceCredentials.vault.token(for: provider.credential) else { throw WhitegramServiceError.missingAPIKey }
-        return WhitegramAIService.shared.generate(text: text, provider: provider, model: WhitegramPreferences.string(provider.modelPreference), apiKey: key, completion: completion)
+        return WhitegramAIService.shared.generate(text: text, provider: provider, model: provider.configuredModel, apiKey: key, route: provider.configuredRoute, completion: completion)
     } catch {
         let operation = WhitegramServiceOperation(completion: completion)
         operation.finish(.failure(error as? WhitegramServiceError ?? .preferences))
@@ -208,6 +231,7 @@ public func whitegramGenerateAIText(_ text: String, completion: @escaping (Resul
 public func whitegramLookupVirusTotalHash(_ sha256: String, completion: @escaping (Result<WhitegramVirusTotalLookupResult, WhitegramServiceError>) -> Void) -> WhitegramServiceTask {
     do {
         guard WhitegramPreferences.bool("virusTotalEnabled") else { throw WhitegramServiceError.disabled }
+        try WhitegramServiceRoute.configuredVirusTotal.requireAvailable()
         guard let key = try WhitegramServiceCredentials.vault.token(for: .virusTotal) else { throw WhitegramServiceError.missingAPIKey }
         return WhitegramVirusTotalService.shared.lookup(sha256: sha256, apiKey: key, completion: completion)
     } catch {

@@ -1,0 +1,20 @@
+{
+  "role": "history",
+  "status": "in_progress_original_storage_recovered",
+  "files_changed": ["whitegram/parity/history.json"],
+  "original_evidence": [
+    {"image_id": 46, "address": "0xece5dc", "symbol": "SGMessageAttribute", "fields": ["isDeleted", "originalText", "originalEntities", "visualText", "visualTextEntities", "isShortened", "editHistoryTexts", "editHistoryDates"]},
+    {"image_id": 46, "address": "0xece620", "symbol": "SGBackedUpMessage", "fields": ["peerIdNamespace", "peerIdId", "messageIdNamespace", "messageIdId", "authorIdNamespace", "authorIdId", "text", "timestamp", "isOutgoing"]},
+    {"image_id": 46, "address": "0x1c9174", "symbol": "SGMessageAttribute.markMessagesAsDeleted(ids:serverInitiated:transaction:)"},
+    {"image_id": 55, "address": "0x4d15db0", "text": "Deleted Cache removes view markers. Edited Cache erases edit history. Saved History resets deletion markers (messages saved via Save Chat History)."}
+  ],
+  "implemented_keys": [],
+  "remaining_keys": [{"key": "history component", "reason": "Implementation and original mutation/default tracing in progress."}],
+  "runtime_files": {},
+  "patch_entrypoint": "apply_history_patches(root)",
+  "controller_entrypoints": [],
+  "required_dependencies": [],
+  "parent_integration": ["Do not aggregate as complete. This worker is upgrading the current separate text archive to evidence-backed native retention."],
+  "tests_run": [],
+  "device_checks_needed": ["Native Swift/IPA compilation and device chat/media behavior must be checked by parent CI/device work."]
+}

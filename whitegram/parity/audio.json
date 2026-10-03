@@ -1,0 +1,21 @@
+{
+  "role": "audio",
+  "status": "in_progress_evidence_recovery",
+  "files_changed": [],
+  "original_evidence": [
+    {"image_id": 46, "address": "0x209aec", "finding": "musicPlaybackSpeed defaults to 1.0; upper clamp 3.0"},
+    {"image_id": 46, "address": "0x209d94", "finding": "musicCrossfadeEnabled defaults to true"},
+    {"image_id": 46, "address": "0x209f0c", "finding": "musicCrossfadeDuration defaults to 3 seconds"},
+    {"image_id": 55, "address": "0xdc9f38", "finding": "Original remote changeVoice accepts Ogg data, voiceId, API key and progress callback"},
+    {"image_id": 55, "address": "0xdcbca0", "finding": "Original changeVideoAudio adapter is present"}
+  ],
+  "implemented_keys": [],
+  "remaining_keys": [{"keys": ["musicPlaybackSpeed", "musicPlaybackPitchFollowsSpeed", "musicCrossfadeEnabled", "musicCrossfadeDuration", "musicEqualizerEnabled", "musicEqualizerBands", "stopAfterVoiceMessage", "bassEffect", "voiceBleepEnabled", "voiceBleepMode", "voiceChangerApiKey", "voiceChangerVoiceId", "voiceChangerUseProxy", "voiceChangerInCalls"], "reason": "Evidence recovery and implementation in progress"}],
+  "runtime_files": {},
+  "patch_entrypoint": [],
+  "controller_entrypoints": [],
+  "required_dependencies": [],
+  "parent_integration": [],
+  "tests_run": [],
+  "device_checks_needed": ["Native Swift/Xcode build and iOS recording/playback validation are parent-owned"]
+}

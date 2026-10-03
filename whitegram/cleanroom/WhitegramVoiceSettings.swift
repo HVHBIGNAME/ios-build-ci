@@ -75,6 +75,8 @@ public struct WhitegramVoiceSettings: Equatable {
     public let bleepMode: WhitegramVoiceBleepMode?
     public let bleepWholeRecording: Bool
     public let callsRequested: Bool
+    public let voiceId: String
+    public let useProxy: Bool
 
     /// The original bleep toggle meant transcription-based word censoring. A
     /// separate opt-in prevents importing it as destructive whole-message masking.
@@ -92,6 +94,9 @@ public struct WhitegramVoiceSettings: Equatable {
         self.bleepMode = Self.index(values["voiceBleepMode"], default: 0).flatMap(WhitegramVoiceBleepMode.init(rawValue:))
         self.bleepWholeRecording = Self.boolean(values[Self.wholeRecordingBleepKey])
         self.callsRequested = Self.boolean(values["voiceChangerInCalls"])
+        let voiceId = values["voiceChangerVoiceId"] as? String
+        self.voiceId = (voiceId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        self.useProxy = values["voiceChangerUseProxy"] == nil ? true : Self.boolean(values["voiceChangerUseProxy"])
     }
 
     public var localEnabled: Bool {
@@ -104,6 +109,14 @@ public struct WhitegramVoiceSettings: Equatable {
 
     public var activeBleepMode: WhitegramVoiceBleepMode? {
         return self.bleepEnabled && self.bleepWholeRecording ? self.bleepMode : nil
+    }
+
+    public var requiresPostprocessing: Bool {
+        return (self.bleepEnabled && !self.bleepWholeRecording && self.bleepMode != nil) || (self.enabled && self.mode == .remote)
+    }
+
+    public var requiresVideoProcessing: Bool {
+        return self.hasLocalEffect || self.activeBleepMode != nil || self.requiresPostprocessing
     }
 
     public func value(for control: WhitegramVoiceControl) -> Double {
@@ -147,43 +160,41 @@ public struct WhitegramVoiceSettings: Equatable {
         case .custom:
             result = WhitegramVoiceParameters(pitch: self.pitch, timbre: self.timbre, echo: self.echo, clarity: self.clarity)
         case .echo:
-            result = WhitegramVoiceParameters(echo: 55.0)
+            result = WhitegramVoiceParameters(echo: 72.0, clarity: 12.0)
         case .child:
-            result = WhitegramVoiceParameters(pitch: 5.0, timbre: 25.0, clarity: 10.0)
+            result = WhitegramVoiceParameters(pitch: 6.2, timbre: 56.0, echo: 4.0, clarity: 35.0)
         case .adult:
-            result = WhitegramVoiceParameters(pitch: -3.0, timbre: -30.0, clarity: 5.0)
+            result = WhitegramVoiceParameters(pitch: -3.8, timbre: -34.0, echo: 3.0, clarity: -8.0)
         case .robot:
-            result = WhitegramVoiceParameters(timbre: -15.0, clarity: 30.0, ringFrequency: 65.0, ringMix: 0.85)
+            result = WhitegramVoiceParameters(pitch: -0.7, timbre: 24.0, echo: 10.0, clarity: 36.0, ringFrequency: 74.0, distortion: 0.34)
         case .helium:
-            result = WhitegramVoiceParameters(pitch: 9.0, timbre: 45.0, clarity: 15.0)
+            result = WhitegramVoiceParameters(pitch: 9.0, timbre: 72.0, echo: 2.0, clarity: 44.0)
         case .monster:
-            result = WhitegramVoiceParameters(pitch: -8.0, timbre: -65.0, echo: 25.0, ringFrequency: 32.0, ringMix: 0.30)
+            result = WhitegramVoiceParameters(pitch: -8.0, timbre: -76.0, echo: 18.0, clarity: -32.0, distortion: 0.27)
         case .radio:
-            result = WhitegramVoiceParameters(clarity: 30.0, radio: true)
+            result = WhitegramVoiceParameters(timbre: 78.0, echo: 2.0, clarity: 70.0, distortion: 0.18)
         case .whisper:
-            result = WhitegramVoiceParameters(clarity: 20.0, noiseMix: 0.90)
+            result = WhitegramVoiceParameters(timbre: 62.0, echo: 3.0, clarity: 40.0, noiseMix: 0.82)
         case .alien:
-            result = WhitegramVoiceParameters(pitch: 4.0, timbre: 40.0, echo: 25.0, ringFrequency: 110.0, ringMix: 0.75)
+            result = WhitegramVoiceParameters(pitch: 4.8, timbre: 38.0, echo: 28.0, clarity: 20.0, ringFrequency: 31.0, distortion: 0.12)
         case .cavern:
-            result = WhitegramVoiceParameters(pitch: -1.0, echo: 80.0, clarity: -25.0, echoDelay: 0.30)
+            result = WhitegramVoiceParameters(pitch: -1.3, timbre: -25.0, echo: 90.0, clarity: -20.0)
         }
         return result.isActive ? result : nil
     }
 }
 
-// Preset coefficients are the local reimplementation, not recovered IPA DSP code.
+// Recovered from TelegramCore 0x2d672c and constant tables 0xd688b0...0xd68a50.
 struct WhitegramVoiceParameters {
     var pitch: Double = 0.0
     var timbre: Double = 0.0
     var echo: Double = 0.0
     var clarity: Double = 0.0
     var ringFrequency: Double = 0.0
-    var ringMix: Double = 0.0
-    var radio: Bool = false
+    var distortion: Double = 0.0
     var noiseMix: Double = 0.0
-    var echoDelay: Double = 0.18
 
     var isActive: Bool {
-        return self.pitch != 0.0 || self.timbre != 0.0 || self.echo != 0.0 || self.clarity != 0.0 || self.ringMix != 0.0 || self.radio || self.noiseMix != 0.0
+        return self.pitch != 0.0 || self.timbre != 0.0 || self.echo != 0.0 || self.clarity != 0.0 || self.ringFrequency != 0.0 || self.distortion != 0.0 || self.noiseMix != 0.0
     }
 }

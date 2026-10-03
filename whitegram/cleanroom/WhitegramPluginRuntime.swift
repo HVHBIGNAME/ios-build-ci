@@ -70,6 +70,7 @@ private enum WhitegramPluginAPI {
             for path in paths { result.append(WhitegramPluginAPIEntry(path: path, permission: permission, sync: sync, exposed: exposed)) }
         }
         add(["runtime.info", "runtime.started", "runtime.failed", "permissions.check", "log", "timer.create", "timer.clear", "events.setSubscriptions"], exposed: false)
+        add(["interceptors.add", "interceptors.remove"], exposed: false)
         add(["package.resolveModule", "package.list", "package.read"], permission: "storage", exposed: false)
         add(["storage.get", "storage.set", "storage.remove", "storage.keys", "storage.clear"], permission: "storage")
         add(["fs.list", "fs.read", "fs.readBase64", "fs.readBytes", "fs.write", "fs.writeBase64", "fs.writeBytes", "fs.exists", "fs.remove"], permission: "storage")
@@ -78,6 +79,7 @@ private enum WhitegramPluginAPI {
         add(["capabilities.info"])
         add(["ui.createSurface", "ui.updateSurface", "ui.setSurfaceOptions", "ui.setSurfaceVisible", "ui.closeSurface", "ui.surfaceInfo", "ui.pushScreen", "ui.toast"], permission: "uiMutation", exposed: false)
         add(["ui.registerSettingsPage", "ui.addSettingsRow"], permission: "uiMutation", exposed: false)
+        add(["ui.addMenuItem"], permission: "uiMutation", exposed: false)
         add(["ui.theme", "ui.keyboardHeight", "ui.haptic"], permission: "uiMutation")
         add(["ui.confirm", "ui.actionSheet"], permission: "uiMutation", sync: false)
         add(["http.request"], permission: "network", sync: false)
@@ -110,7 +112,11 @@ final class WhitegramPluginRuntime {
     private let ui: WhitegramPluginUI
     private let iosVersion: String
     private let initialGrants: [String: Bool]
+    private let automaticStart: Bool
     private var hookSubscription: WhitegramPluginEventSubscription?
+    private var networkSubscription: WhitegramPluginEventSubscription?
+    private var interceptions: [String: WhitegramPluginInterceptToken] = [:]
+    private var menuRegistrations: [String: WhitegramPluginMenuRegistration] = [:]
     private var js: JSContext?
     private var bootstrapReady = false
     private var didStart = false
@@ -139,7 +145,7 @@ final class WhitegramPluginRuntime {
         return self.ui.settingsItems
     }
 
-    init(context: AccountContext, accountId: String, record: WhitegramPluginRecord, root: URL) {
+    init(context: AccountContext, accountId: String, record: WhitegramPluginRecord, root: URL, automaticStart: Bool = false) {
         dispatchPrecondition(condition: .onQueue(.main))
         self.accountContext = context
         self.accountId = accountId
@@ -149,6 +155,7 @@ final class WhitegramPluginRuntime {
         self.ui = WhitegramPluginUI(context: context)
         self.iosVersion = UIDevice.current.systemVersion
         self.initialGrants = WhitegramPluginPermission.grants(accountId: accountId, pluginId: record.id)
+        self.automaticStart = automaticStart
         self.ui.dispatch = { [weak self] surface, callback, payload in
             self?.queue.async { [weak self] in
                 guard let self = self, self.lifetime.isActive, self.granted("uiMutation") else { return }
@@ -166,6 +173,16 @@ final class WhitegramPluginRuntime {
         })
         self.hookSubscription = subscription
         self.lifetime.add("events", cancel: { subscription.dispose() })
+        let networkSubscription = WhitegramPluginNativeInterception.subscribe(network: context.account.network, queue: self.queue, receive: { [weak self] events, dropped in
+            guard let self = self, self.lifetime.isActive, self.granted("telegram.intercept") else { return }
+            if dropped != 0 { self.log("warn", "Telegram request event queue dropped \(dropped) observations") }
+            for event in events {
+                guard self.lifetime.isActive, self.granted("telegram.intercept") else { return }
+                self.callJS("__wgNativeEvent", [event.name, event.payload])
+            }
+        })
+        self.networkSubscription = networkSubscription
+        self.lifetime.add("networkEvents", cancel: { networkSubscription.dispose() })
     }
 
     func attach(_ controller: ViewController) {
@@ -362,6 +379,11 @@ final class WhitegramPluginRuntime {
         self.watchRequests.removeAll()
         self.hookSubscription?.dispose()
         self.hookSubscription = nil
+        self.networkSubscription?.dispose()
+        self.networkSubscription = nil
+        for token in self.interceptions.values { token.dispose() }
+        self.interceptions.removeAll()
+        self.menuRegistrations.removeAll()
         self.js?.exceptionHandler = nil
         self.js = nil
         self.bootstrapReady = false
@@ -378,6 +400,7 @@ final class WhitegramPluginRuntime {
         var required = entry.permission.isEmpty ? [] : [entry.permission]
         if path == "tg.sendFileMessage" { required.append(contentsOf: ["messages", "storage"]) }
         if path == "tg.openChat" { required.append("uiMutation") }
+        if path == "ui.addMenuItem" { required.append("messages") }
         if required.isEmpty { return nil }
         let grants = WhitegramPluginPermission.grants(accountId: self.accountId, pluginId: self.record.id)
         if let missing = required.first(where: { grants[$0] != true }) {
@@ -411,16 +434,22 @@ final class WhitegramPluginRuntime {
         return ["runtime": "JavaScriptCore", "version": "whitegram-native-2", "ios": self.iosVersion,
                 "subsystems": ["javascript": "1", "ui": "1", "storage": "1", "http": "1", "tg": "12.9.2"],
                 "functions": WhitegramPluginAPI.entries.filter { $0.exposed }.map { $0.path },
-                "events": WhitegramPluginHooks.eventNames, "eventSemantics": "observational-postbox",
+                "events": WhitegramPluginHooks.eventNames + WhitegramPluginNativeInterception.eventNames, "eventSemantics": "observational-postbox",
+                "interceptors": ["message.beforeSend": ["cancel", "modify", "modifyFinal", "replace"], "tg.request": ["cancel"]],
+                "interceptorSemantics": "synchronous-results-async-native-handoff", "deferredInterceptors": false,
                 "features": ["javascript": true, "http": true, "localHistory": true, "peerWatches": true, "nativeSurfaces": true,
                              "globalTelegramEvents": true, "pluginSettingsPages": true, "currentChat": true,
-                             "globalTelegramHooks": false, "tabs": false, "interceptors": false, "languageWorkers": false, "rawMTProto": false]]
+                             "globalTelegramHooks": true, "tabs": false, "interceptors": true, "languageWorkers": false, "rawMTProto": false]]
     }
 
     private func syncCall(_ path: String, arguments: [Any]) throws -> Any {
         switch path {
         case "runtime.info": return ["id": self.record.id, "name": self.record.name, "version": self.record.version, "entry": self.record.entry,
-                                     "manifest": WhitegramPluginAPI.entries.map { $0.json }, "events": WhitegramPluginHooks.eventNames]
+                                     "automaticStart": self.automaticStart,
+                                     "packageId": self.record.packageId as Any? ?? NSNull(),
+                                     "manifest": WhitegramPluginAPI.entries.map { $0.json },
+                                     "events": WhitegramPluginHooks.eventNames + WhitegramPluginNativeInterception.eventNames,
+                                     "requestEvents": WhitegramPluginNativeInterception.eventNames]
         case "runtime.started":
             self.startupDeadline?.cancel(); self.startupDeadline = nil; self.lifetime.remove("startup")
             self.log("info", "Plugin started")
@@ -433,12 +462,25 @@ final class WhitegramPluginRuntime {
         case "permissions.check": return self.granted(try whitegramPluginString(arguments, 0))
         case "capabilities.info": return self.capabilities()
         case "events.setSubscriptions":
-            guard arguments.count == 1, let names = arguments[0] as? [String], Set(names).isSubset(of: Set(WhitegramPluginHooks.eventNames)),
-                  names.count <= WhitegramPluginHooks.eventNames.count, let subscription = self.hookSubscription else {
+            let allowed = Set(WhitegramPluginHooks.eventNames + WhitegramPluginNativeInterception.eventNames)
+            guard arguments.count == 1, let names = arguments[0] as? [String], Set(names).isSubset(of: allowed),
+                  names.count <= allowed.count, let subscription = self.hookSubscription, let networkSubscription = self.networkSubscription else {
                 throw WhitegramPluginError("INVALID_ARGUMENT", "Expected supported Telegram event names")
             }
-            guard names.isEmpty || self.granted("messages") else { throw WhitegramPluginError("PERMISSION_DENIED", "Telegram event subscriptions require messages") }
-            subscription.setEvents(Set(names))
+            let postboxNames = Set(names).intersection(WhitegramPluginHooks.eventNames)
+            let requestNames = Set(names).intersection(WhitegramPluginNativeInterception.eventNames)
+            guard postboxNames.isEmpty || self.granted("messages"), requestNames.isEmpty || self.granted("telegram.intercept") else {
+                throw WhitegramPluginError("PERMISSION_DENIED", "Telegram events require messages / telegram.intercept permission")
+            }
+            subscription.setEvents(postboxNames)
+            networkSubscription.setEvents(requestNames)
+            return true
+        case "interceptors.add": return try self.addInterceptor(arguments)
+        case "ui.addMenuItem": return try self.addMenuItem(arguments)
+        case "interceptors.remove":
+            let id = try whitegramPluginString(arguments, 0)
+            self.interceptions.removeValue(forKey: id)?.dispose()
+            self.lifetime.remove("interceptor:" + id)
             return true
         case "tg.getCurrentChat":
             guard let context = self.accountContext else { throw WhitegramPluginError("ACCOUNT_UNAVAILABLE", "Account is unavailable") }
@@ -512,6 +554,68 @@ final class WhitegramPluginRuntime {
     private func requireFiles() throws -> WhitegramPluginFiles {
         guard let files = self.files else { throw WhitegramPluginError("STORAGE_UNAVAILABLE", "Plugin storage is closed") }
         return files
+    }
+
+    private func addInterceptor(_ arguments: [Any]) throws -> Bool {
+        guard arguments.count == 4, let options = arguments[2] as? [String: Any], let context = self.accountContext else {
+            throw WhitegramPluginError("INVALID_ARGUMENT", "Expected interceptor ID, name, options and legacy flag")
+        }
+        let id = try whitegramPluginString(arguments, 0)
+        let name = try whitegramPluginString(arguments, 1)
+        let legacy = try whitegramPluginBool(arguments, 3)
+        let canonical = name == "onSendMessage" ? "message.beforeSend" : name == "preRequest" ? "tg.request" : name
+        guard WhitegramPluginInterceptionHub.names.contains(canonical), !id.isEmpty, id.utf8.count <= 128,
+              self.interceptions[id] == nil, self.interceptions.count < 128 else {
+            throw WhitegramPluginError("UNSUPPORTED_INTERCEPTOR", "Unsupported, duplicate or excessive interceptor: \(name)")
+        }
+        guard Set(options.keys).isSubset(of: ["priority", "before", "after"]) else {
+            throw WhitegramPluginError("UNSUPPORTED_OPTION", "Native interception supports priority, before and after; its queue deadline is fixed")
+        }
+        let priorityNumber = try whitegramPluginNumber([options["priority"] ?? 0], 0)
+        guard let priority = Int(exactly: priorityNumber), (-10000 ... 10000).contains(priority),
+              let before = (options["before"] ?? [String]()) as? [String], let after = (options["after"] ?? [String]()) as? [String],
+              before.count <= 32, after.count <= 32, (before + after).allSatisfy({ !$0.isEmpty && $0.utf8.count <= 4096 }) else {
+            throw WhitegramPluginError("INVALID_ARGUMENT", "Invalid interceptor ordering")
+        }
+        let permission = canonical == "message.beforeSend" ? "messages.intercept" : "telegram.intercept"
+        guard self.granted(permission) else { throw WhitegramPluginError("PERMISSION_DENIED", "\(name) requires \(permission)") }
+        let scope: AnyObject = canonical == "message.beforeSend" ? context.account.postbox : context.account.network
+        guard let token = WhitegramPluginInterceptionHub.shared.register(scope: scope, owner: self.record.packageId ?? self.record.id, id: id, name: canonical,
+            legacy: legacy, priority: priority, before: before, after: after, queue: self.queue,
+            permitted: { [weak self] in self?.lifetime.isActive == true && self?.granted(permission) == true },
+            invoke: { [weak self] payload in
+                guard let self = self, let js = self.js, self.lifetime.isActive else { return ["action": "cancel", "reason": "PLUGIN_STOPPED"] }
+                js.exception = nil
+                guard let json = js.objectForKeyedSubscript("__wgNativeIntercept")?.call(withArguments: [id, name, payload, legacy])?.toString(),
+                      json.utf8.count <= 65536, let result = (try? JSONSerialization.jsonObject(with: Data(json.utf8))) as? [String: Any] else {
+                    return ["action": "cancel", "reason": "INVALID_HOOK_RESULT"]
+                }
+                return result
+            }, diagnostic: { [weak self] message in self?.log("warn", message) }) else {
+            throw WhitegramPluginError("INTERCEPT_ORDER", "Interceptor order contains a cycle or exceeds the account quota")
+        }
+        self.interceptions[id] = token
+        self.lifetime.add("interceptor:" + id, cancel: { token.dispose() })
+        return true
+    }
+
+    private func addMenuItem(_ arguments: [Any]) throws -> String {
+        guard let config = arguments.first as? [String: Any], let id = config["id"] as? String, let token = config["token"] as? String,
+              let title = config["title"] as? String, let icon = config["icon"] as? String,
+              let priority = Int(exactly: try whitegramPluginNumber([config["priority"] ?? 0], 0)),
+              let context = self.accountContext, self.menuRegistrations[id] != nil || self.menuRegistrations.count < 32 else {
+            throw WhitegramPluginError("INVALID_ARGUMENT", "Invalid or excessive message menu registrations")
+        }
+        guard let registration = WhitegramPluginContributions.shared.register(scope: context.account.postbox, owner: self.record.id, id: id,
+            token: token, title: title, icon: icon, priority: priority, queue: self.queue,
+            permitted: { [weak self] in self?.lifetime.isActive == true && self?.granted("messages") == true && self?.granted("uiMutation") == true },
+            activate: { [weak self] payload in self?.callJS("__wgUIDispatch", ["__messageMenu", token, payload]) }) else {
+            throw WhitegramPluginError("INVALID_ARGUMENT", "Invalid menu metadata or account menu quota exceeded")
+        }
+        self.menuRegistrations[id]?.dispose()
+        self.menuRegistrations[id] = registration
+        self.lifetime.add("menu:" + id, cancel: { registration.dispose() })
+        return id
     }
 
     private func preferences(_ path: String, arguments: [Any]) throws -> Any {

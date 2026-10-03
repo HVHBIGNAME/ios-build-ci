@@ -9,15 +9,15 @@ import TelegramCore
 import TelegramPresentationData
 
 private extension WhitegramAppearanceToggle {
-    func title(russian: Bool) -> String {
+    var localizationKey: String {
         switch self {
-        case .messageBorderEnabled: return russian ? "Обводка сообщений" : "Message Borders"
-        case .transparentMessages: return russian ? "Прозрачные сообщения" : "Transparent Messages"
-        case .semiTransparentBubbles: return russian ? "Полупрозрачные пузыри" : "Semi-transparent Bubbles"
-        case .showCharCountTyping: return russian ? "Счётчик при наборе" : "Character Count While Typing"
-        case .showCharCountMessages: return russian ? "Счётчик в сообщениях" : "Character Count in Messages"
-        case .showActionTime: return russian ? "Время служебных сообщений" : "Service Message Timestamps"
-        case .hideBusinessBotPanel: return russian ? "Скрыть панель бизнес-бота" : "Hide Business Bot Panel"
+        case .messageBorderEnabled: return "s.messageBorder"
+        case .transparentMessages: return "s.transparentMsgs"
+        case .semiTransparentBubbles: return "s.semiTransparent"
+        case .showCharCountTyping: return "s.charCountTyping"
+        case .showCharCountMessages: return "s.charCountMsgs"
+        case .showActionTime: return "s.showActionTime"
+        case .hideBusinessBotPanel: return "s.hideBusinessBotPanel"
         }
     }
 }
@@ -61,8 +61,8 @@ private struct WhitegramAppearanceEntry: ItemListNodeEntry {
         case let .info(text):
             return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
         case let .toggle(toggle, value):
-            return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: toggle.title(russian: russian),
-                value: value, sectionId: self.section, style: .blocks,
+            return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: WhitegramLocalization.string(toggle.localizationKey, baseLanguage: presentationData.strings.baseLanguageCode),
+                value: value, maximumNumberOfLines: 3, sectionId: self.section, style: .blocks,
                 updated: { coordinator.set(toggle, enabled: $0, russian: russian) })
         case let .color(hex, enabled):
             let label = hex.isEmpty ? (russian ? "По теме" : "Theme Accent") : hex
@@ -91,14 +91,14 @@ private func whitegramAppearanceEntries(presentationData: PresentationData, sett
     add("preview", 0, .preview(presentationData, settings))
     if let error { add("error", 0, .info(error)) }
 
-    add("bubbles", 1, .header(russian ? "ПУЗЫРИ СООБЩЕНИЙ" : "MESSAGE BUBBLES"))
+    add("bubbles", 1, .header(WhitegramLocalization.string("h.bubbles", baseLanguage: presentationData.strings.baseLanguageCode)))
     toggle(.messageBorderEnabled, 1)
     add("borderColor", 1, .color(settings.messageBorderColorHex, settings.isEnabled(.messageBorderEnabled)))
     toggle(.transparentMessages, 1)
     toggle(.semiTransparentBubbles, 1)
     add("bubbleInfo", 1, .info(russian
-        ? "Прозрачный режим убирает заливку и тень. Полупрозрачный оставляет заливку с непрозрачностью 65%. Текст, медиа и обводка сохраняют свою непрозрачность. Включение одного режима отключает другой."
-        : "Transparent mode removes the fill and shadow. Semi-transparent mode uses 65% fill opacity. Text, media and borders retain their opacity. Enabling either mode turns the other off."))
+        ? "Прозрачный режим убирает заливку и тень. Полупрозрачный оставляет заливку с непрозрачностью 70%. Текст, медиа и обводка сохраняют свою непрозрачность. Выбор режима отключает другие режимы заливки, включая размытие и Liquid Glass."
+        : "Transparent mode removes the fill and shadow. Semi-transparent mode uses 70% fill opacity. Text, media and borders retain their opacity. Selecting a fill mode turns the others off, including blur and Liquid Glass."))
     if settings.isEnabled(.transparentMessages) && settings.isEnabled(.semiTransparentBubbles) {
         add("bothModes", 1, .info(russian
             ? "В сохранённых данных включены оба режима. Применяется прозрачный; выберите один из режимов выше."

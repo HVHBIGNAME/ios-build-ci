@@ -11,19 +11,9 @@ public extension WhitegramHistoryStore {
     }
 
     static func capture(_ message: EngineRawMessage, event: WhitegramHistoryEvent, accountPeerId: PeerId, mediaBoxPath: String) {
-        guard message.id.namespace == Namespaces.Message.Cloud, message.id.peerId.namespace != Namespaces.Peer.SecretChat else { return }
-        let flags = WhitegramPreferences.values()
-        let enabled: Bool
-        switch event {
-        case .received: enabled = flags["saveChatHistory"] as? Bool == true
-        case .deleted: enabled = flags["showDeletedMessages"] as? Bool == true || flags["saveDeletedMessagesToBackup"] as? Bool == true || flags["saveChatHistory"] as? Bool == true
-        case .edited: enabled = flags["showEditedOriginalText"] as? Bool == true || flags["saveChatHistory"] as? Bool == true
-        }
-        guard enabled else { return }
+        guard WhitegramHistoryRuntime.isCloudMessage(message), message.whitegramHistoryAttribute?.isDeleted != true else { return }
         let outgoing = !message.flags.contains(.Incoming)
-        let bot = (message.author as? TelegramUser)?.botInfo != nil
-        if event == .deleted && ((outgoing && flags["hideMyDeletedMessages"] as? Bool == true) || (bot && flags["hideBotDeletedMessages"] as? Bool == true)) { return }
-        if event == .edited && ((outgoing && flags["hideMyEditedMessages"] as? Bool == true) || (bot && flags["hideBotEditedMessages"] as? Bool == true)) { return }
+        guard WhitegramHistoryRuntime.policy.captures(event, peerId: message.id.peerId.toInt64(), own: WhitegramHistoryRuntime.own(message, accountPeerId: accountPeerId), bot: WhitegramHistoryRuntime.bot(message)) else { return }
         let entry = WhitegramHistoryEntry(
             accountId: String(accountPeerId.toInt64()), peerId: String(message.id.peerId.toInt64()), namespace: message.id.namespace,
             messageId: message.id.id, revision: message.stableVersion, messageDate: message.timestamp,
@@ -33,7 +23,8 @@ public extension WhitegramHistoryStore {
             peerTitle: message.peers[message.id.peerId].map { whitegramHistoryBoundedString(EnginePeer($0).debugDisplayTitle, maximumBytes: self.maximumNameBytes) },
             authorName: message.author.map { whitegramHistoryBoundedString(EnginePeer($0).debugDisplayTitle, maximumBytes: self.maximumNameBytes) },
             editedAt: message.editedTime, textTruncated: message.text.utf8.count > self.maximumTextBytes,
-            media: message.media.prefix(self.maximumMediaItems).map(whitegramHistoryMedia)
+            media: message.media.prefix(self.maximumMediaItems).map(whitegramHistoryMedia),
+            threadId: message.threadId.map(String.init), groupingKey: message.groupingKey.map(String.init)
         )
         self.forAccount(mediaBoxPath: mediaBoxPath, accountPeerId: accountPeerId).append(entry)
     }

@@ -131,7 +131,7 @@ final class WhitegramHistoryStoreTests: XCTestCase {
             try self.archive([self.entry(account: "102")], account: "102"),
             try self.archive([self.entry(id: 8), self.entry(account: "102", id: 9)]),
             try self.archive([self.entry(id: 8), self.entry(id: 9, namespace: 2)]),
-            try self.archive([self.entry(id: 8, text: String(repeating: "x", count: 8196))]),
+            try self.archive([self.entry(id: 8, text: String(repeating: "x", count: WhitegramHistoryStore.maximumTextBytes + 4))]),
             try self.archive([self.entry(id: 8, media: [WhitegramHistoryMedia(kind: .file, size: -1)])]),
             try self.archive([self.entry(id: 8)], version: 2),
             Data(repeating: 0, count: WhitegramHistoryStore.maximumArchiveBytes + 1)
@@ -246,5 +246,60 @@ final class WhitegramHistoryStoreTests: XCTestCase {
         do { _ = try await self.snapshot(store); XCTFail("Removed account persisted") }
         catch { }
         XCTAssertFalse(FileManager.default.fileExists(atPath: self.directory.path))
+    }
+
+    func testFullUnicodeTelegramTextBeyondOldLimitSurvivesRoundTrip() async throws {
+        let text = String(repeating: "🙂", count: 4096)
+        XCTAssertGreaterThan(text.utf8.count, 8192)
+        let store = self.store()
+        store.append(self.entry(text: text))
+        let first = try await self.snapshot(store)
+        XCTAssertEqual(first.first?.text, text)
+        let reloaded = try await self.snapshot(self.store())
+        XCTAssertEqual(first, reloaded)
+    }
+
+    func testInvalidPackedPeerIdentitiesCannotReachNativeRestoration() async throws {
+        let store = self.store()
+        store.append(self.entry())
+        let before = try await self.exported(store)
+        for peer in ["0", "-1", "0200", String(Int64.max), String((Int64(3) << 32) | 123)] {
+            do { _ = try await self.imported(self.archive([self.entry(peer: peer)]), into: store); XCTFail("Invalid peer accepted: \(peer)") }
+            catch { }
+        }
+        let after = try await self.exported(store)
+        XCTAssertEqual(before, after)
+    }
+
+    func testOriginalBackupNeedsExplicitBindingAndRemainsAccountIsolated() async throws {
+        let data = Data("""
+        [{"peerIdNamespace":2,"peerIdId":5000000000,"messageIdNamespace":0,"messageIdId":7,"authorIdNamespace":0,"authorIdId":300,"text":"Original backup","timestamp":1700000000,"isOutgoing":false}]
+        """.utf8)
+        let first = self.store()
+        do { _ = try await self.imported(data, into: first); XCTFail("Unscoped array silently assigned to an account") }
+        catch { }
+        let added: Int = try await self.result { first.importOriginalBackupForThisAccount(data, completion: $0) }
+        XCTAssertEqual(added, 1)
+        let entries = try await self.snapshot(first)
+        XCTAssertEqual(entries.first?.accountId, "101")
+        XCTAssertEqual(entries.first?.peerId, String(try XCTUnwrap(whitegramHistoryPackedPeer(namespace: 2, id: 5000000000))))
+        XCTAssertEqual(entries.first?.text, "Original backup")
+        let second = try await self.snapshot(self.store(account: 102))
+        XCTAssertTrue(second.isEmpty)
+        let duplicate: Int = try await self.result { first.importOriginalBackupForThisAccount(data, completion: $0) }
+        XCTAssertEqual(duplicate, 0)
+    }
+
+    func testInvalidOriginalBackupIsAllOrNothing() async throws {
+        let store = self.store()
+        store.append(self.entry())
+        let before = try await self.exported(store)
+        let valid = WhitegramHistoryLegacyMessage(peerIdNamespace: 0, peerIdId: 200, messageIdNamespace: 0, messageIdId: 8, authorIdNamespace: nil, authorIdId: nil, text: "valid", timestamp: 1700000000, isOutgoing: false)
+        let invalid = WhitegramHistoryLegacyMessage(peerIdNamespace: 3, peerIdId: 201, messageIdNamespace: 0, messageIdId: 9, authorIdNamespace: nil, authorIdId: nil, text: "secret peer", timestamp: 1700000000, isOutgoing: false)
+        let data = try JSONEncoder().encode([valid, invalid])
+        do { let _: Int = try await self.result { store.importOriginalBackupForThisAccount(data, completion: $0) }; XCTFail("Mixed valid/invalid import accepted") }
+        catch { }
+        let after = try await self.exported(store)
+        XCTAssertEqual(before, after)
     }
 }

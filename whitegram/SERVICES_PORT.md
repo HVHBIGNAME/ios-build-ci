@@ -1,8 +1,8 @@
 # Whitegram AI and VirusTotal services
 
-Source installation, main-menu routing and startup credential migration are connected by the parent integration; see [PORT_STATUS.md](PORT_STATUS.md) for the current checks and Apple build checkpoint.
+The recovered service implementation is ready for parent integration and Apple-host verification. The signed Whitegram provider-proxy adapter remains an explicit blocker. The current file maps, defaults, evidence and check results are in [parity/services.json](parity/services.json).
 
-This port provides real request/response implementations and interactive SettingsUI screens. The source API baseline is the assembled `whitegram-port-12.9.2` tree. All implementation files below belong in **SettingsUI**, including the Foundation-only service files. `WhitegramPreferences` is imported from **TelegramCore**.
+This port provides request/response implementations and interactive SettingsUI screens. The read-only API baseline is `C:/coding/telegram/whitegram/source-12.9.2`, qualified by `C:/coding/telegram/whitegram/recovery_20261002/campaign/reference-ready.json`. All service files below belong in **SettingsUI**, including the Foundation-only files. `WhitegramPreferences` and recovered `WhitegramLocalization` are imported from **TelegramCore**. Text/speech translation has its own module map in [TRANSLATION_PORT.md](TRANSLATION_PORT.md).
 
 ## Files
 
@@ -11,13 +11,18 @@ All paths in this table are relative to `whitegram/cleanroom/`.
 | File | Responsibility |
 | --- | --- |
 | `WhitegramAIService.swift` | Gemini/Groq request builders, response decoders, public AI client |
+| `WhitegramAIStreaming.swift` | Incremental Groq SSE framing, partial text and terminal-result validation |
+| `WhitegramAIModels.swift` | Gemini model pagination and Groq model discovery |
 | `WhitegramAISettingsController.swift` | Provider/model/key configuration, transcript, send/cancel/retry/clear, response viewer/copy |
 | `WhitegramAIConversation.swift` | Account/provider-scoped persistence, revision arbitration, multi-turn lifecycle |
+| `WhitegramAILegacyHistory.swift` | Original v5 role/text JSON import without invented metadata |
 | `WhitegramVirusTotalService.swift` | Hash/URL/IP report requests, typed statistics/engine results, unknown-report handling |
 | `WhitegramVirusTotalTargets.swift` | Target normalization, validation and message-text/link extraction |
 | `WhitegramVirusTotalMessageContext.swift` | Native entity adapter and preference-aware target submission |
 | `WhitegramVirusTotalFileHasher.swift` | Security-scoped, coordinated, incremental SHA-256 file hashing |
-| `WhitegramVirusTotalController.swift` | Document picker, manual hash entry, lookup/cancel, statistics, engine results, report link |
+| `WhitegramVirusTotalUpload.swift` | Private disk-backed multipart snapshot of the exact hashed bytes |
+| `WhitegramVirusTotalScan.swift` | Fixed connection probe, URL submission, file reanalysis/upload, bounded status polling |
+| `WhitegramVirusTotalController.swift` | File/indicator review, hash/lookup/upload/resume, statistics, engine results, report link |
 | `WhitegramServiceCore.swift` | Errors, limits, cancellation/completion arbitration, request gate/backoff |
 | `WhitegramServiceHTTP.swift` | Bounded ephemeral URLSession transport, redirect refusal, request construction |
 | `WhitegramServiceCredentials.swift` | Keychain adapter, testable migration policy, preference-aware public callbacks |
@@ -25,7 +30,7 @@ All paths in this table are relative to `whitegram/cleanroom/`.
 
 ## Parent integration
 
-The assembler installs **all twelve files** into SettingsUI and routes the appropriate menu/settings actions to:
+The assembler must import **all seventeen entries** from `service_patches.SERVICES_RUNTIME_FILES` into SettingsUI and route the appropriate menu/settings actions to:
 
 ```swift
 public func whitegramAISettingsController(context: AccountContext) -> ViewController
@@ -37,9 +42,14 @@ For a selected message or an already-known file hash:
 ```swift
 public func whitegramAISettingsController(context: AccountContext, text: String?) -> ViewController
 public func whitegramVirusTotalController(context: AccountContext, sha256: String?) -> ViewController
+public func whitegramVirusTotalController(context: AccountContext, targets: [WhitegramVirusTotalTarget]) -> ViewController
+public func whitegramVirusTotalController(context: AccountContext, message: EngineMessage) -> ViewController
+public func whitegramVirusTotalController(context: AccountContext, fileURL: URL, fileName: String) -> ViewController
 ```
 
-The AI overload opens a prefilled composer. “Use Text” returns to the settings screen; **Send Prompt** is the submission action. The VirusTotal overload prefills a hash for review; **Look Up SHA-256** is still required. Neither entrypoint makes an automatic request.
+The AI overload opens a prefilled composer. “Use Text” returns to the settings screen; **Send Prompt** is the submission action. VirusTotal overloads open review screens. Indicator lookup, Telegram attachment download, and upload are distinct explicit actions. Opening a screen makes no request. The message-menu action is gated by `virusTotalEnabled` and excludes secret chats.
+
+`service_patches(patches: SourcePatches)` composes in memory; `apply_service_patches(root)` writes only after every anchor is validated. It transforms `submodules/TelegramUI/Sources/ChatInterfaceStateContextMenus.swift`. Apply to the assembled baseline after the public/compatibility overlay. Replay and history-menu composition are checked against the ready reference.
 
 The controllers use the target's `ItemListNodeEntry.item(presentationData:arguments:)` and `ItemListController(context:state:)` APIs. The latter convenience initializer is defined in **PresentationDataUtils**, which is explicitly imported. Coordinators are retained by the controller's state signal/lifecycle closures; controller back-references are weak. Native document-picker and presentation delegates remain retained for their presentation lifetime.
 
@@ -48,7 +58,7 @@ The parent still owns source installation/discovery, menu/catalog routing, chat-
 ### Modules and frameworks
 
 - Telegram modules: **AccountContext, Display, ItemListUI, PresentationDataUtils, SwiftSignalKit, TelegramCore, TelegramPresentationData**. These are already dependencies in the inspected SettingsUI `BUILD`.
-- Apple SDK: **Foundation, UIKit, Security, UniformTypeIdentifiers, CryptoKit, Darwin**.
+- Apple SDK: **Foundation, CoreFoundation, UIKit, Security, UniformTypeIdentifiers, CryptoKit, Darwin**.
 - File hashing requires **iOS 13.4+ / macOS 10.15.4+**, including the throwing `FileHandle.read(upToCount:)` API. Earlier systems receive a hashing-unavailable error and can enter a hash manually. The iOS 14 document-picker initializer has an older-API fallback.
 - `FoundationNetworking` is conditionally imported only where the host Swift toolchain needs it.
 - No provider SDK, downloaded model package or third-party networking/crypto dependency is required.
@@ -84,7 +94,10 @@ public static func hash(
 - The settings screens cancel active work when leaving the screen or entering the background, and use operation IDs to discard stale results. Presenting their own editor/picker does not end the screen's lifetime.
 - Public low-level clients are also available: `WhitegramAIService.generate(text:provider:model:apiKey:completion:)` and `WhitegramVirusTotalService.lookup(sha256:apiKey:completion:)`. These take explicit credentials and do not consult the enabled preferences. Prefer the wrappers and `.shared` clients for app integration.
 - Clients accept a `WhitegramServiceTransport` for testing. The default transport uses URLSession. `WhitegramServiceCancellable` supplies `cancel()`.
+- `WhitegramServiceStreamingTransport` supplies serial stream callbacks. `WhitegramServiceUploadTransport` must complete only after it has stopped reading the body file, including cancellation. The URLSession implementation retains the completion/snapshot through session invalidation.
 - UI connection-status persistence is performed by the controller, not by low-level or preference-aware callback clients.
+
+Additional callbacks are `whitegramLookupVirusTotalTarget`, `whitegramScanVirusTotalTarget` and `whitegramUploadAndScanVirusTotalFile`. Their full typed signatures are in `WhitegramVirusTotalMessageContext.swift`. Low-level `WhitegramVirusTotalService` also exposes `testConnection`, `scan`, `resumeAnalysis` and `uploadAndScan`. Scan progress distinguishes preparing, the prepared file hash, upload, accepted submission, and pending analysis. A returned analysis is successful only at `status == completed`.
 
 ## Implemented behavior
 
@@ -97,21 +110,31 @@ public static func hash(
 
 The low-level single-text API sends one user message. The conversation screen sends the **exact submitted text plus completed turns from that account/provider's local AI conversation**. It does not collect Telegram chats, account identifiers, attachments or clipboard contents. Gemini uses `user`/`model` roles in `contents`; Groq uses `user`/`assistant` roles in `messages`. Invalid role sequences and oversized encoded conversations are rejected before a request starts.
 
-Model IDs are editable strings. No model availability is fabricated and no fallback model is silently selected. Gemini accepts a bare model ID or the `models/` prefix; Groq accepts namespaced IDs. Unsupported IDs produce the real HTTP error. An unrecognized/empty provider preference requires an explicit provider selection.
+Model IDs are editable strings. Absent preferences use the recovered getters' defaults: **`gemini-3-flash-preview`** and **`llama-3.3-70b-versatile`**. This does not assert current model availability. Explicit model preferences are retained and errors never switch models. Gemini accepts a bare ID or `models/` prefix; Groq accepts namespaced IDs. The provider defaults to Gemini only when absent; an unrecognized/empty saved value requires explicit selection. Gemini's original model allow-list filter is not used to overwrite custom model selections.
 
-Gemini decoding selects candidate index 0 (or the first candidate if indices are absent), concatenates its text parts, excludes `thought` parts, and handles prompt/candidate blocking. Groq decoding selects one choice's `message.content`. Output-limit responses retain their text and are visibly marked partial. Missing text, tool-only output, malformed JSON, unsupported finish states, and invalid metadata produce errors. Token counts are displayed only when the provider supplies them.
+Model discovery calls `GET /v1beta/models?pageSize=20[&pageToken=…]` for Gemini and `GET /openai/v1/models` for Groq. Only Gemini models advertising `generateContent` and Groq models not explicitly inactive are shown. Groq's list may include non-text models. Listing access is not represented as generation access.
 
-Conversation turns persist in account/provider-specific files, bounded to 100 turns and 8 MiB. Failed/cancelled prompts stay visible but are excluded from subsequent conversation context. Retry replaces the last unfinished turn. Clearing writes a new empty revision so another screen's stale response cannot restore cleared history. Full results are selectable plain text. Copy is explicit, device-local and expires after one hour. Original `wg_geminiChatHistory_v5`/`wg_groqChatHistory_v5` keys identify the recovered feature, but their backup format is not claimed compatible with this new store.
+Gemini decoding selects candidate index 0 (or the first candidate if indices are absent), concatenates its text parts, excludes `thought` parts, and handles prompt/candidate blocking. Its recovered `generateContent` flow supplies a completed text callback. Groq's conversation flow consumes SSE incrementally across arbitrary UTF-8/CR/LF boundaries. It requires a terminal finish reason and `[DONE]`; premature EOF is not success. Output-limit replies are marked partial. Tool requests, including mixed text/tool output, fail explicitly because Telegram tool execution is not connected. Token counts are displayed only when supplied.
+
+Conversation turns persist beneath `<account.basePath>/whitegram-ai-v1/<accountId>/{gemini,groq}.json`, bounded to 100 current turns and 8 MiB. Failed/cancelled prompts and partial text stay visible but are excluded from subsequent context. Retry replaces the last unfinished turn. An explicit new prompt after a restart can supersede an interrupted pending turn. Clearing writes an empty revision, preventing stale replies from restoring cleared history. Copy is explicit, device-local and expires after one hour.
+
+Original `wg_geminiChatHistory_v5`/`wg_groqChatHistory_v5` values are JSONEncoder **Data** containing up to 200 `{role,text}` entries; **both** providers stored `user`/`model` roles. Import is explicit because the source is app-wide and records no account. It copies exact entries to an empty account/provider store, retains the original Data, and invents no dates/models. Orphan assistant and unanswered user entries remain visible; only complete adjacent pairs enter new context. Malformed/oversized histories are preserved and rejected. The current version-1 record gained optional `legacyHistory` and `partialText` fields; old records remain decodable.
 
 ### VirusTotal
 
-Read-only requests use `GET /api/v3/files/{sha256}`, `/urls/{base64url-id}` or `/ip_addresses/{address}` at `https://www.virustotal.com`, authenticated by `x-apikey`, with no request body. URL/IP reports share the file lookup's gate/backoff. There is no file-upload or scan-submission implementation.
+Direct requests use `GET /api/v3/files/{sha256}`, `/urls/{base64url-id}` or `/ip_addresses/{address}` at `https://www.virustotal.com`, authenticated by `x-apikey`. They share one gate/backoff with submissions. Direct API requires explicit selection in the native settings screen; absent route state preserves the original proxy requirement.
+
+- URL scan: form-encoded `POST /api/v3/urls` preserving the reviewed query parameters.
+- Existing file reanalysis: `POST /api/v3/files/{sha256}/analyse`.
+- Upload: multipart `POST /api/v3/files` through **32 MiB inclusive**; larger files first obtain `GET /api/v3/files/upload_url`. Returned upload URLs must remain on `https://www.virustotal.com` at an allowed upload path. No redirect forwarding is allowed.
+- Status: `GET /api/v3/analyses/{id}`, at most **20 checks**, normally 15 seconds apart. Queued/in-progress/empty statistics never become a clean verdict. Bounded GET rate-limit delays are supported; POST is never retried automatically.
+- Connection test: lookup the original fixed **`https://vk.com`** probe. It does not submit that URL for scanning.
 
 `service_patches.py` adds a message-context action for extracted HTTP(S) links, IPv4/IPv6 addresses and SHA-256 indicators. Telegram link entities take precedence over plain-text detection; indicators are deduplicated and bounded. The action opens a review/selection screen. Only an explicit Look Up sends the chosen indicator, including URL query parameters, to VirusTotal. Other message text is not sent. Secret-chat context actions are excluded.
 
 The native document picker opens one file without copying it into app storage. Hashing uses a background queue, a security-scoped URL, `NSFileCoordinator`, `FileHandle` reads and incremental `CryptoKit.SHA256`. It checks the size before/while reading, rejects directories/packages/symlinks, and checks descriptor/path identity, size and modification metadata after reading. File-provider materialization may occur through the system file provider; no file contents are sent to VirusTotal. Cancelling interrupts coordination and stops reading at a chunk boundary; completion can be delivered while system file-provider cancellation finishes.
 
-After hashing, the user explicitly taps **Look Up SHA-256**. Manual SHA-256 input is also supported. The service validates exactly 64 hexadecimal characters and normalizes letter case.
+After hashing, the user explicitly taps **Look Up SHA-256** or confirms **Upload File & Scan**. Upload builds a private multipart file while hashing its exact bytes again, checks any previously reviewed hash, and retains that snapshot until URLSession has stopped reading it. The prepared hash becomes the report target even for a file opened without a prior hash. Temporary snapshots are removed after use. Manual hash entry requires exactly 64 hexadecimal characters.
 
 Reports expose:
 
@@ -129,9 +152,9 @@ VirusTotal's JSON `404 / NotFoundError` maps to `.notFound(sha256:)` and is disp
 - Generation budget: **4,096 output tokens**. This may include a model's reasoning budget; a model that returns no visible text gets a no-text error.
 - Response: **2 MiB AI**, **4 MiB VirusTotal**, enforced against declared length and accumulated chunks.
 - File: **512 MiB**, read in **1 MiB** chunks; empty files are supported.
-- Idle/request timeout: **45 s**. URLSession resource timeout: **90 s**.
+- Idle/request timeout: **45 s**. Resource timeout: **90 s**, or **600 s** for upload. Native attachment download is bounded to **300 s**.
 - One HTTP request at a time per client. Shared AI client: at least **1 s** between starts. Shared VirusTotal client: at least **15 s**. Cancellation does not refund this spacing.
-- `429` and `503` with `Retry-After` extend backoff. Seconds and HTTP dates are supported; malformed/missing 429 values use 60 s, extreme values are capped at seven days. There are **no automatic retries**.
+- `429` and `503` with `Retry-After` extend backoff. Seconds and HTTP dates are supported; malformed/missing 429 values use 60 s, extreme values are capped at seven days. Only analysis-status GETs retry bounded rate limits (at most 300 seconds per delay and within the 20-check budget). Generation, report lookup, model discovery and POST submission are not automatically retried.
 - HTTP authentication/permission/model errors, offline/timeout failures, oversized responses, bad JSON and cancellation are surfaced as fixed errors. Raw provider error bodies and URLSession descriptions are not displayed or logged.
 - Sessions are ephemeral with cache, cookies and shared URL credential storage disabled. All redirects are refused, including same-host redirects, so API-key headers are never forwarded by redirection. Normal system TLS validation is retained.
 - Cancelling ends the local operation; it cannot retract text a provider already received.
@@ -144,12 +167,13 @@ VirusTotal's JSON `404 / NotFoundError` maps to `.notFound(sha256:)` and is disp
 | `aiProvider` | `gemini` or `groq`; existing case variants are read case-insensitively |
 | `geminiModelId`, `groqModelId` | Separate editable model strings |
 | `geminiApiKey`, `groqApiKey` | Legacy credential lookup keys and Keychain account names; new tokens are not saved in preferences |
-| `geminiUseProxy`, `groqUseProxy` | Unsupported legacy app-proxy flags; not applied and not exposed as working switches |
+| `geminiUseProxy`, `groqUseProxy` | Original default **true**. Unsupported signed proxy fails explicitly; only explicit false selects Direct API |
 | `virusTotalEnabled` | Enables hash/URL/IP HTTP lookups; local hashing can be used independently |
+| `virusTotalUseProxy` | **New Bool, default true**, mirrors `wg_virusTotalUseProxy`. Explicit false enables Direct API; original VirusTotal had a mandatory proxy |
 | `virusTotalApiKey` | Legacy lookup key and Keychain account name |
 | `virusTotalConnectionStatus` | Timestamped string from the current controller's real request outcome; cleared when its key changes |
 
-Networking uses the system's URLSession configuration, including configured system networking. Telegram's MTProto/SOCKS configuration and the recovered private proxy flags are not wired into these HTTP clients. No private proxy or custom endpoint is guessed. Historical saved connection strings are not treated as a current authentication check.
+Direct networking uses the system's URLSession configuration. The recovered proxy path requires an account-bound signed Whitegram session, beta permission, pinned TLS and **`X-Provider-Key`**, retaining Whitegram's `Authorization` header. Original VirusTotal has `/v1/proxy/virustotal/v3`; upload responses rewrite the official API prefix to this proxy. The current backend client lacks a provider-header/SSE/body-file transport contract and strips error response bodies needed for `404 NotFoundError`. Exact coordination requirements and original addresses are recorded in the services handoff. No original-proxy flag silently selects Direct API. Historical saved connection strings are not treated as a fresh check.
 
 Keys use generic-password Keychain items with:
 
@@ -173,7 +197,7 @@ Service preferences/keys follow the existing app-wide Whitegram preferences scop
 
 ## Tests and verification
 
-`whitegram/tests/services/` contains **56 XCTest methods** against actual production builders, parsers, gates, tasks, conversation persistence and credential policy, plus the actual URLSession transport through an intercepting URLProtocol. Apple hosts additionally exercise incremental file hashing and the redirect delegate.
+`whitegram/tests/services/` contains **83 XCTest methods** against production builders, decoders, SSE framing, quota gates, conversation persistence, v5 import and credential policy, plus URLSession through an intercepting URLProtocol. Apple-only cases exercise file hashing, multipart snapshots, the 32 MiB threshold, delayed upload cancellation and redirects. These methods were **not executed on this Windows host**.
 
 Run on a Swift-capable host:
 
@@ -181,27 +205,28 @@ Run on a Swift-capable host:
 python3 -B whitegram/tests/services/run_swift_tests.py
 ```
 
-The runner copies the eight non-UI production files into an isolated, dependency-free SwiftPM host beneath `tests/services/.host-package`, records their SHA-256 digests, and keeps build/cache/temp artifacts beneath `tests/services/.host-artifacts`. It does not compile a substitute service implementation. It accepts `--swift <executable>` and `--filter <XCTest filter>`.
+The runner copies the thirteen non-UI production files into an isolated, dependency-free SwiftPM host beneath `tests/services/.host-package`, records SHA-256 digests, and keeps build/cache/temp artifacts beneath `tests/services/.host-artifacts`. It does not compile a substitute service implementation. It accepts `--swift <executable>` and `--filter <XCTest filter>`.
 
-- macOS: all 56 methods are present, including known SHA-256 vectors, multiple chunk boundaries, oversized sparse files, symlinks, cancellation, stale-conversation revisions, target extraction and real redirect-delegate behavior.
-- Linux: request/parsing/credential-policy/task tests and URLSession fixture tests are host-independent. The five CryptoKit/Darwin hash methods are excluded; the redirect test explicitly skips FoundationNetworking's unimplemented URLProtocol redirect callback.
+- macOS: all 83 methods are supplied. The SwiftPM package targets macOS 10.15.4+.
+- Linux: Foundation tests are available; CryptoKit/Darwin hashing and upload-file cases are excluded. The redirect test skips FoundationNetworking's unimplemented URLProtocol redirect callback.
 - No tests require real credentials or permit a request to reach a provider. URLSession tests install a URLProtocol that intercepts every URL; the other client tests inject a manual transport.
 - The native Security/TelegramCore adapter, settings UI, signing, native picker presentation and actual API access still need the app's Apple build/device verification.
 
 Offline syntax/source-contract check used in this Windows workspace:
 
 ```text
-C:\Users\Pisun4ik\AppData\Local\Temp\opencode\whitegram-check-env\Scripts\python.exe -B whitegram/tests/services/check_sources.py --target C:\Users\Pisun4ik\AppData\Local\Temp\opencode\whitegram-port-12.9.2
+C:\coding\telegram\whitegram\whitegram-check-env\Scripts\python.exe -B whitegram/tests/services/check_sources.py --target C:\coding\telegram\whitegram\source-12.9.2
 ```
 
-This uses tree-sitter 0.25.2 / swift grammar 0.7.3 and checks the target controller signatures/import, endpoint/auth-storage invariants, masked editors and bounded file reads. It is **syntax/static validation, not Swift compilation or runtime verification**. Twelve production and six test Swift files pass this check. The first 49 native tests passed in earlier macOS runs; the new conversation/target cases require the new revision's runner. No actual provider request or device execution is claimed.
+This checks Swift syntax, target controller signatures/imports, endpoint/auth-storage invariants, masked editors and bounded reads. It is **syntax/static validation, not Swift compilation or runtime verification**. The current check covers seventeen production and eight test Swift files. `test_service_patches.py` supplies three in-memory source tests, including fail-before-write and history composition; set `WHITEGRAM_ASSEMBLED_SOURCE` to the read-only ready reference. No provider request or device execution is claimed.
 
 ## Remaining integration/unsupported features
 
-- Streaming, audio/image/file AI input, Gemini tuned/dynamic resource endpoints, model discovery, provider tool execution and custom HTTP endpoints/proxies.
-- VirusTotal upload/reanalysis, automatic attachment scanning, paid intelligence APIs and verdict guarantees. This port fetches existing file/URL/IP reports.
-- Original persisted AI-history format migration and service plugin bindings beyond the existing explicit callback APIs.
-- UI copy is currently English; recovered localization strings were not invented.
+- Signed proxy adapter/session/pinning integration for AI and VirusTotal. Current direct workflows are executable only after explicit route selection.
+- Original AI Telegram tool execution, audio/image/file inputs, dynamic/tuned model endpoints and any additional plugin bindings. Text-only replies never claim that an unconnected tool executed.
+- Exact retired-AI menu eligibility is parent-owned; original 3.1.1 has no active AI main section. Existing history and credentials are preserved.
+- Native Swift/UIKit/Security build and provider/device validation. No live credentials, API requests or scans were used in development.
+- Original setting titles use verified ru/uk/en localization keys. Additional workflow/error explanations remain English; no new translations were presented as recovered originals.
 
 ### Official protocol references
 

@@ -10,11 +10,17 @@ import TelegramCore
 private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceListActions, UIDocumentPickerDelegate {
     let entries = ValuePromise<[WhitegramServiceEntry]>([], ignoreRepeated: true)
     let presenter = WhitegramServicePresenter()
+    private let context: AccountContext
+    private let attachment: EngineMessage?
     private var observers: [NSObjectProtocol] = []
     private var sha256: String
     private var target: WhitegramVirusTotalTarget?
     private let messageTargets: [WhitegramVirusTotalTarget]
     private var file: WhitegramVirusTotalFileHash?
+    private var fileURL: URL?
+    private var fileName: String?
+    private var analysis: WhitegramVirusTotalAnalysis?
+    private var analysisId: String?
     private var result: WhitegramVirusTotalTargetLookupResult?
     private var task: WhitegramServiceTask?
     private var taskId: UUID?
@@ -23,7 +29,11 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
     private var status = ""
     private var connection = "Not checked in this session."
 
-    init(sha256: String? = nil, targets: [WhitegramVirusTotalTarget] = []) {
+    init(context: AccountContext, sha256: String? = nil, targets: [WhitegramVirusTotalTarget] = [], attachment: EngineMessage? = nil, fileURL: URL? = nil, fileName: String? = nil) {
+        self.context = context
+        self.attachment = attachment
+        self.fileURL = fileURL
+        self.fileName = fileName
         self.sha256 = sha256 ?? ""
         var seen = Set<WhitegramVirusTotalTarget>()
         self.messageTargets = Array(targets.compactMap { try? $0.validated() }.filter { seen.insert($0).inserted }.prefix(WhitegramVirusTotalTargets.maximumTargets))
@@ -38,6 +48,7 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
         if !self.messageTargets.isEmpty { self.status = "Review the selected target, then tap Look Up to send it to VirusTotal." }
         self.presenter.changed = { [weak self] in self?.refresh() }
         self.observers.append(whitegramServiceObserve(WhitegramPreferences.updatedNotification) { [weak self] _ in self?.refresh() })
+        self.observers.append(whitegramServiceObserve(WhitegramLocalizationStore.changedNotification) { [weak self] _ in self?.refresh() })
         self.observers.append(whitegramServiceObserve(WhitegramServiceCredential.updatedNotification) { [weak self] notification in
             guard let self = self, notification.object as? WhitegramServiceCredential == .virusTotal else { return }
             self.cancel(message: "API key changed. Operation cancelled.")
@@ -69,7 +80,8 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
         var credentialError: WhitegramServiceError?
         do { keyAvailable = try WhitegramServiceCredentials.vault.token(for: .virusTotal) != nil }
         catch { credentialError = error as? WhitegramServiceError ?? .preferences }
-        let configuration = [enabled, keyAvailable]
+        let route = WhitegramServiceRoute.configuredVirusTotal
+        let configuration = [enabled, keyAvailable, route == .direct]
         if let previous = self.configuration, previous != configuration {
             self.cancel(message: "Configuration changed. Operation cancelled.")
             self.connection = "Not checked for these settings."
@@ -81,17 +93,22 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
         func add(_ id: String, _ section: Int32, _ content: WhitegramServiceEntry.Content) {
             rows.append(WhitegramServiceEntry(stableId: id, order: rows.count, section: section, content: content))
         }
-        add("enabled", 0, .toggle("Enable VirusTotal Lookups", enabled, idle))
-        add("key", 0, .disclosure("API Key", keyAvailable ? "•••••••• · Keychain" : "Not set", idle))
+        add("enabled", 0, .toggle(WhitegramLocalization.string("s.virusTotalEnabled"), enabled, idle))
+        add("route", 0, .disclosure("Connection Route", route == .direct ? "Direct API" : "Original Whitegram Proxy", idle))
+        if route == .originalProxy { add("proxyStatus", 0, .text(WhitegramServiceError.originalProxyUnavailable.localizedDescription)) }
+        add("key", 0, .disclosure(WhitegramLocalization.string("s.virusTotalApiKey"), keyAvailable ? "•••••••• · Keychain" : "Not set", idle))
         add("removeKey", 0, .action("Remove API Key", idle && (keyAvailable || credentialError != nil)))
+        add("testConnection", 0, .action("Test Connection", idle && enabled && keyAvailable))
         if let error = credentialError { add("credentialError", 0, .text(error.localizedDescription)) }
-        add("network", 0, .text("Queries VirusTotal's official API v3 file, URL and IP address reports using system network settings. All target types share the 15-second request spacing and your account's API quotas."))
+        add("network", 0, .text("Direct API is an explicit choice using your key at VirusTotal's official API v3. The original route uses a signed Whitegram session. Reports, uploads and polling share the 15-second spacing and your account's quotas. Test Connection looks up the original fixed https://vk.com probe; it sends no message or file."))
         add("hashHeader", 1, .header("TARGET"))
         add("chooseFile", 1, .action("Choose File to Hash…", idle))
+        if self.attachment != nil { add("downloadAttachment", 1, .action("Download Message File & Hash", idle)) }
+        if self.fileURL != nil && self.file == nil { add("hashSelectedFile", 1, .action("Hash Selected File", idle)) }
         add("editHash", 1, .action("Enter SHA-256…", idle))
         add("editTarget", 1, .action("Enter URL or IP Address…", idle))
         if self.messageTargets.count > 1 { add("chooseTarget", 1, .disclosure("Message Targets", "\(self.messageTargets.count)", idle)) }
-        add("hashInfo", 1, .text("A selected file is read locally in 1 MiB chunks, up to 512 MiB. Look Up SHA-256 sends only its hash. File contents and the local filename are never uploaded."))
+        add("hashInfo", 1, .text("A selected file is read locally in 1 MiB chunks, up to 512 MiB. Look Up SHA-256 sends only its hash. Upload File & Scan sends an exact checked snapshot of its contents and filename to VirusTotal, which can retain and share submitted files."))
         add("targetPrivacy", 1, .text("URL/IP lookup sends the selected indicator, including URL query parameters, to VirusTotal. VirusTotal may retain or analyze queried indicators. Review it before sending. Other message text is not sent."))
         if let file = self.file {
             add("file", 1, .text(String(file.fileName.prefix(256)) + " · " + ByteCountFormatter.string(fromByteCount: file.byteCount, countStyle: .file)))
@@ -102,9 +119,24 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
             if case .file = target { add("copyHash", 1, .action("Copy SHA-256", idle)) }
         }
         add("lookup", 1, .action("Look Up " + (self.target?.title ?? "Report"), idle && enabled && keyAvailable && self.target != nil))
+        if case .url? = self.target { add("submitScan", 1, .action("Submit URL for Scan", idle && enabled && keyAvailable)) }
+        if case .file? = self.target { add("submitScan", 1, .action("Reanalyse Existing File Report", idle && enabled && keyAvailable)) }
+        if self.fileURL != nil { add("uploadScan", 1, .action("Upload File & Scan…", idle && enabled && keyAvailable)) }
+        if self.analysisId != nil { add("resumeAnalysis", 1, .action("Check Submitted Analysis", idle && enabled && keyAvailable)) }
         if self.task != nil { add("cancel", 1, .action("Cancel Operation", true)) }
         add("connection", 1, .text("Connection: " + self.connection))
         if !self.status.isEmpty { add("status", 1, .text(self.status)) }
+        if let analysis = self.analysis {
+            add("analysisHeader", 2, .header("SUBMITTED ANALYSIS"))
+            add("analysisState", 2, .text("Status: " + analysis.status.rawValue + "\nID: " + analysis.id))
+            add("analysisSummary", 2, .text(analysis.summary))
+            if let date = analysis.date { add("analysisTime", 2, .text(whitegramServiceDate(date))) }
+            for category in (analysis.statistics ?? [:]).keys.sorted() {
+                if let count = analysis.statistics?[category] { add("analysisStat:" + category, 2, .text(category + ": \(count)")) }
+            }
+            add("analysisEngines", 2, .action("View Submitted Analysis Engines (\(analysis.engines.count))", idle))
+            add("analysisReportHint", 2, .text("Look Up retrieves the target's latest stored report and its report link."))
+        }
         if let result = self.result {
             add("reportHeader", 2, .header("EXISTING REPORT"))
             switch result {
@@ -138,12 +170,15 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
         if id == "cancel" { self.cancel(); return }
         guard self.task == nil, !self.presenter.isPresenting else { return }
         switch id {
+        case "route": self.chooseRoute()
         case "key": self.editKey()
         case "removeKey":
             do { try WhitegramServiceCredentials.vault.remove(.virusTotal); self.status = "API key removed." }
             catch { self.status = (error as? WhitegramServiceError ?? .preferences).localizedDescription }
             self.refresh()
         case "chooseFile": self.chooseFile()
+        case "downloadAttachment": self.downloadAttachment()
+        case "hashSelectedFile": if let url = self.fileURL { self.hashFile(url: url, fileName: self.fileName) }
         case "editHash": self.editHash()
         case "editTarget": self.editTarget()
         case "chooseTarget": self.chooseTarget()
@@ -151,6 +186,15 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
             if let target = self.target { self.checkPresentation(self.presenter.showText(title: target.title + " to Look Up", text: target.value)) }
         case "copyHash": whitegramServiceCopy(self.sha256); self.status = "Hash copied for one hour."; self.refresh()
         case "lookup": self.lookup()
+        case "testConnection": self.testConnection()
+        case "submitScan": self.startScan(upload: false, resume: false)
+        case "resumeAnalysis": self.startScan(upload: false, resume: true)
+        case "uploadScan": self.confirmUpload()
+        case "analysisEngines":
+            if let analysis = self.analysis {
+                let text = analysis.engines.map { $0.name + " — " + $0.category + "\n" + ($0.result ?? "No detection name provided") }.joined(separator: "\n\n")
+                self.checkPresentation(self.presenter.showText(title: "Analysis Engine Results", text: text))
+            }
         case "engines":
             if case let .found(report)? = self.result { self.checkPresentation(self.presenter.showText(title: "VirusTotal Engine Results", text: whitegramVirusTotalReportText(report))) }
         case "openReport": self.openReport()
@@ -165,6 +209,20 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
                 catch { self?.status = (error as? WhitegramServiceError ?? .preferences).localizedDescription }
                 self?.refresh()
             }))
+    }
+
+    private func chooseRoute() {
+        let alert = UIAlertController(title: "VirusTotal Connection", message: "The original signed Whitegram proxy is unavailable. Direct API sends the reviewed indicator or explicitly uploaded file directly to VirusTotal with your API key.", preferredStyle: .alert)
+        for (title, useProxy) in [("Direct API", false), ("Keep Original Proxy Setting", true)] {
+            alert.addAction(UIAlertAction(title: title, style: .default, handler: { [weak self] _ in
+                guard let self else { return }
+                self.presenter.close()
+                self.status = WhitegramPreferences.update(["virusTotalUseProxy": useProxy, "virusTotalConnectionStatus": ""]) ? "Connection route saved." : WhitegramServiceError.preferences.localizedDescription
+                self.refresh()
+            }))
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: { [weak self] _ in self?.presenter.close() }))
+        self.checkPresentation(self.presenter.present(alert))
     }
 
     private func editHash() {
@@ -211,6 +269,10 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
         self.sha256 = ""
         if case let .file(hash) = target { self.sha256 = hash }
         self.file = nil
+        self.fileURL = nil
+        self.fileName = nil
+        self.analysis = nil
+        self.analysisId = nil
         self.result = nil
         self.status = "Target ready. Tap Look Up " + target.title + " to query VirusTotal."
     }
@@ -237,6 +299,14 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
         self.presenter.close()
         guard urls.count == 1, let url = urls.first else { self.status = "Choose exactly one file."; self.refresh(); return }
+        self.hashFile(url: url, fileName: nil)
+    }
+
+    private func hashFile(url: URL, fileName: String?) {
+        self.fileURL = url
+        self.fileName = fileName
+        self.analysis = nil
+        self.analysisId = nil
         let id = UUID()
         self.taskId = id
         self.sha256 = ""
@@ -254,7 +324,7 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
             self.taskId = nil
             switch result {
             case let .success(file):
-                self.file = file
+                self.file = WhitegramVirusTotalFileHash(sha256: file.sha256, byteCount: file.byteCount, fileName: fileName ?? file.fileName)
                 self.sha256 = file.sha256
                 self.target = .file(sha256: file.sha256)
                 self.status = "SHA-256 computed locally. Tap Look Up SHA-256 to query the report."
@@ -262,6 +332,115 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
             }
             self.refresh()
         })
+        self.refresh()
+    }
+
+    private func downloadAttachment() {
+        guard let attachment = self.attachment else { return }
+        let id = UUID()
+        self.taskId = id
+        self.status = "Downloading the selected attachment from Telegram…"
+        self.task = whitegramFetchVirusTotalMessageFile(context: self.context, message: attachment, progress: { [weak self] count in
+            guard let self, self.taskId == id else { return }
+            self.status = "Downloaded " + ByteCountFormatter.string(fromByteCount: count, countStyle: .file)
+            self.refresh()
+        }) { [weak self] result in
+            guard let self, self.taskId == id else { return }
+            self.task = nil
+            self.taskId = nil
+            switch result {
+            case let .success(file): self.hashFile(url: file.url, fileName: file.fileName)
+            case let .failure(error): self.status = error.localizedDescription; self.refresh()
+            }
+        }
+        self.refresh()
+    }
+
+    private func confirmUpload() {
+        guard self.fileURL != nil else { return }
+        let alert = UIAlertController(title: "Upload File to VirusTotal?", message: "This sends the selected file's contents and filename to VirusTotal for analysis. VirusTotal may retain and share submitted files. Cancelling later cannot retract an uploaded file.", preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: { [weak self] _ in self?.presenter.close() }))
+        alert.addAction(UIAlertAction(title: "Upload & Scan", style: .default, handler: { [weak self] _ in
+            self?.presenter.close()
+            self?.startScan(upload: true, resume: false)
+        }))
+        self.checkPresentation(self.presenter.present(alert))
+    }
+
+    private func startScan(upload: Bool, resume: Bool) {
+        guard !resume || self.analysisId != nil else { return }
+        let id = UUID()
+        self.taskId = id
+        self.analysis = nil
+        if !resume { self.analysisId = nil }
+        self.status = resume ? "Checking the submitted analysis…" : "Preparing the explicit scan request…"
+        let progress: (WhitegramVirusTotalScanProgress) -> Void = { [weak self] progress in
+            guard let self, self.taskId == id else { return }
+            switch progress {
+            case let .preparing(count, total): self.status = "Preparing checked snapshot: \(count) / \(total) bytes"
+            case let .prepared(file):
+                self.file = WhitegramVirusTotalFileHash(sha256: file.sha256, byteCount: file.byteCount, fileName: self.fileName ?? file.fileName)
+                self.sha256 = file.sha256
+                self.target = .file(sha256: file.sha256)
+                self.result = nil
+            case let .uploading(count, total): self.status = "Uploading: \(count) / \(total) bytes"
+            case let .submitted(analysisId):
+                self.analysisId = analysisId
+                self.status = "Submission accepted. Waiting for analysis; no verdict is available yet."
+            case let .analysing(state, attempt): self.status = "Analysis \(state) · status check \(attempt)"
+            }
+            self.refresh()
+        }
+        let completion: (Result<WhitegramVirusTotalAnalysis, WhitegramServiceError>) -> Void = { [weak self] result in
+            guard let self, self.taskId == id else { return }
+            self.task = nil
+            self.taskId = nil
+            switch result {
+            case let .success(analysis):
+                self.analysis = analysis
+                self.analysisId = analysis.id
+                self.status = "VirusTotal reported this analysis completed."
+                self.recordConnection("Completed analysis received")
+            case let .failure(error): self.status = error.localizedDescription
+            }
+            self.refresh()
+        }
+        self.task = whitegramWithVirusTotalCredential(completion: completion) { key in
+            if resume, let analysisId = self.analysisId {
+                return WhitegramVirusTotalService.shared.resumeAnalysis(id: analysisId, progress: progress, apiKey: key, completion: completion)
+            } else if upload, let url = self.fileURL {
+                return WhitegramVirusTotalService.shared.uploadAndScan(fileURL: url, fileName: self.fileName, expectedHash: self.file?.sha256, progress: progress, apiKey: key, completion: completion)
+            } else if let target = self.target {
+                return WhitegramVirusTotalService.shared.scan(target: target, progress: progress, apiKey: key, completion: completion)
+            }
+            let operation = WhitegramServiceOperation(completion: completion)
+            operation.finish(.failure(.invalidTarget))
+            return operation.task
+        }
+        self.refresh()
+    }
+
+    private func testConnection() {
+        let id = UUID()
+        self.taskId = id
+        self.status = "Looking up the original fixed connection probe…"
+        let completion: (Result<Bool, WhitegramServiceError>) -> Void = { [weak self] result in
+            guard let self, self.taskId == id else { return }
+            self.task = nil
+            self.taskId = nil
+            switch result {
+            case let .success(found):
+                self.status = found ? "Connection probe returned a valid URL report." : "API responded: the connection probe has no report (HTTP 404)."
+                self.recordConnection(self.status)
+            case let .failure(error):
+                self.status = error.localizedDescription
+                self.recordConnection("Connection test failed")
+            }
+            self.refresh()
+        }
+        self.task = whitegramWithVirusTotalCredential(completion: completion) { key in
+            WhitegramVirusTotalService.shared.testConnection(apiKey: key, completion: completion)
+        }
         self.refresh()
     }
 
@@ -357,18 +536,28 @@ public func whitegramVirusTotalController(context: AccountContext) -> ViewContro
 
 /// Opens a prefilled hash for review; a lookup still requires the user's explicit tap.
 public func whitegramVirusTotalController(context: AccountContext, sha256: String?) -> ViewController {
-    let coordinator = WhitegramVirusTotalCoordinator(sha256: sha256)
+    let coordinator = WhitegramVirusTotalCoordinator(context: context, sha256: sha256)
     return whitegramVirusTotalController(context: context, coordinator: coordinator)
 }
 
 /// Reviews extracted targets. Opening this screen and choosing a target never submits a lookup.
 public func whitegramVirusTotalController(context: AccountContext, targets: [WhitegramVirusTotalTarget]) -> ViewController {
-    let coordinator = WhitegramVirusTotalCoordinator(targets: targets)
+    let coordinator = WhitegramVirusTotalCoordinator(context: context, targets: targets)
     return whitegramVirusTotalController(context: context, coordinator: coordinator)
 }
 
+public func whitegramVirusTotalController(context: AccountContext, message: EngineMessage) -> ViewController {
+    let targets = whitegramVirusTotalTargets(text: message.text, entities: message._asMessage().textEntitiesAttribute?.entities ?? [])
+    let coordinator = WhitegramVirusTotalCoordinator(context: context, targets: targets, attachment: message)
+    return whitegramVirusTotalController(context: context, coordinator: coordinator)
+}
+
+public func whitegramVirusTotalController(context: AccountContext, fileURL: URL, fileName: String) -> ViewController {
+    return whitegramVirusTotalController(context: context, coordinator: WhitegramVirusTotalCoordinator(context: context, fileURL: fileURL, fileName: fileName))
+}
+
 private func whitegramVirusTotalController(context: AccountContext, coordinator: WhitegramVirusTotalCoordinator) -> ViewController {
-    let controller = whitegramServiceListController(context: context, title: "VirusTotal", entries: coordinator.entries.get(), actions: coordinator)
+    let controller = whitegramServiceListController(context: context, title: "VirusTotal", entries: coordinator.entries.get(), actions: coordinator, titleKey: "section.virusTotal")
     coordinator.presenter.controller = controller
     controller.didAppear = { [coordinator] _ in coordinator.refresh() }
     controller.didDisappear = { [coordinator] _ in coordinator.disappeared() }

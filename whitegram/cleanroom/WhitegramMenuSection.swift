@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import TelegramCore
 
 /// One row of the Whitegram main menu. Mirrors the recovered `WGMenuSection` shape:
 /// icon, title, description and the settings sections it owns.
@@ -27,12 +28,30 @@ public struct WhitegramMenuSection: Hashable {
         self.enDescription = enDescription
     }
 
-    public func title(russian: Bool) -> String {
-        return russian ? ruTitle : enTitle
+    private var localizationKeys: (title: String, description: String) {
+        switch id {
+        case "localStars": return ("section.stars", "desc.stars")
+        case "traffic": return ("section.antiCensorship", "desc.antiCensorship")
+        case "ai": return ("section.gemini", "desc.gemini")
+        case "apiStatus": return ("apiStatus.title", "apiStatus.description")
+        case "donate": return ("donate.title", "donate.description")
+        case "radio": return ("radio.menuTitle", "radio.menuDescription")
+        case "features": return ("h.features", "desc.features")
+        case "plugins": return ("plugins.title", "di.plugins")
+        case "search": return ("auto.WhitegramSettingsController.c64fa265c6", "auto.WhitegramSettingsController.4502a19525")
+        case "allSettings": return ("section.all", "desc.all")
+        default: return ("section." + id, "desc." + id)
+        }
     }
 
-    public func description(russian: Bool) -> String {
-        return russian ? ruDescription : enDescription
+    public func title(baseLanguage: String) -> String {
+        let russian = WhitegramLocalization.selectedLanguage(baseLanguage: baseLanguage) == "ru"
+        return WhitegramLocalization.string(localizationKeys.title, baseLanguage: baseLanguage, fallback: russian ? ruTitle : enTitle)
+    }
+
+    public func description(baseLanguage: String) -> String {
+        let russian = WhitegramLocalization.selectedLanguage(baseLanguage: baseLanguage) == "ru"
+        return WhitegramLocalization.string(localizationKeys.description, baseLanguage: baseLanguage, fallback: russian ? ruDescription : enDescription)
     }
 
     public func image() -> UIImage? {
@@ -279,5 +298,5 @@ public enum WhitegramMenuCatalog {
         )
     ]
 
-    public static let implemented: Set<String> = ["about", "ghost", "privacy", "plugins", "fonts", "icons", "voiceChanger", "ai", "virusTotal", "messages", "tabs", "camera", "translation", "misc", "sessions", "publicSettings", "interface", "appearance", "info", "search", "allSettings"]
+    public static let implemented: Set<String> = ["about", "ghost", "privacy", "plugins", "fonts", "icons", "voiceChanger", "virusTotal", "messages", "tabs", "camera", "translation", "misc", "sessions", "publicSettings", "interface", "appearance", "info", "search", "allSettings", "localization", "player", "liquidGlass", "localStars"]
 }

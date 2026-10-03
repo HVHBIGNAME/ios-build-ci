@@ -37,15 +37,18 @@ def check(root: Path) -> None:
 
     expected = {
         "submodules/TelegramCore/Sources/State/AccountStateManagementUtils.swift": 5,
-        "submodules/TelegramCore/Sources/PendingMessages/EnqueueMessage.swift": 1,
+        "submodules/TelegramCore/Sources/PendingMessages/EnqueueMessage.swift": 2,
+        "submodules/TelegramCore/Sources/Network/Network.swift": 4,
         "submodules/TelegramCore/Sources/State/ApplyUpdateMessage.swift": 2,
         "submodules/TelegramCore/Sources/TelegramEngine/Messages/DeleteMessagesInteractively.swift": 1,
         "submodules/TelegramCore/Sources/PendingMessages/RequestEditMessage.swift": 4,
         "submodules/TelegramUI/Sources/ChatController.swift": 3,
+        "submodules/TelegramUI/Sources/TelegramRootController.swift": 1,
+        "submodules/TelegramUI/Sources/ChatInterfaceStateContextMenus.swift": 2,
     }
     assert set(patches.pending) == set(expected)
     for path, count in expected.items():
-        assert patches.pending[path].count("WhitegramPluginHooks.") == count, path
+        assert sum(patches.pending[path].count(prefix) for prefix in ["WhitegramPluginHooks.", "WhitegramPluginNativeInterception.", "WhitegramPluginContributions.shared.", "whitegramBootstrapPlugins("]) == count, path
         before = parser.parse(patches.original[path].encode())
         after = parser.parse(patches.pending[path].encode())
         # Full Telegram sources can contain grammar constructs unsupported by

@@ -18,6 +18,8 @@
   var loadPromises = [], installed = false, finishedEntry = false, runtimeStarted = false;
   var nativeSubscriptions = [], ignoredHookResults = Object.create(null);
   var settingsPages = Object.create(null), settingsRows = Object.create(null), settingsSurfaces = Object.create(null);
+  var interceptors = Object.create(null);
+  var menuItems = Object.create(null);
   var stringify = JSON.stringify.bind(JSON), parse = JSON.parse.bind(JSON);
 
   function fault(code, message) {
@@ -150,6 +152,7 @@
   var info = sync("runtime.info");
   var manifest = info.manifest;
   var nativeEvents = info.events || [];
+  var requestEvents = info.requestEvents || [];
   var supported = Object.create(null), permissionTable = Object.create(null);
   manifest.forEach(function (entry) {
     supported[entry.path] = entry;
@@ -172,13 +175,16 @@
     onAppForeground: "app.foreground", onAppBackground: "app.background",
     onThemeChange: "theme.changed", onScreenshot: "app.screenshot", onUpdate: "tg.update"
   };
-  var lifecycleEvents = ["onMessageReceive", "onOutgoingMessage", "onMessageSend", "onChatOpen", "onChatClose", "onUpdates", "preRequest", "postRequest"].concat(Object.keys(legacyEvents));
+  var lifecycleEvents = ["onMessageReceive", "onOutgoingMessage", "onMessageSend", "onChatOpen", "onChatClose", "onUpdates", "preRequest", "postRequest", "onSendMessage", "onAppStart"].concat(Object.keys(legacyEvents));
+  var interceptionNames = { onSendMessage: "message.beforeSend", preRequest: "tg.request" };
+  function interceptionPermission(name) { return name === "message.beforeSend" ? "messages.intercept" : "telegram.intercept"; }
+  function nativeEventPermission(name) { return requestEvents.indexOf(name) !== -1 ? "telegram.intercept" : "messages"; }
   function refreshNativeSubscriptions(extraPattern) {
     if (stopped || stopping) return;
     var patterns = Object.keys(listeners).concat(Object.keys(subscriptions || {}));
     if (extraPattern) patterns.push(extraPattern);
     var names = nativeEvents.filter(function (name) { return patterns.some(function (pattern) { return matches(pattern, name); }); });
-    if (names.length && !gate("messages", "events.subscribe")) names = [];
+    names = names.filter(function (name) { return gate(nativeEventPermission(name), "events.subscribe"); });
     if (stringify(names) === stringify(nativeSubscriptions)) return;
     sync("events.setSubscriptions", [names]);
     nativeSubscriptions = names;
@@ -188,12 +194,16 @@
     if (!pattern || pattern.length > 256) throw fault("INVALID_ARGUMENT", "Invalid event name");
     if (pattern === "prototype" || Object.prototype.hasOwnProperty.call(Object.prototype, pattern)) throw fault("INVALID_ARGUMENT", "Reserved event name");
     pattern = legacyEvents[pattern] || pattern;
+    if (Object.prototype.hasOwnProperty.call(interceptionNames, pattern)) {
+      assertPermission(interceptionPermission(interceptionNames[pattern]), pattern);
+      return pattern;
+    }
     if (nativeEvents.some(function (name) { return matches(pattern, name); })) {
-      assertPermission("messages", "on(" + pattern + ")");
+      nativeEvents.forEach(function (name) { if (matches(pattern, name)) assertPermission(nativeEventPermission(name), "on(" + pattern + ")"); });
       return pattern;
     }
     if (/^(onMessage|onOutgoing|onChat|onUpdate|onSendMessage|preRequest|postRequest|override:|tg\.)/.test(pattern)) {
-      throw fault("UNSUPPORTED_API", "Unsupported Telegram hook " + pattern + "; supported hooks are observational, not interceptors");
+      throw fault("UNSUPPORTED_API", "Unsupported Telegram hook " + pattern);
     }
     return pattern;
   }
@@ -204,20 +214,26 @@
     if (count >= 256) throw fault("QUOTA_EXCEEDED", "Too many event handlers");
     var id = "e" + (++sequence);
     (listeners[name] || (listeners[name] = [])).push({ id: id, callback: callback });
-    try { refreshNativeSubscriptions(); }
+    try {
+      if (Object.prototype.hasOwnProperty.call(interceptionNames, name)) sync("interceptors.add", [id, interceptionNames[name], {}, true]);
+      else refreshNativeSubscriptions();
+    }
     catch (error) { listeners[name].pop(); if (!listeners[name].length) delete listeners[name]; throw error; }
     return id;
   }
   function off(event, id) {
     var name = legacyEvents[event] || String(event);
     if (!listeners[name]) return;
+    if (Object.prototype.hasOwnProperty.call(interceptionNames, name) && !stopped && !stopping) {
+      listeners[name].forEach(function (entry) { if (id == null || entry.id === id || entry.callback === id) sync("interceptors.remove", [entry.id]); });
+    }
     if (id == null) delete listeners[name];
     else listeners[name] = listeners[name].filter(function (entry) { return entry.id !== id && entry.callback !== id; });
     if (listeners[name] && !listeners[name].length) delete listeners[name];
     refreshNativeSubscriptions();
   }
   function eventPermitted(name) {
-    return nativeEvents.indexOf(name) === -1 || gate("messages", "events.deliver");
+    return nativeEvents.indexOf(name) === -1 || gate(nativeEventPermission(name), "events.deliver");
   }
   function deliverEvent(callback, payload, name) {
     if (stopped || stopping || !eventPermitted(name)) return;
@@ -246,6 +262,32 @@
     if (!stopped && !stopping && eventPermitted(name) && typeof global.__wgSDKEvent === "function") byteScope(function () { global.__wgSDKEvent(name, transfer(payload, true)); });
   }
   global.__wgNativeEvent = emit;
+  global.__wgNativeIntercept = function (id, name, payload, legacy) {
+    try {
+      assertActive();
+      assertPermission(interceptionPermission(name), "intercept");
+      var callback;
+      if (legacy) {
+        var event = name === "message.beforeSend" ? "onSendMessage" : "preRequest";
+        var entry = (listeners[event] || []).find(function (value) { return value.id === id; });
+        callback = entry && entry.callback;
+      } else callback = interceptors[id] && interceptors[id].handler;
+      if (!callback) return stringify({ action: "cancel", reason: "INTERCEPTOR_REMOVED" });
+      var result = callback(payload, name);
+      if (result && typeof result.then === "function") {
+        observePromise(result);
+        log("warn", name + " does not support a deferred result; Promise ignored (original native contract)");
+        return stringify({ action: "continue" });
+      }
+      if (result == null) result = { action: "continue" };
+      else if (result === false) result = { action: "cancel" };
+      else if (typeof result !== "object" || !(result.action || result.strategy)) result = { action: "modify", value: result };
+      return stringify(result);
+    } catch (error) {
+      log("error", "intercept " + name + ": " + (error && error.stack || error));
+      return stringify({ action: error && error.code === "PERMISSION_DENIED" ? "cancel" : "continue" });
+    }
+  };
 
   var wg = {
     pluginId: info.id, pluginName: info.name, pluginVersion: info.version,
@@ -510,6 +552,12 @@
         if (entry && entry.token === callback) safeCallback(function () { activateSettings(entry, payload.kind); }, []);
         return;
       }
+      if (surface === "__messageMenu") {
+        if (!gate("uiMutation", "menu.activate") || !gate("messages", "menu.activate")) return;
+        var menu = Object.keys(menuItems).map(function (key) { return menuItems[key]; }).find(function (item) { return item.token === callback; });
+        if (menu) emit(menu.hookName, payload);
+        return;
+      }
       if (surface !== "__toast") return uiDispatch(surface, callback, payload);
       var action = toastActions[callback];
       delete toastActions[callback];
@@ -594,8 +642,21 @@
     wg.tg.call = wg.tg.invoke;
     wg.services = unsupportedObject("services");
     wg.jobs = unsupportedObject("jobs");
-    wg.intercept = unsupported("intercept");
-    wg.removeIntercept = unsupported("removeIntercept");
+    wg.intercept = function (name, handler, options) {
+      assertActive(); name = String(name);
+      if (["message.beforeSend", "tg.request"].indexOf(name) === -1) throw fault("UNSUPPORTED_API", "No native interception point: " + name);
+      if (typeof handler !== "function") throw fault("INVALID_ARGUMENT", "Interceptor requires a function");
+      assertPermission(interceptionPermission(name), "intercept");
+      var id = "ni" + (++sequence);
+      sync("interceptors.add", [id, name, options || {}, false]);
+      interceptors[id] = { name: name, handler: handler };
+      return id;
+    };
+    wg.removeIntercept = function (id) {
+      if (!interceptors[id]) return;
+      if (!stopped && !stopping) sync("interceptors.remove", [String(id)]);
+      delete interceptors[id];
+    };
     wg.ui.provide = unsupported("ui.provide");
     wg.ui.unprovide = unsupported("ui.unprovide");
     wg.tabs.add = unsupported("tabs.add");
@@ -603,7 +664,20 @@
     wg.ui.overlay = unsupported("ui.overlay");
     wg.wasm = { available: false, load: function () { return Promise.reject(fault("UNSUPPORTED_LANGUAGE", "WebAssembly execution is not enabled in this build")); } };
     ["addButton", "addLabel", "removeButton", "removeView", "clearButtons", "clearViews", "addHeaderButton", "addMenuButton", "removeHeaderButton"].forEach(function (name) { wg.chat[name] = unsupported("chat." + name); });
-    wg.addMenuItem = unsupported("addMenuItem");
+    wg.addMenuItem = function (config) {
+      assertPermission("uiMutation", "addMenuItem"); assertPermission("messages", "addMenuItem");
+      config = config || {};
+      var locations = config.locations || ["message"];
+      if (!Array.isArray(locations) || locations.length !== 1 || locations[0] !== "message") throw fault("UNSUPPORTED_UI", "The supported menu location is message");
+      var item = { id: settingId(config.id), title: settingString(config.title, config.id || wg.pluginName, 256, "menu title"),
+        icon: settingString(config.icon, "", 128, "menu icon"), hookName: settingString(config.hookName, "", 256, "menu hook"),
+        priority: config.priority === undefined ? 0 : config.priority, token: "menu" + (++sequence) };
+      if (!item.hookName || !Number.isInteger(item.priority) || Math.abs(item.priority) > 10000) throw fault("INVALID_ARGUMENT", "Menu requires hookName and an integer priority");
+      sync("ui.addMenuItem", [{ id: item.id, title: item.title, icon: item.icon, priority: item.priority, token: item.token }]);
+      menuItems[item.id] = item;
+      return item.id;
+    };
+    permissionTable.addMenuItem = "uiMutation";
     wg.getSettingsValue = function (page, control, fallback) { return wg.storage.get("settings:" + page + ":" + control, fallback); };
     wg.setSettingsValue = function (page, control, value) {
       var result = wg.storage.set("settings:" + page + ":" + control, value);
@@ -769,6 +843,7 @@
     };
     wg.events.on = function (pattern, handler) {
       pattern = validateEvent(String(pattern));
+      if (Object.prototype.hasOwnProperty.call(interceptionNames, pattern)) throw fault("INVALID_ARGUMENT", "Use wg.on for legacy return-valued hooks, or wg.intercept for native interceptors");
       if (typeof handler !== "function") throw fault("INVALID_ARGUMENT", "Event handler must be a function");
       if (eventRegistrations.length >= 256) throw fault("QUOTA_EXCEEDED", "Too many SDK event handlers");
       // Preflight before the recovered on() creates its pattern bucket; a
@@ -838,12 +913,14 @@
         return plugin;
       } catch (error) { trackLoad(Promise.reject(error)); throw error; }
     };
-    wg.HookResult.continue = function (value) { return { action: "continue", strategy: "continue", value: value }; };
+    wg.HookResult.continue = function (value) { return { action: value === undefined ? "continue" : "modify", strategy: value === undefined ? "continue" : "modify", value: value }; };
     ["cancel", "modify", "modifyFinal"].forEach(function (action) {
       wg.HookResult[action] = function (value) { return action === "cancel" ? { action: action, strategy: action, reason: value || "" } : { action: action, strategy: action, value: value }; };
     });
     var localCapabilities = [
       "BasePlugin", "registerPlugin", "log", "logLevel", "promisify", "on", "off", "hook",
+      "intercept", "removeIntercept", "onSendMessage", "onRequest", "onResponse",
+      "addMenuItem", "menu.addItem", "menu.addMessageItem",
       "ui.window", "ui.panel", "ui.sheet", "ui.screen", "ui.prompt", "ui.menu", "ui.toast", "ui.h", "ui.el",
       "ui.surfaces", "ui.closeAll", "ui.showToastWithAction", "toast", "screens.push", "screens.present",
       "state", "createStore", "events.on", "events.once", "events.off", "events.emit", "events.sticky", "events.stream",
@@ -933,7 +1010,10 @@
       });
     }
     waitForLoads(0).then(function () {
-      if (!stopped && !stopping) { sync("runtime.started"); runtimeStarted = true; }
+      if (!stopped && !stopping) {
+        if (info.automaticStart) emit("onAppStart", {});
+        sync("runtime.started"); runtimeStarted = true;
+      }
     }, function (error) {
       if (!stopped && !stopping) sync("runtime.failed", [String(error && error.stack || error)]);
     });
@@ -962,6 +1042,8 @@
     bytePool = Object.create(null); byteCount = 0;
     nativeSubscriptions = [];
     settingsPages = Object.create(null); settingsRows = Object.create(null); settingsSurfaces = Object.create(null);
+    interceptors = Object.create(null);
+    menuItems = Object.create(null);
   };
   global.__wgDidStop = function () {
     stopped = true;

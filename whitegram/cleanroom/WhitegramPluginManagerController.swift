@@ -11,8 +11,7 @@ import ItemListUI
 import AccountContext
 
 private final class WhitegramPluginManager {
-    // Only explicit manager entry creates a session. No application bootstrap
-    // evaluates plugins. Account removal tears down that account's sessions.
+    // Account contexts and their installations never share running sessions.
     private static var managers: [String: WhitegramPluginManager] = [:]
     static func forContext(_ context: AccountContext) -> WhitegramPluginManager {
         dispatchPrecondition(condition: .onQueue(.main))
@@ -37,6 +36,8 @@ private final class WhitegramPluginManager {
     private var runtimes: [String: WhitegramPluginRuntime] = [:]
     private var deleting: Set<String> = []
     private var isAvailable = true
+    private var didBootstrap = false
+    private weak var bootstrapController: UIViewController?
     private(set) var records: [WhitegramPluginRecord] = []
     private(set) var statuses: [String: WhitegramPluginStatus] = [:]
     private(set) var logs: [String: [WhitegramPluginLogEntry]] = [:]
@@ -87,6 +88,7 @@ private final class WhitegramPluginManager {
                 case let .failure(error): self.error = error.localizedDescription
                 }
                 self.changed()
+                self.startAutomaticPlugins()
             }
         }
     }
@@ -105,12 +107,15 @@ private final class WhitegramPluginManager {
         }
     }
 
-    func start(_ record: WhitegramPluginRecord, from controller: ViewController) {
+    func start(_ record: WhitegramPluginRecord, from controller: UIViewController, automatic: Bool = false) {
         guard self.isAvailable, self.runtimes[record.id] == nil, !self.deleting.contains(record.id), self.records.contains(where: { $0.id == record.id }),
               let context = self.context, let storage = self.storage else { return }
         do {
             guard self.runtimes.count < 8 else { throw WhitegramPluginError("QUOTA_EXCEEDED", "At most eight plugins can run in one account") }
-            let runtime = WhitegramPluginRuntime(context: context, accountId: self.accountId, record: record, root: try storage.pluginRoot(record.id))
+            if automatic && !WhitegramPreferences.set(true, for: self.bootKey(record.id)) {
+                throw WhitegramPluginError("STORAGE_ERROR", "Could not record plugin startup")
+            }
+            let runtime = WhitegramPluginRuntime(context: context, accountId: self.accountId, record: record, root: try storage.pluginRoot(record.id), automaticStart: automatic)
             self.runtimes[record.id] = runtime
             self.statuses[record.id] = .starting
             runtime.attach(controller)
@@ -126,6 +131,9 @@ private final class WhitegramPluginManager {
             runtime.stateChanged = { [weak self, weak runtime] status in
                 guard let self = self, let runtime = runtime, self.runtimes[record.id] === runtime else { return }
                 self.statuses[record.id] = self.deleting.contains(record.id) ? .deleting : status
+                if [.running, .failed, .stopped].contains(status) {
+                    if !WhitegramPreferences.set(false, for: self.bootKey(record.id)) { self.error = "Could not clear plugin startup marker" }
+                }
                 if status == .failed || status == .stopped { self.runtimes.removeValue(forKey: record.id) }
                 self.changed()
             }
@@ -216,6 +224,37 @@ private final class WhitegramPluginManager {
     }
 
     func clearLogs(_ id: String) { self.logs[id] = []; self.changed() }
+
+    private func bootKey(_ id: String) -> String { return "pluginRuntime.starting.\(self.accountId).\(id)" }
+    private func automaticKey(_ id: String) -> String { return "pluginRuntime.autostart.\(self.accountId).\(id)" }
+
+    func automaticStart(_ id: String) -> Bool { return (WhitegramPreferences.values()[self.automaticKey(id)] as? Bool) ?? false }
+
+    func setAutomaticStart(_ id: String, value: Bool) {
+        guard self.isAvailable, !self.deleting.contains(id), self.records.contains(where: { $0.id == id }) else { return }
+        if !WhitegramPreferences.set(value, for: self.automaticKey(id)) { self.error = "Could not save automatic startup" }
+        self.changed()
+    }
+
+    func bootstrap(from controller: UIViewController) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        guard !self.didBootstrap else { return }
+        self.bootstrapController = controller
+        self.startAutomaticPlugins()
+    }
+
+    private func startAutomaticPlugins() {
+        guard !self.loading, !self.didBootstrap, self.isAvailable, let controller = self.bootstrapController else { return }
+        self.didBootstrap = true
+        for record in self.records where self.automaticStart(record.id) {
+            if WhitegramPreferences.values()[self.bootKey(record.id)] as? Bool == true {
+                self.statuses[record.id] = .failed
+                self.logs[record.id, default: []].append(WhitegramPluginLogEntry(date: Date(), level: "error",
+                    message: "Automatic startup was interrupted last time. Inspect this plugin and tap Run to retry."))
+            } else { self.start(record, from: controller, automatic: true) }
+        }
+        self.changed()
+    }
 }
 
 private final class WhitegramPluginControllerReference {
@@ -396,6 +435,7 @@ private func whitegramPluginDetailController(context: AccountContext, manager: W
             if action.hasPrefix("pluginUI:") { manager.activateSettingsItem(String(action.dropFirst(9)), pluginId: record.id, from: controller) }
         }
     }, toggle: { key, value in
+        if key == "automaticStart" { manager.setAutomaticStart(record.id, value: value); return }
         guard let permission = WhitegramPluginPermission(rawValue: key) else { return }
         manager.setPermission(permission, value: value, id: record.id)
     })
@@ -407,11 +447,12 @@ private func whitegramPluginDetailController(context: AccountContext, manager: W
             WhitegramPluginEntry(stableId: active ? "stop" : "run", index: 1, section: 1, content: .action(active ? "Stop Plugin" : "Run Plugin", active)),
             WhitegramPluginEntry(stableId: "logs", index: 2, section: 1, content: .disclosure("Log", "\(manager.logs[record.id]?.count ?? 0)")),
             WhitegramPluginEntry(stableId: "source", index: 3, section: 1, content: .disclosure("View Entry Script", "")),
-            WhitegramPluginEntry(stableId: "permissions", index: 4, section: 2, content: .header("PERMISSIONS"))
+            WhitegramPluginEntry(stableId: "automaticStart", index: 4, section: 1, content: .toggle("Start Automatically", manager.automaticStart(record.id))),
+            WhitegramPluginEntry(stableId: "permissions", index: 5, section: 2, content: .header("PERMISSIONS"))
         ]
         let grants = manager.grants(record.id)
         for (index, permission) in WhitegramPluginPermission.allCases.enumerated() {
-            entries.append(WhitegramPluginEntry(stableId: permission.rawValue, index: index + 5, section: 2, content: .toggle(permission.title, grants[permission.rawValue] == true)))
+            entries.append(WhitegramPluginEntry(stableId: permission.rawValue, index: index + 6, section: 2, content: .toggle(permission.title, grants[permission.rawValue] == true)))
         }
         let requested = record.permissions.isEmpty ? "This script declares no permissions." : "Declared: " + record.permissions.joined(separator: ", ") + "."
         entries.append(WhitegramPluginEntry(stableId: "permissionInfo", index: 30, section: 2, content: .text(requested + " Changing permissions stops the running plugin. Run it again to use the new permissions.")))
@@ -446,7 +487,7 @@ public func whitegramPluginManagerController(context: AccountContext) -> ViewCon
     arguments.importer = importer
     let controller = whitegramPluginListController(context: context, title: "Whitegram Plugins", manager: manager, arguments: arguments, entries: {
         var entries: [WhitegramPluginEntry] = [
-            WhitegramPluginEntry(stableId: "info", index: 0, section: 0, content: .text("Import a JavaScript file or a JSON .wgplugin package. Open a plugin to inspect its source, set permissions and run it. Plugins start only when you tap Run.")),
+            WhitegramPluginEntry(stableId: "info", index: 0, section: 0, content: .text("Import a .js script, a ZIP .plugin/.wgplugin/.zip package, or a JSON package. Inspect its source and permissions before running. Enable Start Automatically in its detail screen to run it when this account opens.")),
             WhitegramPluginEntry(stableId: "import", index: 1, section: 1, content: .action("Import Plugin…", false)),
             WhitegramPluginEntry(stableId: "stopAll", index: 2, section: 1, content: .action("Stop All Plugins", false)),
             WhitegramPluginEntry(stableId: "installed", index: 3, section: 2, content: .header("INSTALLED PLUGINS"))
@@ -460,4 +501,39 @@ public func whitegramPluginManagerController(context: AccountContext) -> ViewCon
     })
     reference.value = controller
     return controller
+}
+
+public func whitegramBootstrapPlugins(context: AccountContext, navigation: UIViewController) {
+    dispatchPrecondition(condition: .onQueue(.main))
+    WhitegramPluginManager.forContext(context).bootstrap(from: navigation)
+}
+
+public struct WhitegramPluginMenuEntry: Equatable {
+    public let pluginId: String
+    public let itemKey: String?
+    public let title: String
+    public let subtitle: String
+}
+
+public func whitegramPluginMenuEntries(context: AccountContext) -> Signal<[WhitegramPluginMenuEntry], NoError> {
+    dispatchPrecondition(condition: .onQueue(.main))
+    let manager = WhitegramPluginManager.forContext(context)
+    return manager.updates.get() |> deliverOnMainQueue |> map { _ in
+        var entries: [WhitegramPluginMenuEntry] = []
+        for record in manager.records {
+            entries.append(WhitegramPluginMenuEntry(pluginId: record.id, itemKey: nil, title: record.name, subtitle: (manager.statuses[record.id] ?? .stopped).rawValue))
+            for item in manager.settingsItems(record.id) {
+                entries.append(WhitegramPluginMenuEntry(pluginId: record.id, itemKey: item.key, title: item.title, subtitle: item.subtitle))
+            }
+        }
+        return entries
+    }
+}
+
+public func whitegramActivatePluginMenuEntry(context: AccountContext, entry: WhitegramPluginMenuEntry, from controller: ViewController) {
+    dispatchPrecondition(condition: .onQueue(.main))
+    let manager = WhitegramPluginManager.forContext(context)
+    guard let record = manager.records.first(where: { $0.id == entry.pluginId }) else { return }
+    if let key = entry.itemKey { manager.activateSettingsItem(key, pluginId: record.id, from: controller) }
+    else { controller.push(whitegramPluginDetailController(context: context, manager: manager, record: record)) }
 }

@@ -120,6 +120,9 @@ ORIGINAL = (
 SOURCE = os.environ.get("WHITEGRAM_APPEARANCE_SOURCE")
 SWIFT_FILES = (
     "WhitegramFontRegistry.swift",
+    "WhitegramFontHistory.swift",
+    "WhitegramFontArchivePlan.swift",
+    "WhitegramFontArchiveImport.swift",
     "WhitegramFontsController.swift",
     "WhitegramIconsController.swift",
 )
@@ -213,6 +216,17 @@ class AppearancePatchTests(unittest.TestCase):
         self.assertEqual(root.writes, [FONT_PATH])
         root.writes.clear()
         apply_appearance_patches(root)
+        self.assertEqual(root.writes, [])
+
+    def test_mixed_original_and_applied_font_anchors_fail_before_writes(self):
+        root = MemoryRoot()
+        apply_appearance_patches(root)
+        root.files[FONT_PATH] += (SIGNATURE + "        return UIFont.systemFont(ofSize: size)\n    }\n").encode()
+        before = dict(root.files)
+        root.writes.clear()
+        with self.assertRaises(ValueError):
+            apply_appearance_patches(root)
+        self.assertEqual(root.files, before)
         self.assertEqual(root.writes, [])
 
     def test_second_application_does_not_write_or_duplicate_the_hook(self):

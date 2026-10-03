@@ -1,0 +1,13 @@
+// swift-tools-version: 5.9
+import PackageDescription
+
+let package = Package(
+    name: "WhitegramBackendHost",
+    platforms: [.macOS(.v13)],
+    products: [.library(name: "WhitegramBackendHost", targets: ["WhitegramBackendHost"])],
+    targets: [
+        .target(name: "WhitegramBackendHost"),
+        .testTarget(name: "WhitegramBackendHostTests", dependencies: ["WhitegramBackendHost"], resources: [.copy("protocol-evidence.json")])
+    ],
+    swiftLanguageVersions: [.v5]
+)

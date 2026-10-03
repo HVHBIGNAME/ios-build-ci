@@ -28,12 +28,12 @@ private extension WhitegramVoicePreset {
         switch self {
         case .custom: return "Use the four controls below"
         case .echo: return "Short, decaying repeats"
-        case .child: return "Higher and brighter (+5 semitones)"
-        case .adult: return "Lower and warmer (−3 semitones)"
+        case .child: return "Higher and brighter (+6.2 semitones)"
+        case .adult: return "Lower and warmer (−3.8 semitones)"
         case .robot: return "Metallic ring modulation"
         case .helium: return "High, bright pitch (+9 semitones)"
-        case .monster: return "Deep pitch, modulation and echo"
-        case .radio: return "Narrow-band, saturated radio sound"
+        case .monster: return "Deep pitch, distortion and echo"
+        case .radio: return "Bright tone, clarity and saturation"
         case .whisper: return "Breathy, envelope-shaped noise"
         case .alien: return "Pitch, ring modulation and echo"
         case .cavern: return "Longer, stronger echo"
@@ -56,8 +56,11 @@ private struct WhitegramVoiceEntry: ItemListNodeEntry {
         case control(WhitegramVoiceControl, Double, Bool)
         case reset
         case bleepEnabled(Bool)
+        case selectiveBleep(Bool)
         case bleepMode(WhitegramVoiceBleepMode, Bool)
-        case callsUnavailable
+        case calls(Bool)
+        case remoteSettings
+        case importFile
     }
 
     let stableId: String
@@ -77,10 +80,10 @@ private struct WhitegramVoiceEntry: ItemListNodeEntry {
         case let .info(text):
             return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
         case let .enabled(value):
-            return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: "Enable Local Voice Effects", value: value, sectionId: self.section, style: .blocks, updated: { arguments.setEnabled($0) })
+            return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: WhitegramLocalization.string("s.voiceChangerEnabled"), value: value, sectionId: self.section, style: .blocks, updated: { arguments.setEnabled($0) })
         case let .mode(mode, selected):
             let local = mode == .local
-            return ItemListCheckboxItem(presentationData: presentationData, systemStyle: .glass, title: local ? "On-device" : "ElevenLabs — unavailable", subtitle: local ? "Offline processing before Opus encoding" : "Remote voice conversion is not connected", style: .right, checked: selected, enabled: local, zeroSeparatorInsets: false, sectionId: self.section, action: { arguments.selectLocalMode() })
+            return ItemListCheckboxItem(presentationData: presentationData, systemStyle: .glass, title: WhitegramLocalization.string(local ? "s.vcModeLocal" : "s.vcModeElevenLabs"), subtitle: local ? "Offline processing before Opus encoding" : "Convert with the selected ElevenLabs voice before sending", style: .right, checked: selected, zeroSeparatorInsets: false, sectionId: self.section, action: { arguments.selectMode(mode) })
         case let .preset(preset, selected, enabled):
             return ItemListCheckboxItem(presentationData: presentationData, systemStyle: .glass, title: preset.title, subtitle: preset.detail, style: .right, checked: selected, enabled: enabled, zeroSeparatorInsets: false, sectionId: self.section, action: { arguments.selectPreset(preset) })
         case let .control(control, value, enabled):
@@ -89,10 +92,16 @@ private struct WhitegramVoiceEntry: ItemListNodeEntry {
             return ItemListActionItem(presentationData: presentationData, systemStyle: .glass, title: "Reset Custom Controls", kind: .generic, alignment: .natural, sectionId: self.section, style: .blocks, action: { arguments.resetCustom() })
         case let .bleepEnabled(value):
             return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: "Replace Entire Voice Message", text: "Replaces ALL microphone audio with a beep or silence", value: value, sectionId: self.section, style: .blocks, updated: { arguments.setBleepEnabled($0) })
+        case let .selectiveBleep(value):
+            return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: WhitegramLocalization.string("s.voiceBleep"), value: value, sectionId: self.section, style: .blocks, updated: { arguments.setSelectiveBleep($0) })
         case let .bleepMode(mode, selected):
             return ItemListCheckboxItem(presentationData: presentationData, systemStyle: .glass, title: mode == .beep ? "Beep (1 kHz)" : "Silence", style: .right, checked: selected, zeroSeparatorInsets: false, sectionId: self.section, action: { arguments.setBleepMode(mode) })
-        case .callsUnavailable:
-            return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: "Apply in Calls", text: "Unavailable — call audio requires a separate RTP pipeline", value: false, enabled: false, sectionId: self.section, style: .blocks, updated: { _ in })
+        case let .calls(value):
+            return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: WhitegramLocalization.string("s.vcInCalls"), text: "Local presets only; outgoing shared-device call audio", value: value, sectionId: self.section, style: .blocks, updated: { arguments.setCalls($0) })
+        case .remoteSettings:
+            return ItemListActionItem(presentationData: presentationData, systemStyle: .glass, title: WhitegramLocalization.string("s.vcSelectVoice"), kind: .generic, alignment: .natural, sectionId: self.section, style: .blocks, action: { arguments.openRemote() })
+        case .importFile:
+            return ItemListActionItem(presentationData: presentationData, systemStyle: .glass, title: "Convert Audio / Video File", kind: .generic, alignment: .natural, sectionId: self.section, style: .blocks, action: { arguments.openFile() })
         }
     }
 }
@@ -104,7 +113,7 @@ private func whitegramVoiceEntries(_ state: WhitegramVoiceScreenState) -> [White
         entries.append(WhitegramVoiceEntry(stableId: id, order: entries.count, section: section, content: content))
     }
 
-    add("enabled", 0, .enabled(settings.localEnabled))
+    add("enabled", 0, .enabled(settings.enabled))
     let status: String
     if settings.activeBleepMode != nil {
         status = "Whole-message replacement is active. New recordings contain only the selected beep or silence."
@@ -113,12 +122,12 @@ private func whitegramVoiceEntries(_ state: WhitegramVoiceScreenState) -> [White
     } else if settings.localEnabled {
         status = "The custom controls are neutral. Audio is unchanged until a control or preset is selected."
     } else if settings.enabled && settings.mode == .remote {
-        status = "The saved remote mode is unavailable. Enable local effects to process recordings on this device."
+        status = "ElevenLabs conversion is requested before sending. Select a voice and configure the connection below. A failed conversion keeps the recording as a draft."
     } else {
         status = "Local voice effects are off."
     }
     add("status", 0, .info(status))
-    add("recordingInfo", 0, .info("Settings are captured when a recorder is created. Use the normal recording preview to listen before sending. Changes do not rewrite an existing recording."))
+    add("recordingInfo", 0, .info("Local effects are captured when a recorder is created. Word bleeping and ElevenLabs run when sending, after trimming. Paused drafts keep their original resumable audio."))
     if let error = state.error { add("error", 0, .info(error)) }
     if settings.mode == nil || settings.preset == nil || settings.bleepMode == nil {
         add("invalidSelection", 0, .info("A saved mode or preset is unrecognized and inactive. Choose a supported option below."))
@@ -127,6 +136,8 @@ private func whitegramVoiceEntries(_ state: WhitegramVoiceScreenState) -> [White
     add("modeHeader", 1, .header("PROCESSING MODE"))
     add("localMode", 1, .mode(.local, settings.mode == .local))
     add("remoteMode", 1, .mode(.remote, settings.mode == .remote))
+    add("remoteSettings", 1, .remoteSettings)
+    add("importFile", 1, .importFile)
 
     add("presetHeader", 2, .header("LOCAL PRESET"))
     for preset in WhitegramVoicePreset.allCases {
@@ -137,23 +148,21 @@ private func whitegramVoiceEntries(_ state: WhitegramVoiceScreenState) -> [White
     for control in WhitegramVoiceControl.allCases {
         add(control.key, 3, .control(control, settings.value(for: control), settings.mode == .local && settings.preset == .custom))
     }
-    add("customInfo", 3, .info("Choose Custom to edit. Timbre adjusts warmth/brightness; Clarity ranges from smoothing to rumble reduction and presence. Pitch uses a short-window effect with about 40 ms delay; it can sound grainy. Duration and playback speed stay unchanged. Echo and pitch tails stop with the recording."))
+    add("customInfo", 3, .info("Choose Custom to edit. Pitch, timbre, clarity, modulation and echo use the recovered original parameter policy. Pitch has up to 76 ms delay at 48 kHz. Duration stays unchanged; effect tails stop with the recording."))
     add("reset", 3, .reset)
 
-    add("bleepHeader", 4, .header("WHOLE-MESSAGE REPLACEMENT"))
+    add("bleepHeader", 4, .header(WhitegramLocalization.string("s.voiceBleepMode")))
+    add("selectiveBleep", 4, .selectiveBleep(settings.bleepEnabled && !settings.bleepWholeRecording))
     add("bleepEnabled", 4, .bleepEnabled(settings.activeBleepMode != nil))
     for mode in WhitegramVoiceBleepMode.allCases {
         add("bleepMode:\(mode.rawValue)", 4, .bleepMode(mode, settings.bleepMode == mode))
     }
-    add("bleepInfo", 4, .info("This explicit opt-in replaces the entire new voice message, including pauses, and overrides the local preset. Automatic detection/censoring of words from the original app is unavailable. Imported automatic-bleep settings do not activate whole-message replacement."))
-    if settings.bleepEnabled && !settings.bleepWholeRecording {
-        add("legacyBleep", 4, .info("A recovered automatic-bleep request is saved but inactive. No words are being detected or censored."))
-    }
+    add("bleepInfo", 4, .info(WhitegramLocalization.string("s.voiceBleep.desc") + " Apple Speech uses on-device recognition when available; otherwise it may send audio to Apple. Whole-message replacement is a separate opt-in."))
 
     add("callsHeader", 5, .header("CALLS"))
-    add("calls", 5, .callsUnavailable)
-    if settings.callsRequested {
-        add("savedCalls", 5, .info("The saved call-effects request is inactive in this port."))
+    add("calls", 5, .calls(settings.callsRequested))
+    if settings.callsRequested && !settings.localEnabled {
+        add("savedCalls", 5, .info("Enable Local Presets to process outgoing call audio. ElevenLabs and word bleeping are message/file operations."))
     }
     return entries
 }
@@ -162,6 +171,8 @@ private final class WhitegramVoiceCoordinator {
     let state: ValuePromise<WhitegramVoiceScreenState>
     private var observer: NSObjectProtocol?
     private var error: String?
+    var openRemote: () -> Void = {}
+    var openFile: () -> Void = {}
 
     init() {
         self.state = ValuePromise(WhitegramVoiceScreenState(settings: WhitegramVoiceSettings(values: WhitegramPreferences.values()), error: nil), ignoreRepeated: true)
@@ -189,7 +200,9 @@ private final class WhitegramVoiceCoordinator {
     func setEnabled(_ enabled: Bool) {
         var changes: [String: Any] = ["voiceChangerEnabled": enabled]
         if enabled {
-            changes["voiceChangerMode"] = WhitegramVoiceMode.local.rawValue
+            if WhitegramVoiceSettings(values: WhitegramPreferences.values()).mode == nil {
+                changes["voiceChangerMode"] = WhitegramVoiceMode.local.rawValue
+            }
             if WhitegramVoiceSettings(values: WhitegramPreferences.values()).preset == nil {
                 changes["voiceChangerPreset"] = WhitegramVoicePreset.custom.rawValue
             }
@@ -197,8 +210,8 @@ private final class WhitegramVoiceCoordinator {
         self.save(changes)
     }
 
-    func selectLocalMode() {
-        self.save(["voiceChangerMode": WhitegramVoiceMode.local.rawValue])
+    func selectMode(_ mode: WhitegramVoiceMode) {
+        self.save(["voiceChangerMode": mode.rawValue])
     }
 
     func selectPreset(_ preset: WhitegramVoicePreset) {
@@ -228,6 +241,12 @@ private final class WhitegramVoiceCoordinator {
     func setBleepMode(_ mode: WhitegramVoiceBleepMode) {
         self.save(["voiceBleepMode": mode.rawValue])
     }
+
+    func setSelectiveBleep(_ enabled: Bool) {
+        self.save(["voiceBleepEnabled": enabled, WhitegramVoiceSettings.wholeRecordingBleepKey: false])
+    }
+
+    func setCalls(_ enabled: Bool) { self.save(["voiceChangerInCalls": enabled]) }
 }
 
 /// SettingsUI entrypoint; creating this screen does not access the microphone.
@@ -242,6 +261,12 @@ public func whitegramVoiceSettingsController(context: AccountContext) -> ViewCon
             return (controllerState, (listState, coordinator))
         }
     let controller = ItemListController(context: context, state: signal)
+    coordinator.openRemote = { [weak controller] in
+        (controller?.navigationController as? NavigationController)?.pushViewController(whitegramVoiceRemoteSettingsController(context: context))
+    }
+    coordinator.openFile = { [weak controller] in
+        (controller?.navigationController as? NavigationController)?.pushViewController(WhitegramVoiceFileController(context: context))
+    }
     controller.didAppear = { [coordinator] _ in coordinator.refresh() }
     return controller
 }

@@ -21,7 +21,7 @@ final class WhitegramSettingsArchiveTests: XCTestCase {
         let archive = try SettingsArchiveFixture.archive([
             "ghostModeEnabled": true, "disableReadReceipts": false, "voiceChangerPitch": 1.5,
             "localStarsCount": Int64.max, "customFontName": "Шрифт-Regular", "messageBorderColorHex": "aAbBcc",
-            "musicEqualizerBands": [-3.5, 0.0, 2.25], "public.other.translationService": "telegram"
+            "musicEqualizerBands": [-3.5, 0.0, 2.25, 0, 0, 0, 0, 0, 0, 0], "public.other.translationService": "telegram"
         ])
         let decoded = try WhitegramSettingsArchive(data: archive.encoded())
         XCTAssertEqual(decoded.keys, archive.keys)
@@ -31,7 +31,7 @@ final class WhitegramSettingsArchiveTests: XCTestCase {
         XCTAssertEqual(decoded.values["voiceChangerPitch"] as? Double, 1.5)
         XCTAssertEqual(decoded.values["customFontName"] as? String, "Шрифт-Regular")
         XCTAssertEqual(decoded.values["messageBorderColorHex"] as? String, "#AABBCC")
-        XCTAssertEqual(decoded.values["musicEqualizerBands"] as? [Double], [-3.5, 0, 2.25])
+        XCTAssertEqual(decoded.values["musicEqualizerBands"] as? [Double], [-3.5, 0, 2.25, 0, 0, 0, 0, 0, 0, 0])
         XCTAssertEqual(decoded.createdAt, 1700000000)
     }
 
@@ -132,5 +132,31 @@ final class WhitegramSettingsArchiveTests: XCTestCase {
         XCTAssertThrowsError(try SettingsArchiveFixture.archive(["doubleTapEditEnabled": true, "public.chat.personalChatDoubleTapAction": "reply"]))
         XCTAssertThrowsError(try SettingsArchiveFixture.archive(["doubleTapEditEnabled": false, "public.chat.personalChatDoubleTapAction": "edit"]))
         XCTAssertNoThrow(try SettingsArchiveFixture.archive(["doubleTapEditEnabled": false, "public.chat.personalChatDoubleTapAction": "reply"]))
+    }
+
+    func testRecoveredCameraPlayerAndPercentageContractsRoundTrip() throws {
+        let settings: [String: Any] = [
+            "roundCameraWideAngle": true, "roundVideoBitrate": "high", "downloadAccelMode": 3,
+            "photoCompressionQuality": 0.7, "musicPlaybackSpeed": 0.1, "musicCrossfadeDuration": 3,
+            "musicEqualizerBands": [-12.0, 12, 0, 0, 0, 0, 0, 0, 0, 0],
+            "stickerSizeScale": 2.0, "tabBarScale": 100.0, "tabBarWidthScale": 150.0,
+            "menuLanguage": 1, "menuLanguageCode": "uk"
+        ]
+        let archive = try SettingsArchiveFixture.archive(settings)
+        let decoded = try WhitegramSettingsArchive(data: archive.encoded())
+        XCTAssertEqual(decoded.keys, settings.keys.sorted())
+        XCTAssertEqual(decoded.values["roundVideoBitrate"] as? String, "high")
+        XCTAssertEqual(decoded.values["musicPlaybackSpeed"] as? Double, 0.1)
+        XCTAssertEqual(decoded.values["stickerSizeScale"] as? Double, 2.0)
+        for bitrate in ["low", "medium", "high", "", "500000", "1000000", "2000000", "4000000", "8000000"] {
+            XCTAssertNoThrow(try SettingsArchiveFixture.archive(["roundVideoBitrate": bitrate]))
+        }
+        for value in [0.09, 3.01] {
+            XCTAssertThrowsError(try SettingsArchiveFixture.archive(["musicPlaybackSpeed": value]))
+        }
+        for count in [1, 3, 9, 11, 32] {
+            XCTAssertThrowsError(try SettingsArchiveFixture.archive(["musicEqualizerBands": Array(repeating: 0, count: count)]))
+        }
+        XCTAssertThrowsError(try SettingsArchiveFixture.archive(["musicEqualizerBands": Array(repeating: 12.1, count: 10)]))
     }
 }

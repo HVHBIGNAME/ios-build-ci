@@ -29,23 +29,24 @@ enum WhitegramSettingsArchiveMirrors {
             ("compactChatList", "compactChatList", false), ("showTimestampSeconds", "showSecondsInMessageTimestamp", false),
             ("wideChannelPosts", "wideChannelPosts", false)
         ] { add(key, chat, field, initial) }
-        for (key, field) in [("disableChatSwipeOptions", "chatSwipeOptions"), ("noChannelSwitch", "channelSwipeToNext"), ("hideRecordButton", "voiceMessageButton"), ("hideReactions", "channelPostReactions")] {
+        for (key, field) in [("disableChatSwipeOptions", "chatSwipeOptions"), ("noChannelSwitch", "channelSwipeToNext"), ("hideRecordButton", "voiceMessageButton")] {
             add(key, chat, field, true, .boolean, .inverted)
         }
-        add("stickerSizeScale", chat, "stickerSizePercent", 100, .number(0...1), .stickerScale)
+        add("stickerSizeScale", chat, "stickerSizePercent", 100, .number(0...2), .stickerScale)
         add("videoMessageCamera", chat, "videoMessageCamera", "ask", .integer(0...2), .camera)
         add("doubleTapEditEnabled", chat, "personalChatDoubleTapAction", "reaction", .boolean, .editAction)
         for (field, initial) in [
             ("compactPinnedMessagesPanel", false), ("showStickerTime", true), ("animatePremiumStickers", true),
             ("animateEmojiStickers", true), ("hideMessageTimestamp", false), ("confirmVoiceRecording", false),
-            ("swipeToReply", true), ("channelBottomPanel", true), ("chatSwipeDelete", true)
+            ("swipeToReply", true), ("channelBottomPanel", true), ("chatSwipeDelete", true), ("channelPostReactions", true)
         ] { add("public.chat." + field, chat, field, initial) }
         add("public.chat.personalChatDoubleTapAction", chat, "personalChatDoubleTapAction", "reaction", .choice(["savedMessages", "reaction", "edit", "forward", "reply", "pin", "select", "copy", "contextMenu"]))
         add("public.chat.channelPostDoubleTapAction", chat, "channelPostDoubleTapAction", "reaction", .choice(["savedMessages", "reaction", "forward", "reply", "select", "copy", "contextMenu"]))
-        for (key, field) in [("hideContactsTab", "hideContactsTab"), ("hideCallsTab", "hideCallsTab"), ("hideTabLabels", "hideTabTitles"), ("hideSearchBar", "hideSearchButton"), ("hideBottomTabBar", "compactPanel")] {
+        for (key, field) in [("hideContactsTab", "hideContactsTab"), ("hideCallsTab", "hideCallsTab"), ("hideTabLabels", "hideTabTitles"), ("hideSearchBar", "hideSearchButton")] {
             add(key, tabs, field, false)
         }
         add("public.tabs.widePanel", tabs, "widePanel", false)
+        add("public.tabs.compactPanel", tabs, "compactPanel", false)
         add("hideStories", stories, "hideStories", false)
         add("disableSwipeToRecordStory", stories, "disableStoryRecordingSwipe", false)
         for field in ["disableStories", "disableStoryRecording", "askBeforeViewingStories"] { add("public.stories." + field, stories, field, false) }
@@ -102,7 +103,7 @@ enum WhitegramSettingsArchiveMirrors {
             guard let camera = value as? String, let index = ["front", "back", "ask"].firstIndex(of: camera) else { throw WhitegramSettingsArchiveError.invalidPublicStore }
             return Int64(index)
         case .stickerScale:
-            guard let percent = WhitegramPreferences.exactInteger(value), (0...100).contains(percent) else { throw WhitegramSettingsArchiveError.invalidPublicStore }
+            guard let percent = WhitegramPreferences.exactInteger(value), (0...200).contains(percent) else { throw WhitegramSettingsArchiveError.invalidPublicStore }
             return Double(percent) / 100
         case .editAction:
             guard let action = value as? String else { throw WhitegramSettingsArchiveError.invalidPublicStore }
@@ -154,6 +155,14 @@ enum WhitegramSettingsArchiveMirrors {
 
     static func prepare(_ values: [String: Any], defaults: UserDefaults) throws -> (changes: [String: Any], mirrors: [String: Any], notifications: [Notification.Name]) {
         var changes = values.filter { !$0.key.hasPrefix("public.") }
+        let languages = ["ru", "uk", "en"]
+        if let code = values["menuLanguageCode"] as? String,
+           let index = languages.firstIndex(of: code.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()) {
+            changes["menuLanguage"] = index
+        } else if values["menuLanguageCode"] == nil,
+                  let index = values["menuLanguage"].flatMap(WhitegramPreferences.exactInteger), languages.indices.contains(Int(index)) {
+            changes["menuLanguageCode"] = languages[Int(index)]
+        }
         if let action = values["public.chat.personalChatDoubleTapAction"] as? String { changes["doubleTapEditEnabled"] = action == "edit" }
         var groups: [String: [String: Any]] = [:]
         var mirrors: [String: Any] = [:]
