@@ -103,3 +103,12 @@ Local follow-up: compatibility replay and all 220 top-level Python tests passed.
 - Release optimization found one further SettingsUI error: `setEnabled` created a temporary `WhitegramProfileService`, whose weak response capture is always nil after the call returns. This also prevented successful streak-setting changes from publishing the profile-update notification.
 
 The streak service now owns its profile service for the account session's lifetime. A regression test delivers delayed failed and successful settings responses and checks that only success publishes the account-specific update. Full release-build confirmation remains pending.
+
+## Tenth integrated run: TelegramUI logout-patch cleanup
+
+- Commit: `971359cafb8aa041c168fefc2e101c3df37a901a`.
+- Run: https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/37173350350.
+- All source/native validation passed, including the streak mutation-notification test. SettingsUI compiled and linked, followed by PeerInfoScreen and the other immediate consumers.
+- TelegramUI compilation stopped at an unused `accountId` in `ApplicationContext`. The retention installer already requested its removal, but `SourcePatches.replace` saw the shorter replacement inside the original anchor and incorrectly treated the deletion as installed.
+
+The replacement helper now applies shortening edits while their original fragment remains and rejects mixed old/new fragments. Regression tests first reproduced the skipped removal and ambiguous mixed-state acceptance, then passed with the fix. They also cover repeated anchors and insertion replay; account integration explicitly checks the obsolete logout variable is removed. Compatibility replay and all 224 top-level Python tests passed locally, with zero scanner findings in supported files. Full release-build confirmation remains pending.

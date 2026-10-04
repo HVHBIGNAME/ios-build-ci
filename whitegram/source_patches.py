@@ -26,7 +26,10 @@ class SourcePatches:
                     raise ValueError(f"{feature}: {path}: ambiguous upgraded patch")
                 self.features.setdefault(feature, set()).add(path)
                 return
-        if value.count(after) == count:
+        if before != after and after in before and before in value:
+            if after and after in value.replace(before, ""):
+                raise ValueError(f"{feature}: {path}: ambiguous partially applied shortening")
+        elif value.count(after) == count:
             self.features.setdefault(feature, set()).add(path)
             return
         found = value.count(before)

@@ -38,6 +38,7 @@ class AccountPatchTests(unittest.TestCase):
                 root = MemoryRoot(files)
                 report = apply_account_patches(root)
                 self.assertEqual(set(report), {"accountTransfer", "keepUnavailableAccounts", "accountSwitcherEnabled"})
+                self.assertNotIn("let accountId = context.account.id\n        self.loggedOutDisposable", root.text(APPLICATION))
                 changed = {path for path in PATHS if files[path] != root.text(path)}
                 self.assertEqual(set(root.writes), changed)
                 if files is self.pristine:
