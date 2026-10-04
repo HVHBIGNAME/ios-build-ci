@@ -115,6 +115,39 @@ final class WhitegramProfileStateTests: XCTestCase {
 }
 
 final class WhitegramStreakTests: XCTestCase {
+    func testSettingsMutationNotifiesItsAccountOnlyAfterSuccessfulResponse() throws {
+        let fixture = BackendFixture()
+        let service = WhitegramProfileStreakService(client: fixture.client)
+        defer { withExtendedLifetime(service) {} }
+        var updatedAccounts: [Int64] = []
+        let observer = NotificationCenter.default.addObserver(forName: WhitegramProfileService.updated, object: nil, queue: .main) { notification in
+            if let accountId = notification.userInfo?["accountId"] as? Int64 { updatedAccounts.append(accountId) }
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        let failed = expectation(description: "settings failure")
+        _ = service.setEnabled(true) { result in
+            XCTAssertEqual(result.failure, .http(500, retryAfter: nil))
+            failed.fulfill()
+        }
+        fixture.http.respond(0, status: 500)
+        wait(for: [failed], timeout: 1)
+        XCTAssertTrue(updatedAccounts.isEmpty)
+
+        let saved = expectation(description: "settings saved")
+        _ = service.setEnabled(false) { result in
+            XCTAssertNil(result.failure)
+            saved.fulfill()
+        }
+        XCTAssertEqual(fixture.http.calls[1].request.url?.path, "/v1/streak/settings")
+        let body = try XCTUnwrap(fixture.http.calls[1].request.httpBody)
+        XCTAssertEqual(try JSONSerialization.jsonObject(with: body) as? [String: Bool], ["enabled": false])
+        XCTAssertTrue(updatedAccounts.isEmpty)
+        fixture.http.respond(1)
+        wait(for: [saved], timeout: 1)
+        XCTAssertEqual(updatedAccounts, [42])
+    }
+
     func testReportsWaitForServerSettingsAndKeepFailedWorkUntilRetryOrDisable() throws {
         let fixture = BackendFixture()
         var enabled = true

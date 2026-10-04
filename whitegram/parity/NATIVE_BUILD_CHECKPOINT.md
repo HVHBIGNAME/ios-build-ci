@@ -94,3 +94,12 @@ The follow-up removes AudioWaveform's unused UI dependencies and verifies its Fo
 The follow-up accepts `UIViewController` in the runtime attachment method, uses a trailing labeled section argument, types the account-save result and qualifies the nested captures. Photo-wall loading uses bounded `InputStream` chunks with read-error propagation, the existing 8 MiB limit and JPEG-prefix validation. New native cases exercise the exact size limit, oversized and malformed files, symbolic links and directories.
 
 Local follow-up: compatibility replay and all 220 top-level Python tests passed. The scanner reported zero findings in its supported files; Swift is outside its coverage. Native confirmation and full IPA packaging remain pending in the next CI run.
+
+## Ninth integrated run: optimized streak-service lifetime
+
+- Commit: `dc765c1dd643446bc32e824a34981b04e8840575`.
+- Run: https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/37172286916.
+- Source checks and all native suites passed, including the new wallpaper boundary and file-type cases. The eighth run's SettingsUI diagnostics were resolved.
+- Release optimization found one further SettingsUI error: `setEnabled` created a temporary `WhitegramProfileService`, whose weak response capture is always nil after the call returns. This also prevented successful streak-setting changes from publishing the profile-update notification.
+
+The streak service now owns its profile service for the account session's lifetime. A regression test delivers delayed failed and successful settings responses and checks that only success publishes the account-specific update. Full release-build confirmation remains pending.

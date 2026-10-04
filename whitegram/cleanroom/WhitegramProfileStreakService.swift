@@ -22,7 +22,12 @@ struct WhitegramProfileStreakList: Decodable { let streaks: [WhitegramProfileStr
 
 final class WhitegramProfileStreakService {
     let client: WhitegramBackendClient
-    init(client: WhitegramBackendClient) { self.client = client }
+    private let profile: WhitegramProfileService
+
+    init(client: WhitegramBackendClient) {
+        self.client = client
+        self.profile = WhitegramProfileService(client: client)
+    }
 
     func list(at date: Date = Date(), timeZone: TimeZone = .current,
               completion: @escaping (Result<[WhitegramProfileStreak], WhitegramBackendError>) -> Void) -> WhitegramBackendTask {
@@ -47,7 +52,7 @@ final class WhitegramProfileStreakService {
     }
 
     func setEnabled(_ enabled: Bool, completion: @escaping (Result<Void, WhitegramBackendError>) -> Void) -> WhitegramBackendTask {
-        return WhitegramProfileService(client: client).save(WhitegramProfileRequests.Enabled(enabled: enabled), path: "/v1/streak/settings", completion: completion)
+        return profile.save(WhitegramProfileRequests.Enabled(enabled: enabled), path: "/v1/streak/settings", completion: completion)
     }
 
     func report(_ event: WhitegramBackendMessageEvent, timeZone: TimeZone = .current,
