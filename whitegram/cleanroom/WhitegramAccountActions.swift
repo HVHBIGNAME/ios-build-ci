@@ -216,15 +216,16 @@ final class WhitegramAccountActions: NSObject, UIDocumentPickerDelegate {
             self?.snapshot(accounts) { [weak self] backups in
                 guard let self else { return }
                 let keychain = self.keychain
-                self.local(self.text("Saving sessions…", "Сохранение сеансов…"), work: { cancellation in
+                self.local(self.text("Saving sessions…", "Сохранение сеансов…"), work: { cancellation -> (Int, WhitegramSessionError?) in
                     var savedCount = 0
                     for backup in backups {
                         do { try cancellation.check(); try keychain.save(backup); savedCount += 1 }
                         catch { return (savedCount, error as? WhitegramSessionError ?? .storageVerification) }
                     }
-                    return (savedCount, Optional<WhitegramSessionError>.none)
-                }) { [weak self] count, error in
+                    return (savedCount, nil)
+                }) { [weak self] result in
                     guard let self else { return }
+                    let (count, error) = result
                     self.finish(self.text("Saved and verified \(count) session(s).", "Сохранено и проверено сеансов: \(count).") + (error.map { " " + $0.localizedDescription } ?? ""))
                     if self.screen == .keychain { self.refreshSavedKeepingStatus() }
                 }

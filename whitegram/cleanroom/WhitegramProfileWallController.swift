@@ -119,7 +119,7 @@ private final class WhitegramProfileWallCoordinator: WhitegramServiceListActions
             alert.addAction(UIAlertAction(title: "Block author on this wall", style: .destructive) { [weak self] _ in
                 guard let self else { return }
                 presenter.close()
-                mutate { service.block(true, userId: message.authorId, ownerId: ownerId, completion: $0) }
+                mutate { self.service.block(true, userId: message.authorId, ownerId: self.ownerId, completion: $0) }
             })
         }
         alert.addAction(UIAlertAction(title: "Copy text", style: .default) { [weak self] _ in whitegramServiceCopy(message.text); self?.presenter.close() })

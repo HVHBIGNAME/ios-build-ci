@@ -185,7 +185,7 @@ final class WhitegramPluginRuntime {
         self.lifetime.add("networkEvents", cancel: { networkSubscription.dispose() })
     }
 
-    func attach(_ controller: ViewController) {
+    func attach(_ controller: UIViewController) {
         dispatchPrecondition(condition: .onQueue(.main))
         self.ui.attach(controller)
     }

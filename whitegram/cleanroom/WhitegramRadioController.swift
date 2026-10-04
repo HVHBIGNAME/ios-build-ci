@@ -56,14 +56,14 @@ private final class WhitegramRadioCoordinator: WhitegramServiceListActions {
     private func refresh() {
         let player = WhitegramRadioPlayer.shared
         var rows: [WhitegramServiceEntry] = []
-        func add(_ id: String, _ section: Int32 = 0, _ content: WhitegramServiceEntry.Content) {
+        func add(_ id: String, _ content: WhitegramServiceEntry.Content, section: Int32 = 0) {
             rows.append(WhitegramServiceEntry(stableId: id, order: rows.count, section: section, content: content))
         }
         for station in WhitegramRadioStation.all {
             add(station.id, .disclosure(station.name, player.station == station ? "Selected" : "", true))
         }
         if let station = player.station {
-            add("station", 1, .header(station.name))
+            add("station", .header(station.name), section: 1)
             let state: String
             switch player.state {
             case .stopped: state = "Stopped"
@@ -72,22 +72,22 @@ private final class WhitegramRadioCoordinator: WhitegramServiceListActions {
             case .paused: state = "Paused"
             case let .failed(error): state = error
             }
-            add("state", 1, .text(state))
-            if let track = player.track { add("track", 1, .text([track.artist, track.title].filter { !$0.isEmpty }.joined(separator: " — "))) }
-            add(player.state == .paused ? "resume" : "pause", 1, .action(player.state == .paused ? "Resume" : "Pause", true))
-            add("stop", 1, .action(WhitegramLocalization.string("radio.stop"), true))
-            add("listeners", 2, .action("Refresh listener count", true))
+            add("state", .text(state), section: 1)
+            if let track = player.track { add("track", .text([track.artist, track.title].filter { !$0.isEmpty }.joined(separator: " — ")), section: 1) }
+            add(player.state == .paused ? "resume" : "pause", .action(player.state == .paused ? "Resume" : "Pause", true), section: 1)
+            add("stop", .action(WhitegramLocalization.string("radio.stop"), true), section: 1)
+            add("listeners", .action("Refresh listener count", true), section: 2)
         }
-        if let count = player.listeners { add("count", 2, .text("Listeners: \(count)")) }
-        add("connect", 2, .action(connecting ? "Connecting…" : "Connect Whitegram radio services", !connecting))
-        add("connectionInfo", 2, .text("Station audio is public. Listener counts and listening heartbeats use the original Whitegram service and require authorization through its Telegram mini app."))
-        add("presence", 2, .disclosure(WhitegramLocalization.string("s.whitegramPresence"), WhitegramPreferences.bool("whitegramPresenceEnabled") ? "On" : "Off", true))
-        add("precise", 2, .disclosure(WhitegramLocalization.string("s.whitegramPresencePrecise"), WhitegramPreferences.bool("whitegramPresencePreciseEnabled") ? "On" : "Off", WhitegramPreferences.bool("whitegramPresenceEnabled")))
-        if let value = player.metadataError { add("metadataError", 3, .text(value)) }
-        if let value = player.serviceError { add("serviceError", 3, .text(value)) }
-        if let value = player.listenerError { add("listenerError", 3, .text(value)) }
-        if let value = player.presenceError { add("presenceError", 3, .text(value)) }
-        if let error { add("error", 3, .text(error)) }
+        if let count = player.listeners { add("count", .text("Listeners: \(count)"), section: 2) }
+        add("connect", .action(connecting ? "Connecting…" : "Connect Whitegram radio services", !connecting), section: 2)
+        add("connectionInfo", .text("Station audio is public. Listener counts and listening heartbeats use the original Whitegram service and require authorization through its Telegram mini app."), section: 2)
+        add("presence", .disclosure(WhitegramLocalization.string("s.whitegramPresence"), WhitegramPreferences.bool("whitegramPresenceEnabled") ? "On" : "Off", true), section: 2)
+        add("precise", .disclosure(WhitegramLocalization.string("s.whitegramPresencePrecise"), WhitegramPreferences.bool("whitegramPresencePreciseEnabled") ? "On" : "Off", WhitegramPreferences.bool("whitegramPresenceEnabled")), section: 2)
+        if let value = player.metadataError { add("metadataError", .text(value), section: 3) }
+        if let value = player.serviceError { add("serviceError", .text(value), section: 3) }
+        if let value = player.listenerError { add("listenerError", .text(value), section: 3) }
+        if let value = player.presenceError { add("presenceError", .text(value), section: 3) }
+        if let error { add("error", .text(error), section: 3) }
         entries.set(rows)
     }
 }

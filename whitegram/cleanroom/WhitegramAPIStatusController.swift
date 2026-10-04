@@ -64,7 +64,7 @@ private final class WhitegramAPIStatusCoordinator: WhitegramServiceListActions {
 
     private func refresh() {
         var rows: [WhitegramServiceEntry] = []
-        func add(_ id: String, _ section: Int32 = 0, _ content: WhitegramServiceEntry.Content) {
+        func add(_ id: String, _ content: WhitegramServiceEntry.Content, section: Int32 = 0) {
             rows.append(WhitegramServiceEntry(stableId: id, order: rows.count, section: section, content: content))
         }
         add("server", .text(WhitegramBackendProtocol.baseURL.absoluteString))
@@ -73,19 +73,19 @@ private final class WhitegramAPIStatusCoordinator: WhitegramServiceListActions {
             add("state", .text("Status: " + status.status))
             if let uptime = status.uptimeSeconds { add("uptime", .text("Uptime: \(uptime) seconds")) }
             if let time = status.processingMs { add("processing", .text(String(format: "Server processing: %.1f ms", time))) }
-            for (index, service) in status.services.enumerated() { add("service.\(index)", 1, .text(service.name + ": " + (service.ok ? "OK" : "Degraded"))) }
+            for (index, service) in status.services.enumerated() { add("service.\(index)", .text(service.name + ": " + (service.ok ? "OK" : "Degraded")), section: 1) }
         } else { add("unchecked", .text("No current server status.")) }
-        add("measure", 2, .action("Measure connection", !busy))
-        add("measureInfo", 2, .text("Measures a 1 KiB probe, 512 KiB download and 256 KiB random-data upload to the original API. No Telegram messages are included."))
+        add("measure", .action("Measure connection", !busy), section: 2)
+        add("measureInfo", .text("Measures a 1 KiB probe, 512 KiB download and 256 KiB random-data upload to the original API. No Telegram messages are included."), section: 2)
         if let measurement {
-            add("measurement", 2, .text(String(format: "Ping: %.1f ms\nDownload: %.2f Mbit/s\nUpload: %.2f Mbit/s", measurement.pingMilliseconds, measurement.downloadMbps, measurement.uploadMbps)))
+            add("measurement", .text(String(format: "Ping: %.1f ms\nDownload: %.2f Mbit/s\nUpload: %.2f Mbit/s", measurement.pingMilliseconds, measurement.downloadMbps, measurement.uploadMbps)), section: 2)
         }
-        add("period", 3, .disclosure("My API requests", days == 1 ? "Today (UTC)" : "30 days (UTC)", true))
+        add("period", .disclosure("My API requests", days == 1 ? "Today (UTC)" : "30 days (UTC)", true), section: 3)
         let counts = WhitegramAPIUsage.shared.counts(days: days)
-        if counts.isEmpty { add("noRequests", 3, .text("No requests recorded for this period.")) }
-        for (index, count) in counts.enumerated() { add("count.\(index)", 3, .text("\(count.path): \(count.count)")) }
-        if busy { add("cancel", 4, .action("Cancel request", true)) }
-        if let error { add("error", 4, .text(error)) }
+        if counts.isEmpty { add("noRequests", .text("No requests recorded for this period."), section: 3) }
+        for (index, count) in counts.enumerated() { add("count.\(index)", .text("\(count.path): \(count.count)"), section: 3) }
+        if busy { add("cancel", .action("Cancel request", true), section: 4) }
+        if let error { add("error", .text(error), section: 4) }
         entries.set(rows)
     }
 }

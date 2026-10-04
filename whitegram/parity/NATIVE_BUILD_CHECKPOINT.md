@@ -1,4 +1,4 @@
-# Native build verification — 2026-10-03
+# Native build verification — 2026-10-04
 
 ## Initial integrated run
 
@@ -80,3 +80,17 @@ The follow-up rejects missing RPC descriptions as `.network` and accepts optiona
 - The inline original-message renderer called `validatedEntityRange`, which does not exist in the pinned source tree.
 
 The follow-up removes AudioWaveform's unused UI dependencies and verifies its Foundation-only source contract. History rendering uses the existing public UTF-16 scalar-boundary validator before formatting and before applying custom-emoji attributes. The installer upgrades the previously emitted history block on replay instead of inserting a duplicate.
+
+## Eighth integrated run: SettingsUI compilation
+
+- Commit: `15c8dd5f57470de3213885e7ed4e33dcd9d411f8`.
+- Run: https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/37123992036.
+- Source checks and every scheduled native suite passed. The previous framework-linking and inline-history errors were resolved; release compilation reached SettingsUI.
+- The plugin startup path passes a `UIViewController`, while the runtime's forwarding method unnecessarily required `Display.ViewController` even though the UI adapter accepts either a navigation controller or a screen.
+- API-status and radio row helpers placed an unlabeled default section before the required content. Two-argument calls were therefore interpreted as passing content to an `Int32` parameter.
+- The generic account-save worker needed an explicit optional-error tuple result. Nested radio and profile-wall closures needed explicit `self` references.
+- Local photo-wall loading used `FileHandle.read(upToCount:)`, which requires iOS 13.4; the app targets iOS 13.0.
+
+The follow-up accepts `UIViewController` in the runtime attachment method, uses a trailing labeled section argument, types the account-save result and qualifies the nested captures. Photo-wall loading uses bounded `InputStream` chunks with read-error propagation, the existing 8 MiB limit and JPEG-prefix validation. New native cases exercise the exact size limit, oversized and malformed files, symbolic links and directories.
+
+Local follow-up: compatibility replay and all 220 top-level Python tests passed. The scanner reported zero findings in its supported files; Swift is outside its coverage. Native confirmation and full IPA packaging remain pending in the next CI run.

@@ -80,9 +80,9 @@ final class WhitegramRadioPlayer: NSObject, AVPlayerItemMetadataOutputPushDelega
             DispatchQueue.main.async {
                 guard let self, generation == self.generation else { return }
                 if item.status == .failed {
-                    stopPlayback()
-                    state = .failed("The station could not be played (\((item.error as NSError?)?.code ?? 0)).")
-                    notify()
+                    self.stopPlayback()
+                    self.state = .failed("The station could not be played (\((item.error as NSError?)?.code ?? 0)).")
+                    self.notify()
                 }
             }
         }
@@ -90,14 +90,14 @@ final class WhitegramRadioPlayer: NSObject, AVPlayerItemMetadataOutputPushDelega
             DispatchQueue.main.async {
                 guard let self, generation == self.generation else { return }
                 switch player.timeControlStatus {
-                case .playing: state = .playing
-                case .waitingToPlayAtSpecifiedRate: if state != .paused { state = .waiting }
-                case .paused: if state == .playing { state = .paused }
+                case .playing: self.state = .playing
+                case .waitingToPlayAtSpecifiedRate: if self.state != .paused { self.state = .waiting }
+                case .paused: if self.state == .playing { self.state = .paused }
                 @unknown default: break
                 }
-                updatePresence()
-                reportListening()
-                notify()
+                self.updatePresence()
+                self.reportListening()
+                self.notify()
             }
         }
         acquireAudio(generation: generation)
@@ -112,8 +112,8 @@ final class WhitegramRadioPlayer: NSObject, AVPlayerItemMetadataOutputPushDelega
         guard let context else { return }
         audioSessionDisposable = context.sharedContext.mediaManager.audioSession.push(audioSessionType: .play(mixWithOthers: false), activate: { [weak self] _ in
             DispatchQueue.main.async {
-                guard let self, generation == self.generation, state != .paused else { return }
-                player?.play()
+                guard let self, generation == self.generation, self.state != .paused else { return }
+                self.player?.play()
             }
         }, deactivate: { [weak self] _ in
             return Signal { subscriber in
@@ -212,10 +212,10 @@ final class WhitegramRadioPlayer: NSObject, AVPlayerItemMetadataOutputPushDelega
                 DispatchQueue.main.async {
                     guard let self else { return }
                     switch action {
-                    case 0: resume()
-                    case 1: pause()
-                    case 2: stop()
-                    default: if state == .playing { pause() } else { resume() }
+                    case 0: self.resume()
+                    case 1: self.pause()
+                    case 2: self.stop()
+                    default: if self.state == .playing { self.pause() } else { self.resume() }
                     }
                 }
                 return .success
@@ -262,8 +262,8 @@ final class WhitegramRadioPlayer: NSObject, AVPlayerItemMetadataOutputPushDelega
             socket.send(.string(String(decoding: data, as: UTF8.self))) { [weak self] error in
                 DispatchQueue.main.async {
                     guard let self, generation == self.generation else { return }
-                    if let error { metadataError = "Radio metadata connection failed (\((error as NSError).code))."; notify() }
-                    else { receiveMetadata(channel: channel, generation: generation) }
+                    if let error { self.metadataError = "Radio metadata connection failed (\((error as NSError).code))."; self.notify() }
+                    else { self.receiveMetadata(channel: channel, generation: generation) }
                 }
             }
         } catch { metadataError = "Could not subscribe to radio metadata."; notify() }
@@ -274,18 +274,18 @@ final class WhitegramRadioPlayer: NSObject, AVPlayerItemMetadataOutputPushDelega
             DispatchQueue.main.async {
                 guard let self, generation == self.generation else { return }
                 switch result {
-                case let .failure(error): metadataError = "Radio metadata connection failed (\((error as NSError).code))."; notify()
+                case let .failure(error): self.metadataError = "Radio metadata connection failed (\((error as NSError).code))."; self.notify()
                 case let .success(message):
                     let data: Data
                     switch message {
                     case let .data(value): data = value
                     case let .string(value): data = Data(value.utf8)
-                    @unknown default: metadataError = "Unsupported radio metadata message."; notify(); return
+                    @unknown default: self.metadataError = "Unsupported radio metadata message."; self.notify(); return
                     }
                     do {
-                        if let track = try WhitegramRadioMetadata.emg(data, channel: channel) { self.track = track; metadataError = nil; updatePresence(); notify() }
-                    } catch { metadataError = "Radio metadata was not a valid track update."; notify() }
-                    receiveMetadata(channel: channel, generation: generation)
+                        if let track = try WhitegramRadioMetadata.emg(data, channel: channel) { self.track = track; self.metadataError = nil; self.updatePresence(); self.notify() }
+                    } catch { self.metadataError = "Radio metadata was not a valid track update."; self.notify() }
+                    self.receiveMetadata(channel: channel, generation: generation)
                 }
             }
         }

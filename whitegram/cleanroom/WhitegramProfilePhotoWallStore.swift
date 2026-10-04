@@ -24,9 +24,18 @@ final class WhitegramProfilePhotoWallStore {
         let values = try file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
         guard values.isRegularFile == true, values.isSymbolicLink != true, let size = values.fileSize,
               size <= WhitegramBackendProtocol.maximumResponseBytes else { throw WhitegramBackendError.localStorage }
-        let handle = try FileHandle(forReadingFrom: file)
-        defer { try? handle.close() }
-        let data = try handle.read(upToCount: WhitegramBackendProtocol.maximumResponseBytes + 1) ?? Data()
+        guard let stream = InputStream(url: file) else { throw WhitegramBackendError.localStorage }
+        stream.open()
+        defer { stream.close() }
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 16 * 1024)
+        while true {
+            let count = stream.read(&buffer, maxLength: buffer.count)
+            guard count >= 0 else { throw stream.streamError ?? WhitegramBackendError.localStorage }
+            if count == 0 { break }
+            guard count <= WhitegramBackendProtocol.maximumResponseBytes - data.count else { throw WhitegramBackendError.localStorage }
+            data.append(contentsOf: buffer.prefix(count))
+        }
         try validate(data)
         return data
     }
