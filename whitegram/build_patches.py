@@ -1,4 +1,4 @@
-"""Adapt fork BUILD imports to the pinned Telegram Bazel toolchain."""
+"""Adapt fork BUILD rules and shared-library dependencies to pinned Bazel."""
 
 import json
 import re
@@ -33,4 +33,13 @@ def apply_build_patches(root: Path) -> dict[str, list[str]]:
     patches.replace("audio-waveform-foundation-only", "submodules/AudioWaveform/BUILD",
         '    deps = [\n    \t"//submodules/AsyncDisplayKit:AsyncDisplayKit",\n\t"//submodules/Display:Display",\n        "//submodules/LegacyComponents:LegacyComponents",\n    ],',
         '    deps = [],')
+    patches.replace("opus-shared-framework-exports", "third-party/opus/BUILD", '''cc_library(
+    name = "opus_lib",
+    srcs = [":Public/opus/lib/lib" + x + ".a" for x in libs],
+)''', '''cc_import(
+    name = "opus_lib",
+    static_library = ":Public/opus/lib/libopus.a",
+    # TelegramCore owns Opus; WebRTC in TelegramUI also needs its multistream encoder.
+    alwayslink = True,
+)''')
     return patches.write()

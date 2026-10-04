@@ -112,3 +112,13 @@ The streak service now owns its profile service for the account session's lifeti
 - TelegramUI compilation stopped at an unused `accountId` in `ApplicationContext`. The retention installer already requested its removal, but `SourcePatches.replace` saw the shorter replacement inside the original anchor and incorrectly treated the deletion as installed.
 
 The replacement helper now applies shortening edits while their original fragment remains and rejects mixed old/new fragments. Regression tests first reproduced the skipped removal and ambiguous mixed-state acceptance, then passed with the fix. They also cover repeated anchors and insertion replay; account integration explicitly checks the obsolete logout variable is removed. Compatibility replay and all 224 top-level Python tests passed locally, with zero scanner findings in supported files. Full release-build confirmation remains pending.
+
+## Eleventh integrated run: Opus symbols across framework boundaries
+
+- Commit: `9c99f6b061b3abe4e810075732b48c64541a8262`.
+- Run: https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/37174950270.
+- Source checks and every native suite passed. TelegramUI compiled, and the build reached TelegramUIFramework linking.
+- WebRTC referenced four missing Opus functions: `opus_multistream_encode`, `opus_multistream_encoder_create`, `opus_multistream_encoder_ctl` and `opus_multistream_encoder_destroy`.
+- Voice processing now brings OpusBinding and its static Opus archive into TelegramCoreFramework. Bazel excludes that archive from the dependent TelegramUIFramework link, while the Core link loads only the archive members it uses. The multistream encoder is used by WebRTC in UI, not by Core.
+
+The follow-up imports the existing Opus archive through `cc_import(alwayslink=True)` so Core links the complete codec. Bazel 8.4.2's `cc_library` implementation does not apply its `alwayslink` attribute to precompiled `.a` inputs; `cc_import` does. The assembled-BUILD check requires this import contract. The Opus build and its public dependency labels remain the same. Native framework-link confirmation is pending.

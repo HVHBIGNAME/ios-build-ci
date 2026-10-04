@@ -51,6 +51,18 @@ class BuildDependencyTests(unittest.TestCase):
 
 @unittest.skipUnless(os.environ.get("WHITEGRAM_ASSEMBLED_SOURCE"), "Set WHITEGRAM_ASSEMBLED_SOURCE")
 class AssembledBuildTests(unittest.TestCase):
+    def test_opus_archive_is_force_loaded_for_downstream_framework_consumers(self):
+        root = Path(os.environ["WHITEGRAM_ASSEMBLED_SOURCE"])
+        build = ast.parse((root / "third-party/opus/BUILD").read_text(encoding="utf-8"))
+        targets = [node.value for node in build.body if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call)
+                   and any(keyword.arg == "name" and ast.literal_eval(keyword.value) == "opus_lib" for keyword in node.value.keywords)]
+        self.assertEqual(len(targets), 1)
+        target = targets[0]
+        self.assertEqual(target.func.id, "cc_import", "cc_library.alwayslink does not force-load precompiled .a inputs")
+        attributes = {keyword.arg: ast.literal_eval(keyword.value) for keyword in target.keywords}
+        self.assertEqual(attributes["static_library"], ":Public/opus/lib/libopus.a")
+        self.assertIs(attributes["alwayslink"], True)
+
     def test_audio_waveform_model_has_no_ui_dependencies(self):
         root = Path(os.environ["WHITEGRAM_ASSEMBLED_SOURCE"]) / "submodules/AudioWaveform"
         source_files = list((root / "Sources").rglob("*.swift"))
