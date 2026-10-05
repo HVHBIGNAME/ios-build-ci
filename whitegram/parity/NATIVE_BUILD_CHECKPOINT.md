@@ -1,5 +1,7 @@
 # Native build verification — 2026-10-04
 
+The twelfth integrated run completed the full release build and produced a locally verified IPA. See the final section for the artifact, revision and checksum. Device validation remains outstanding.
+
 ## Initial integrated run
 
 - Commit: `91fc3eb444deb155220fbeabb98ded47eec90fee`.
@@ -122,3 +124,18 @@ The replacement helper now applies shortening edits while their original fragmen
 - Voice processing now brings OpusBinding and its static Opus archive into TelegramCoreFramework. Bazel excludes that archive from the dependent TelegramUIFramework link, while the Core link loads only the archive members it uses. The multistream encoder is used by WebRTC in UI, not by Core.
 
 The follow-up imports the existing Opus archive through `cc_import(alwayslink=True)` so Core links the complete codec. Bazel 8.4.2's `cc_library` implementation does not apply its `alwayslink` attribute to precompiled `.a` inputs; `cc_import` does. The assembled-BUILD check requires this import contract. The Opus build and its public dependency labels remain the same. Native framework-link confirmation is pending.
+
+## Twelfth integrated run: release IPA verified
+
+- Commit: `5bda12ad897d35f73047acaf7249418769b2ae01`.
+- Run: https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/37176472659 — **success**, 13m31s.
+- All source/native checks, full release compilation, framework linking, packaging and IPA upload passed. The source report checked 410 Swift files without new parser diagnostics; the local top-level Python suite passed 225 tests.
+- Artifact: [WhiteGram-12.9.4-34639-unsigned](https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/37176472659/artifacts/11293782721), containing `WhiteGram.ipa` and `WhiteGram-verification.json`.
+- IPA size: **74,637,478 bytes**. SHA-256: `ed1f1b1ee4eb2a5b1faac89fba4b492920fed5633033d36e3e4278bc8dd42f7b`.
+- Identity: `whitegram.telegra.Telegraph`, version `12.9.4`, build `34639`, arm64.
+
+The artifact was downloaded under `recovery_20261002/build-37176472659/` and verified again with `whitegram/verify_ipa.py` against the exact committed revision. The local and CI reports match apart from the local file path. ZIP integrity, all six extension identities, 13 alternate icons and the exact bytes of all six plugin SDK scripts passed.
+
+A separate local check confirmed a canonical 32-byte backend application key in the main app, no copied key in extension plists, and no stale signing-profile files or signature directories. No key values were printed or added to the report.
+
+This is an unsigned device IPA requiring signing for installation. On-device launch, authenticated-service behavior and complete original-app parity have not been validated by this build.
