@@ -14,6 +14,7 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
     private var openInitialComposer: Bool
     private let historyDirectory: URL
     private let accountId: Int64
+    private let proxyConnection: WhitegramServiceProxyConnection
     private var drafts: [WhitegramAIProvider: String] = [:]
     private var historyProvider: WhitegramAIProvider?
     private var hasLoadedHistory = false
@@ -33,8 +34,10 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
         self.prompt = text ?? ""
         self.openInitialComposer = text != nil
         self.accountId = context.account.id.int64
+        self.proxyConnection = WhitegramServiceProxyConnection(context: context)
         self.historyDirectory = URL(fileURLWithPath: context.account.basePath, isDirectory: true).appendingPathComponent("whitegram-ai-v1", isDirectory: true)
         self.presenter.changed = { [weak self] in self?.refresh() }
+        self.proxyConnection.changed = { [weak self] in self?.refresh() }
         self.observers.append(whitegramServiceObserve(WhitegramPreferences.updatedNotification) { [weak self] _ in self?.refresh() })
         self.observers.append(whitegramServiceObserve(WhitegramLocalizationStore.changedNotification) { [weak self] _ in self?.refresh() })
         self.observers.append(whitegramServiceObserve(WhitegramServiceCredential.updatedNotification) { [weak self] notification in
@@ -102,7 +105,7 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
             self.connection = "Not checked for these settings."
         }
         self.configuration = configuration
-        let requesting = self.history?.isRequesting == true || self.modelTask != nil
+        let requesting = self.history?.isRequesting == true || self.modelTask != nil || self.proxyConnection.isConnecting
         let idle = !requesting && !self.presenter.isPresenting
         let historyError = self.historyLoadError ?? self.history?.storageError
         let canSend = idle && enabled && provider != nil && keyAvailable && !model.isEmpty && self.history != nil && historyError == nil
@@ -113,14 +116,17 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
         add("enabled", 0, .toggle(WhitegramLocalization.string("s.aiEnabled"), enabled, idle))
         add("provider", 0, .disclosure(WhitegramLocalization.string("s.aiProvider"), provider?.title ?? "Choose", idle))
         add("route", 0, .disclosure("Connection Route", provider?.configuredRoute == .direct ? "Direct API" : "Original Whitegram Proxy", idle && provider != nil))
-        if provider?.configuredRoute == .originalProxy { add("proxyStatus", 0, .text(WhitegramServiceError.originalProxyUnavailable.localizedDescription)) }
+        if provider?.configuredRoute == .originalProxy {
+            add("proxyStatus", 0, .text(self.proxyConnection.status))
+            add("connectProxy", 0, .action("Connect / Refresh Whitegram Access", idle))
+        }
         add("model", 0, .disclosure(WhitegramLocalization.string(provider == .groq ? "s.groqModel" : "s.geminiModel"), model.isEmpty ? "Enter model ID" : String(model.prefix(80)), idle && provider != nil))
         add("discoverModels", 0, .action("Load Models / Test Connection", idle && enabled && keyAvailable && provider != nil))
         add("key", 0, .disclosure(WhitegramLocalization.string(provider == .groq ? "s.groqApiKey" : "s.geminiApiKey"), keyAvailable ? "•••••••• · Keychain" : "Not set", idle && provider != nil))
         add("removeKey", 0, .action("Remove This Provider's API Key", idle && provider != nil && (keyAvailable || credentialError != nil)))
         if let error = credentialError { add("credentialError", 0, .text(error.localizedDescription)) }
         add("modelInfo", 0, .text("Enter a text-capable model ID available to your provider account. Each provider keeps its own model ID and API key. Keys are stored in this device's Keychain."))
-        add("network", 0, .text("Official Gemini and Groq APIs via Apple URLSession and system network settings. Replies have a 4,096-token output limit."))
+        add("network", 0, .text("Direct API sends to the selected provider. Original Whitegram Proxy uses this Telegram account's signed session and verified access, forwarding the provider key separately. Replies have a 4,096-token output limit."))
         if !self.models.isEmpty {
             add("modelListHeader", 3, .header("PROVIDER MODEL LIST"))
             for model in self.models {
@@ -187,7 +193,7 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
     }
 
     func setEnabled(_ enabled: Bool) {
-        guard self.history?.isRequesting != true, self.modelTask == nil, !self.presenter.isPresenting else { return }
+        guard self.history?.isRequesting != true, self.modelTask == nil, !self.proxyConnection.isConnecting, !self.presenter.isPresenting else { return }
         self.save(["geminiEnabled": enabled])
     }
 
@@ -203,7 +209,7 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
     func perform(_ id: String) {
         if id == "cancel" { self.cancel(); return }
         if id == "clearHistory", !self.presenter.isPresenting { self.clearHistory(); return }
-        guard self.history?.isRequesting != true, self.modelTask == nil, !self.presenter.isPresenting else { return }
+        guard self.history?.isRequesting != true, self.modelTask == nil, !self.proxyConnection.isConnecting, !self.presenter.isPresenting else { return }
         if id.hasPrefix("selectModel:"), let provider = self.historyProvider {
             let value = String(id.dropFirst("selectModel:".count))
             guard self.models.contains(where: { $0.id == value }) else { return }
@@ -213,6 +219,7 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
         switch id {
         case "provider": self.chooseProvider()
         case "route": self.chooseRoute()
+        case "connectProxy": self.proxyConnection.connect()
         case "model": self.editModel()
         case "discoverModels": self.discoverModels(nextPage: false)
         case "moreModels": self.discoverModels(nextPage: true)
@@ -274,12 +281,12 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
 
     private func chooseRoute() {
         guard let provider = self.historyProvider else { return }
-        let alert = UIAlertController(title: "\(provider.title) Connection", message: "The original signed Whitegram proxy session is unavailable. Direct API sends requests to the selected provider with your Keychain API key. It does not use Telegram's MTProto proxy.", preferredStyle: .alert)
+        let alert = UIAlertController(title: "\(provider.title) Connection", message: "Whitegram Proxy forwards requests and your provider key through this Telegram account's signed Whitegram session. Direct API sends to the provider. Neither route uses Telegram's MTProto proxy.", preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "Direct API", style: .default, handler: { [weak self] _ in
             self?.presenter.close()
             self?.save([provider.proxyPreference: false])
         }))
-        alert.addAction(UIAlertAction(title: "Keep Original Proxy Setting", style: .default, handler: { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "Original Whitegram Proxy", style: .default, handler: { [weak self] _ in
             self?.presenter.close()
             self?.save([provider.proxyPreference: true])
         }))
@@ -295,7 +302,7 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
             let id = UUID()
             self.modelTaskId = id
             self.status = "Requesting the provider's model list…"
-            self.modelTask = WhitegramAIService.shared.fetchModels(provider: provider, apiKey: key, route: provider.configuredRoute, pageToken: nextPage ? self.nextModelPage : nil) { [weak self] result in
+            self.modelTask = self.proxyConnection.account.ai(route: provider.configuredRoute).fetchModels(provider: provider, apiKey: key, route: provider.configuredRoute, pageToken: nextPage ? self.nextModelPage : nil) { [weak self] result in
                 guard let self, self.modelTaskId == id, self.historyProvider == provider else { return }
                 self.modelTask = nil
                 self.modelTaskId = nil
@@ -402,12 +409,13 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
 
     private func send(retry: Bool) {
         guard let history = self.history, let provider = self.historyProvider else { return }
+        let account = self.proxyConnection.account
         let sender: WhitegramAIConversationSession.StreamingSender = { messages, model, onText, completion in
             do {
                 guard WhitegramPreferences.bool("geminiEnabled") else { throw WhitegramServiceError.disabled }
                 guard WhitegramAIProvider.configured == provider else { throw WhitegramServiceError.invalidProvider }
                 guard let key = try WhitegramServiceCredentials.vault.token(for: provider.credential) else { throw WhitegramServiceError.missingAPIKey }
-                return WhitegramAIService.shared.generateStreaming(messages: messages, provider: provider, model: model, apiKey: key, route: provider.configuredRoute, onText: onText, completion: completion)
+                return account.ai(route: provider.configuredRoute).generateStreaming(messages: messages, provider: provider, model: model, apiKey: key, route: provider.configuredRoute, onText: onText, completion: completion)
             } catch {
                 let operation = WhitegramServiceOperation(completion: completion)
                 operation.finish(.failure(error as? WhitegramServiceError ?? .preferences))
@@ -453,7 +461,8 @@ private final class WhitegramAICoordinator: WhitegramServiceListActions {
     }
 
     private func cancel(message: String = "Request cancelled.") {
-        guard self.history?.isRequesting == true || self.modelTask != nil else { return }
+        guard self.history?.isRequesting == true || self.modelTask != nil || self.proxyConnection.isConnecting else { return }
+        self.proxyConnection.cancel()
         self.modelTaskId = nil
         self.modelTask?.cancel()
         self.modelTask = nil

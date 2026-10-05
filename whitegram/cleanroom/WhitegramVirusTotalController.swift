@@ -11,6 +11,7 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
     let entries = ValuePromise<[WhitegramServiceEntry]>([], ignoreRepeated: true)
     let presenter = WhitegramServicePresenter()
     private let context: AccountContext
+    private let proxyConnection: WhitegramServiceProxyConnection
     private let attachment: EngineMessage?
     private var observers: [NSObjectProtocol] = []
     private var sha256: String
@@ -31,6 +32,7 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
 
     init(context: AccountContext, sha256: String? = nil, targets: [WhitegramVirusTotalTarget] = [], attachment: EngineMessage? = nil, fileURL: URL? = nil, fileName: String? = nil) {
         self.context = context
+        self.proxyConnection = WhitegramServiceProxyConnection(context: context)
         self.attachment = attachment
         self.fileURL = fileURL
         self.fileName = fileName
@@ -47,6 +49,7 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
         if sha256 != nil && self.target == nil { self.status = WhitegramServiceError.invalidHash.localizedDescription }
         if !self.messageTargets.isEmpty { self.status = "Review the selected target, then tap Look Up to send it to VirusTotal." }
         self.presenter.changed = { [weak self] in self?.refresh() }
+        self.proxyConnection.changed = { [weak self] in self?.refresh() }
         self.observers.append(whitegramServiceObserve(WhitegramPreferences.updatedNotification) { [weak self] _ in self?.refresh() })
         self.observers.append(whitegramServiceObserve(WhitegramLocalizationStore.changedNotification) { [weak self] _ in self?.refresh() })
         self.observers.append(whitegramServiceObserve(WhitegramServiceCredential.updatedNotification) { [weak self] notification in
@@ -88,14 +91,17 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
             self.result = nil
         }
         self.configuration = configuration
-        let idle = self.task == nil && !self.presenter.isPresenting
+        let idle = self.task == nil && !self.proxyConnection.isConnecting && !self.presenter.isPresenting
         var rows: [WhitegramServiceEntry] = []
         func add(_ id: String, _ section: Int32, _ content: WhitegramServiceEntry.Content) {
             rows.append(WhitegramServiceEntry(stableId: id, order: rows.count, section: section, content: content))
         }
         add("enabled", 0, .toggle(WhitegramLocalization.string("s.virusTotalEnabled"), enabled, idle))
         add("route", 0, .disclosure("Connection Route", route == .direct ? "Direct API" : "Original Whitegram Proxy", idle))
-        if route == .originalProxy { add("proxyStatus", 0, .text(WhitegramServiceError.originalProxyUnavailable.localizedDescription)) }
+        if route == .originalProxy {
+            add("proxyStatus", 0, .text(self.proxyConnection.status))
+            add("connectProxy", 0, .action("Connect / Refresh Whitegram Access", idle))
+        }
         add("key", 0, .disclosure(WhitegramLocalization.string("s.virusTotalApiKey"), keyAvailable ? "•••••••• · Keychain" : "Not set", idle))
         add("removeKey", 0, .action("Remove API Key", idle && (keyAvailable || credentialError != nil)))
         add("testConnection", 0, .action("Test Connection", idle && enabled && keyAvailable))
@@ -123,7 +129,7 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
         if case .file? = self.target { add("submitScan", 1, .action("Reanalyse Existing File Report", idle && enabled && keyAvailable)) }
         if self.fileURL != nil { add("uploadScan", 1, .action("Upload File & Scan…", idle && enabled && keyAvailable)) }
         if self.analysisId != nil { add("resumeAnalysis", 1, .action("Check Submitted Analysis", idle && enabled && keyAvailable)) }
-        if self.task != nil { add("cancel", 1, .action("Cancel Operation", true)) }
+        if self.task != nil || self.proxyConnection.isConnecting { add("cancel", 1, .action("Cancel Operation", true)) }
         add("connection", 1, .text("Connection: " + self.connection))
         if !self.status.isEmpty { add("status", 1, .text(self.status)) }
         if let analysis = self.analysis {
@@ -161,16 +167,17 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
     }
 
     func setEnabled(_ enabled: Bool) {
-        guard self.task == nil, !self.presenter.isPresenting else { return }
+        guard self.task == nil, !self.proxyConnection.isConnecting, !self.presenter.isPresenting else { return }
         self.status = WhitegramPreferences.set(enabled, for: "virusTotalEnabled") ? "Settings saved." : WhitegramServiceError.preferences.localizedDescription
         self.refresh()
     }
 
     func perform(_ id: String) {
         if id == "cancel" { self.cancel(); return }
-        guard self.task == nil, !self.presenter.isPresenting else { return }
+        guard self.task == nil, !self.proxyConnection.isConnecting, !self.presenter.isPresenting else { return }
         switch id {
         case "route": self.chooseRoute()
+        case "connectProxy": self.proxyConnection.connect()
         case "key": self.editKey()
         case "removeKey":
             do { try WhitegramServiceCredentials.vault.remove(.virusTotal); self.status = "API key removed." }
@@ -212,8 +219,8 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
     }
 
     private func chooseRoute() {
-        let alert = UIAlertController(title: "VirusTotal Connection", message: "The original signed Whitegram proxy is unavailable. Direct API sends the reviewed indicator or explicitly uploaded file directly to VirusTotal with your API key.", preferredStyle: .alert)
-        for (title, useProxy) in [("Direct API", false), ("Keep Original Proxy Setting", true)] {
+        let alert = UIAlertController(title: "VirusTotal Connection", message: "Whitegram Proxy forwards the reviewed indicator or explicitly uploaded file and provider key through this Telegram account's signed session. Direct API sends directly to VirusTotal.", preferredStyle: .alert)
+        for (title, useProxy) in [("Direct API", false), ("Original Whitegram Proxy", true)] {
             alert.addAction(UIAlertAction(title: title, style: .default, handler: { [weak self] _ in
                 guard let self else { return }
                 self.presenter.close()
@@ -405,13 +412,13 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
             }
             self.refresh()
         }
-        self.task = whitegramWithVirusTotalCredential(completion: completion) { key in
+        self.task = whitegramWithVirusTotalCredential(account: self.proxyConnection.account, completion: completion) { key, service in
             if resume, let analysisId = self.analysisId {
-                return WhitegramVirusTotalService.shared.resumeAnalysis(id: analysisId, progress: progress, apiKey: key, completion: completion)
+                return service.resumeAnalysis(id: analysisId, progress: progress, apiKey: key, completion: completion)
             } else if upload, let url = self.fileURL {
-                return WhitegramVirusTotalService.shared.uploadAndScan(fileURL: url, fileName: self.fileName, expectedHash: self.file?.sha256, progress: progress, apiKey: key, completion: completion)
+                return service.uploadAndScan(fileURL: url, fileName: self.fileName, expectedHash: self.file?.sha256, progress: progress, apiKey: key, completion: completion)
             } else if let target = self.target {
-                return WhitegramVirusTotalService.shared.scan(target: target, progress: progress, apiKey: key, completion: completion)
+                return service.scan(target: target, progress: progress, apiKey: key, completion: completion)
             }
             let operation = WhitegramServiceOperation(completion: completion)
             operation.finish(.failure(.invalidTarget))
@@ -438,8 +445,8 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
             }
             self.refresh()
         }
-        self.task = whitegramWithVirusTotalCredential(completion: completion) { key in
-            WhitegramVirusTotalService.shared.testConnection(apiKey: key, completion: completion)
+        self.task = whitegramWithVirusTotalCredential(account: self.proxyConnection.account, completion: completion) { key, service in
+            service.testConnection(apiKey: key, completion: completion)
         }
         self.refresh()
     }
@@ -450,7 +457,7 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
         self.taskId = id
         self.result = nil
         self.status = "Looking up the selected " + target.title.lowercased() + " report…"
-        self.task = whitegramLookupVirusTotalTarget(target) { [weak self] result in
+        self.task = whitegramLookupVirusTotalTarget(target, account: self.proxyConnection.account) { [weak self] result in
             guard let self = self, self.taskId == id else { return }
             self.task = nil
             self.taskId = nil
@@ -494,10 +501,12 @@ private final class WhitegramVirusTotalCoordinator: NSObject, WhitegramServiceLi
     }
 
     private func cancel(message: String = "Operation cancelled.") {
-        guard let task = self.task else { return }
+        guard self.task != nil || self.proxyConnection.isConnecting else { return }
+        self.proxyConnection.cancel()
+        let task = self.task
         self.taskId = nil
         self.task = nil
-        task.cancel()
+        task?.cancel()
         self.status = message
         self.refresh()
     }

@@ -45,6 +45,8 @@ Authentication is `WhitegramBackendAuthentication(context:)`. Retain it, call `c
 
 Public observation: `whitegramBackendSessionUpdated`, `whitegramBackendAccessUpdated` (both include `userInfo["userId"]`), and `whitegramBackendAccessState(userId:)`. The parent can use these for its menu/access state machine. Backend startup registration currently covers the primary account; parent account lifecycle code can also call `whitegramRegisterBackendAccount(userId:)` for other active accounts. Call `disconnect()` when intentionally removing that account's backend credentials.
 
+`WhitegramServiceProxy.swift` now adapts this contract for the account-bound Gemini, Groq and VirusTotal clients. It is installed by `SERVICES_RUNTIME_FILES`, not `BACKEND_RUNTIME_FILES`. The native service screens use CloudUser IDs and the backend authentication/access APIs. See [SERVICES_PORT.md](SERVICES_PORT.md) for provider paths, upload URL restrictions and the optional account parameter on service callbacks. Integration fixtures are in `tests/backend/WhitegramServiceProxyTests.swift`; they use the production adapter with synthetic sessions and intercepted HTTP.
+
 ## Original evidence and trust
 
 The audit IPA SHA-256 is `bd6d3a13046d5857c1389e2d794c4c2ca44cee89bb22880004bd77f84fe29837`. `tests/backend/protocol-evidence.json` records addresses and synthetic signing vectors. `tests/backend/verify_original.py` independently reopens and hashes the original IPA using its read-only audit/tooling.
@@ -83,7 +85,7 @@ Scammer refresh in this audited build is a single `RET` at image 46 `0x1f0008`. 
 
 ## Remaining checks and parity gaps
 
-1. Run `tests/backend/run_native.py` on macOS (21 copied production Foundation files, synthetic XCTest). Its Windows path exits with an explicit unsupported-platform result. Then compile SettingsUI/TelegramCore/TelegramUI with the parent's actual iOS build; parsing is not type checking.
+1. Run `tests/backend/run_native.py` on macOS (32 copied production files, including service/proxy dependencies and 13 additional proxy integration XCTest methods). Its Windows path exits with an explicit unsupported-platform result. Then compile SettingsUI/TelegramCore/TelegramUI with the parent's actual iOS build; parsing is not type checking.
 2. Authenticated historical service access is unavailable here. Test bot authorization, signatures/pins, entitlement, JSON payload acceptance, mutation permissions, provider SSE/file upload, Retry-After, logout/cancellation and reconnect on a device/account authorized to use that service. No live request with account data was sent.
 3. The owned controllers are functional form/list adapters, not a verified visual clone of every original inline peer-profile card, rich-text editor, quote/lyric animation, particle scene, badge/flame overlay or photo strip. `showMutualContactsCard`, custom-color/native message-style application and other-user style/badge hiding do not have complete renderer consumers in this handoff. Keep those capabilities qualified; the parent owns route/composition integration.
 4. The current photo normalization (1600-pixel thumbnail/JPEG 0.85), radio interruptions/background behavior, source localization coverage and profile layouts still need native/original-device comparisons. Original station reachability and historical remote content/registration/scammer datasets cannot be inferred from an IPA.

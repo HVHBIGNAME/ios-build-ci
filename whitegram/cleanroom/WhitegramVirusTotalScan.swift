@@ -85,9 +85,9 @@ extension WhitegramVirusTotalService {
     func upload(_ upload: WhitegramVirusTotalUpload, to url: URL, apiKey: String, progress: @escaping (Int64, Int64) -> Void, completion: @escaping (Result<String, WhitegramServiceError>) -> Void) -> WhitegramServiceTask {
         let operation = WhitegramServiceOperation(completion: completion)
         do {
-            try self.route.requireAvailable()
+            try self.route.requireAvailable(using: self.transport)
             guard let transport = self.transport as? WhitegramServiceUploadTransport else { throw WhitegramServiceError.uploadUnavailable }
-            var request = try whitegramServiceRequest(url: WhitegramVirusTotalScanWire.uploadURL(url.absoluteString), method: "POST", apiKey: whitegramValidatedAPIKey(apiKey), header: "x-apikey")
+            var request = try whitegramServiceRequest(url: transport.validatedUploadURL(url.absoluteString), method: "POST", apiKey: whitegramValidatedAPIKey(apiKey), header: "x-apikey")
             request.setValue("multipart/form-data; boundary=" + upload.boundary, forHTTPHeaderField: "Content-Type")
             request.setValue(String(upload.bodyBytes), forHTTPHeaderField: "Content-Length")
             try self.gate.begin()
@@ -142,7 +142,7 @@ private final class WhitegramVirusTotalScanOperation {
     func prepareFile(url: URL, fileName: String?, expectedHash: String?) {
         // Validate before materializing any file-provider data.
         do {
-            try self.service.route.requireAvailable()
+            try self.service.route.requireAvailable(using: self.service.transport)
             _ = try whitegramValidatedAPIKey(self.apiKey)
             guard self.service.transport is WhitegramServiceUploadTransport else { throw WhitegramServiceError.uploadUnavailable }
             if let expectedHash { _ = try WhitegramVirusTotalWire.validatedHash(expectedHash) }
@@ -161,7 +161,10 @@ private final class WhitegramVirusTotalScanOperation {
                 if upload.file.byteCount > WhitegramServiceLimits.directUploadFileBytes {
                     let child = self.service.perform(request: {
                         try WhitegramVirusTotalScanWire.request(path: "files/upload_url", method: "GET", apiKey: self.apiKey)
-                    }, response: WhitegramVirusTotalScanWire.uploadAddress) { result in
+                    }, response: { response in
+                        guard let transport = self.service.transport as? WhitegramServiceUploadTransport else { throw WhitegramServiceError.uploadUnavailable }
+                        return try WhitegramVirusTotalScanWire.uploadAddress(response, validate: transport.validatedUploadURL)
+                    }) { result in
                         guard !self.task.isCancelled else { return }
                         switch result {
                         case let .failure(error): self.operation.finish(.failure(error))
@@ -287,9 +290,9 @@ enum WhitegramVirusTotalScanWire {
         return url
     }
 
-    static func uploadAddress(_ response: WhitegramServiceHTTPResponse) throws -> URL {
+    static func uploadAddress(_ response: WhitegramServiceHTTPResponse, validate: (String) throws -> URL = WhitegramVirusTotalScanWire.uploadURL) throws -> URL {
         struct Envelope: Decodable { let data: String }
-        return try self.uploadURL(JSONDecoder().decode(Envelope.self, from: self.checked(response)).data)
+        return try validate(JSONDecoder().decode(Envelope.self, from: self.checked(response)).data)
     }
 
     static func analysis(_ response: WhitegramServiceHTTPResponse, expectedId: String) throws -> WhitegramVirusTotalAnalysis {

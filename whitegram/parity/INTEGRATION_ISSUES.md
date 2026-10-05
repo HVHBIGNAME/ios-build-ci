@@ -26,7 +26,7 @@ Player source tests require `WHITEGRAM_PLAYER_SOURCE`, now supplied by CI. The n
 
 ## Remaining integration and parity work
 
-- Services need account-bound adapters for the backend's new signed provider transport, including SSE, upload cancellation and preserved error responses. Direct-only clients and explicit proxy rejection remain a documented gap.
+- Services now have the account-bound signed provider adapter, native connection/access controls and 13 additional backend-host integration XCTest methods. Source checks passed on 2026-10-05; native execution and authenticated provider validation remain pending. Proxy mode rejects direct-only `/_ah/upload/` destinations, so historical large-file upload responses need verification. See `SERVICES_PORT.md` and `parity/services.json`.
 - Original notification/keepalive/RAM producers, exact menu row bindings/conditions and several appearance/profile/tracking/plugin features remain incomplete. The historical row inventory records these scopes, but its older failure counts are superseded by the parent checks.
 - Original `customSettingsIcons` and `showOriginalTelegramIcons` controls have distinct semantics and are not implemented by opening an icon-pack manager. Their catalog rows remain present without that incorrect supported route.
 - Native Swift/XCTest, the full IPA build, device interactions and authenticated historical services still need their own verification. Successful assembly/parser tests do not establish full-client parity.

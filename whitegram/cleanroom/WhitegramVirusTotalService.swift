@@ -85,7 +85,7 @@ public final class WhitegramVirusTotalService {
     func perform<Value>(request: () throws -> URLRequest, response decode: @escaping (WhitegramServiceHTTPResponse) throws -> Value, completion: @escaping (Result<Value, WhitegramServiceError>) -> Void) -> WhitegramServiceTask {
         let operation = WhitegramServiceOperation(completion: completion)
         let prepared = whitegramServiceResult { () -> URLRequest in
-            try self.route.requireAvailable()
+            try self.route.requireAvailable(using: self.transport)
             let request = try request()
             try self.gate.begin()
             return request

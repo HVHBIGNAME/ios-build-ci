@@ -15,7 +15,7 @@ extension WhitegramAIService {
         }
         let operation = WhitegramServiceOperation(completion: completion)
         do {
-            try route.requireAvailable()
+            try route.requireAvailable(using: self.transport)
             guard let transport = self.transport as? WhitegramServiceStreamingTransport else { throw WhitegramServiceError.streamingUnavailable }
             var request = try WhitegramAIWire.request(messages: messages, provider: provider, model: model, apiKey: apiKey)
             guard let body = request.httpBody, var value = try JSONSerialization.jsonObject(with: body) as? [String: Any] else { throw WhitegramServiceError.invalidResponse }

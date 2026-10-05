@@ -17,7 +17,7 @@ extension WhitegramAIService {
     @discardableResult
     public func fetchModels(provider: WhitegramAIProvider, apiKey: String, route: WhitegramServiceRoute = .direct, pageToken: String? = nil, completion: @escaping (Result<WhitegramAIModelPage, WhitegramServiceError>) -> Void) -> WhitegramServiceTask {
         return self.perform(prepare: {
-            try route.requireAvailable()
+            try route.requireAvailable(using: self.transport)
             return try WhitegramAIModelsWire.request(provider: provider, apiKey: apiKey, pageToken: pageToken)
         }, decode: { try WhitegramAIModelsWire.response($0, provider: provider) }, completion: completion)
     }

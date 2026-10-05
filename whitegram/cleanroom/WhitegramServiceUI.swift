@@ -90,6 +90,80 @@ func whitegramServiceObserve(_ name: Notification.Name, action: @escaping (Notif
     }
 }
 
+final class WhitegramServiceProxyConnection {
+    let account: WhitegramAccountServices
+    private let authentication: WhitegramBackendAuthentication
+    private var task: WhitegramBackendTask?
+    private var generation = 0
+    private var observers: [NSObjectProtocol] = []
+    private var error: WhitegramBackendError?
+    private(set) var isConnecting = false
+    var changed: (() -> Void)?
+
+    init(context: AccountContext) {
+        self.account = WhitegramAccountServices(userId: context.account.peerId.id._internalGetInt64Value())
+        self.authentication = WhitegramBackendAuthentication(context: context)
+        for name in [whitegramBackendSessionUpdated, whitegramBackendAccessUpdated] {
+            self.observers.append(whitegramServiceObserve(name) { [weak self] notification in
+                guard let self, notification.userInfo?["userId"] as? Int64 == self.account.backend.userId else { return }
+                self.error = nil
+                self.changed?()
+            })
+        }
+    }
+
+    deinit {
+        self.task?.cancel()
+        self.observers.forEach { NotificationCenter.default.removeObserver($0) }
+    }
+
+    var status: String {
+        if self.isConnecting { return "Connecting this Telegram account to Whitegram…" }
+        if let error { return error.localizedDescription }
+        do {
+            guard try self.account.backend.hasSession() else { return WhitegramServiceError.originalProxyUnavailable.localizedDescription }
+            switch self.account.backend.accessState {
+            case .allowed: return "Whitegram proxy access verified for Telegram user \(self.account.backend.userId)."
+            case .denied: return WhitegramServiceError.originalProxyAccessDenied.localizedDescription
+            case .unknown: return WhitegramServiceError.originalProxyAccessUnverified.localizedDescription
+            }
+        } catch { return error.localizedDescription }
+    }
+
+    func connect() {
+        guard !self.isConnecting else { return }
+        self.generation += 1
+        let generation = self.generation
+        self.isConnecting = true
+        self.error = nil
+        self.changed?()
+        let completed: (Result<Void, WhitegramBackendError>) -> Void = { [weak self] result in
+            guard let self, generation == self.generation else { return }
+            self.task = nil
+            self.isConnecting = false
+            if case let .failure(error) = result { self.error = error }
+            self.changed?()
+        }
+        do {
+            if try self.account.backend.hasSession() {
+                self.task = self.account.backend.refreshAccess { result in
+                    completed(result.flatMap { $0 == .allowed ? .success(Void()) : .failure(.betaAccessDenied) })
+                }
+            } else {
+                self.authentication.connect(completion: completed)
+            }
+        } catch { completed(.failure(error as? WhitegramBackendError ?? .invalidResponse)) }
+    }
+
+    func cancel() {
+        self.generation += 1
+        self.authentication.cancel()
+        self.task?.cancel()
+        self.task = nil
+        self.isConnecting = false
+    }
+}
+
 /// Retained by the settings coordinator; UIKit's delegate references are weak.
 final class WhitegramServicePresenter: NSObject, UIAdaptivePresentationControllerDelegate {
     weak var controller: ItemListController?

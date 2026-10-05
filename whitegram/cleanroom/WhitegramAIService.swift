@@ -79,7 +79,7 @@ public final class WhitegramAIService {
     @discardableResult
     public func generate(messages: [WhitegramAIMessage], provider: WhitegramAIProvider, model: String, apiKey: String, route: WhitegramServiceRoute = .direct, completion: @escaping (Result<WhitegramAIResponse, WhitegramServiceError>) -> Void) -> WhitegramServiceTask {
         return self.perform(prepare: {
-            try route.requireAvailable()
+            try route.requireAvailable(using: self.transport)
             return try WhitegramAIWire.request(messages: messages, provider: provider, model: model, apiKey: apiKey)
         }, decode: { try WhitegramAIWire.response($0, provider: provider, model: model) }, completion: completion)
     }

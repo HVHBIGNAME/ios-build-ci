@@ -1,6 +1,6 @@
 # Integrated Whitegram source port
 
-Latest local integration verification: [2026-10-03 parent checkpoint](parity/PARENT_CHECKPOINT.md). It covers the newly assembled working tree, including complete installer replay and the current source-test results. Native build/artifact checkpoints below apply to their named revisions.
+Latest assembled-candidate checkpoint: [2026-10-03 parent checkpoint](parity/PARENT_CHECKPOINT.md), including complete installer replay and its source-test results. The [2026-10-05 service-proxy increment](SERVICES_PORT.md#tests-and-verification) adds account-bound routing and integration fixtures, with 43 passing Python checks; native execution remains pending. Native build/artifact checkpoints below apply to their named revisions.
 
 ## Inputs
 

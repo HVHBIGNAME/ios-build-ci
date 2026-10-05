@@ -19,25 +19,18 @@ public func whitegramVirusTotalTargets(text: String, entities: [MessageTextEntit
 
 /// Call only after the user explicitly submits a reviewed target.
 @discardableResult
-public func whitegramLookupVirusTotalTarget(_ target: WhitegramVirusTotalTarget, completion: @escaping (Result<WhitegramVirusTotalTargetLookupResult, WhitegramServiceError>) -> Void) -> WhitegramServiceTask {
-    do {
-        guard WhitegramPreferences.bool("virusTotalEnabled") else { throw WhitegramServiceError.disabled }
-        try WhitegramServiceRoute.configuredVirusTotal.requireAvailable()
-        guard let key = try WhitegramServiceCredentials.vault.token(for: .virusTotal) else { throw WhitegramServiceError.missingAPIKey }
-        return WhitegramVirusTotalService.shared.lookup(target: target, apiKey: key, completion: completion)
-    } catch {
-        let operation = WhitegramServiceOperation(completion: completion)
-        operation.finish(.failure(error as? WhitegramServiceError ?? .preferences))
-        return operation.task
+public func whitegramLookupVirusTotalTarget(_ target: WhitegramVirusTotalTarget, account: WhitegramAccountServices? = nil, completion: @escaping (Result<WhitegramVirusTotalTargetLookupResult, WhitegramServiceError>) -> Void) -> WhitegramServiceTask {
+    return whitegramWithVirusTotalCredential(account: account, completion: completion) { key, service in
+        service.lookup(target: target, apiKey: key, completion: completion)
     }
 }
 
-func whitegramWithVirusTotalCredential<Value>(completion: @escaping (Result<Value, WhitegramServiceError>) -> Void, request: (String) -> WhitegramServiceTask) -> WhitegramServiceTask {
+func whitegramWithVirusTotalCredential<Value>(account: WhitegramAccountServices? = nil, completion: @escaping (Result<Value, WhitegramServiceError>) -> Void, request: (String, WhitegramVirusTotalService) -> WhitegramServiceTask) -> WhitegramServiceTask {
     do {
         guard WhitegramPreferences.bool("virusTotalEnabled") else { throw WhitegramServiceError.disabled }
-        try WhitegramServiceRoute.configuredVirusTotal.requireAvailable()
+        let service = try WhitegramServiceRoute.configuredVirusTotal.virusTotalService(account: account)
         guard let key = try WhitegramServiceCredentials.vault.token(for: .virusTotal) else { throw WhitegramServiceError.missingAPIKey }
-        return request(key)
+        return request(key, service)
     } catch {
         let operation = WhitegramServiceOperation(completion: completion)
         operation.finish(.failure(error as? WhitegramServiceError ?? .preferences))
@@ -46,16 +39,16 @@ func whitegramWithVirusTotalCredential<Value>(completion: @escaping (Result<Valu
 }
 
 @discardableResult
-public func whitegramScanVirusTotalTarget(_ target: WhitegramVirusTotalTarget, progress: @escaping (WhitegramVirusTotalScanProgress) -> Void, completion: @escaping (Result<WhitegramVirusTotalAnalysis, WhitegramServiceError>) -> Void) -> WhitegramServiceTask {
-    return whitegramWithVirusTotalCredential(completion: completion) { key in
-        WhitegramVirusTotalService.shared.scan(target: target, progress: progress, apiKey: key, completion: completion)
+public func whitegramScanVirusTotalTarget(_ target: WhitegramVirusTotalTarget, account: WhitegramAccountServices? = nil, progress: @escaping (WhitegramVirusTotalScanProgress) -> Void, completion: @escaping (Result<WhitegramVirusTotalAnalysis, WhitegramServiceError>) -> Void) -> WhitegramServiceTask {
+    return whitegramWithVirusTotalCredential(account: account, completion: completion) { key, service in
+        service.scan(target: target, progress: progress, apiKey: key, completion: completion)
     }
 }
 
 @discardableResult
-public func whitegramUploadAndScanVirusTotalFile(url: URL, fileName: String? = nil, expectedHash: String? = nil, progress: @escaping (WhitegramVirusTotalScanProgress) -> Void, completion: @escaping (Result<WhitegramVirusTotalAnalysis, WhitegramServiceError>) -> Void) -> WhitegramServiceTask {
-    return whitegramWithVirusTotalCredential(completion: completion) { key in
-        WhitegramVirusTotalService.shared.uploadAndScan(fileURL: url, fileName: fileName, expectedHash: expectedHash, progress: progress, apiKey: key, completion: completion)
+public func whitegramUploadAndScanVirusTotalFile(url: URL, fileName: String? = nil, expectedHash: String? = nil, account: WhitegramAccountServices? = nil, progress: @escaping (WhitegramVirusTotalScanProgress) -> Void, completion: @escaping (Result<WhitegramVirusTotalAnalysis, WhitegramServiceError>) -> Void) -> WhitegramServiceTask {
+    return whitegramWithVirusTotalCredential(account: account, completion: completion) { key, service in
+        service.uploadAndScan(fileURL: url, fileName: fileName, expectedHash: expectedHash, progress: progress, apiKey: key, completion: completion)
     }
 }
 

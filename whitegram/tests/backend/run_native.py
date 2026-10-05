@@ -19,6 +19,10 @@ SOURCES = (
     "WhitegramProfileRegistration.swift", "WhitegramProfileStreakService.swift", "WhitegramProfileStreakSession.swift",
     "WhitegramProfilePresenceService.swift", "WhitegramRadioModels.swift", "WhitegramAPIStatusService.swift",
     "WhitegramScammerDatabase.swift", "WhitegramTrafficPolicy.swift",
+    "WhitegramServiceCore.swift", "WhitegramServiceHTTP.swift", "WhitegramServiceProxy.swift",
+    "WhitegramAIService.swift", "WhitegramAIModels.swift", "WhitegramAIStreaming.swift",
+    "WhitegramVirusTotalService.swift", "WhitegramVirusTotalTargets.swift", "WhitegramVirusTotalFileHasher.swift",
+    "WhitegramVirusTotalUpload.swift", "WhitegramVirusTotalScan.swift",
 )
 
 

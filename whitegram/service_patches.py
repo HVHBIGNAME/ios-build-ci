@@ -8,7 +8,7 @@ MENU = "submodules/TelegramUI/Sources/ChatInterfaceStateContextMenus.swift"
 SERVICES_RUNTIME_FILES = {
     name: "submodules/SettingsUI/Sources/" + name
     for name in (
-        "WhitegramServiceCore.swift", "WhitegramServiceHTTP.swift", "WhitegramServiceCredentials.swift",
+        "WhitegramServiceCore.swift", "WhitegramServiceHTTP.swift", "WhitegramServiceCredentials.swift", "WhitegramServiceProxy.swift",
         "WhitegramServiceUI.swift", "WhitegramAIService.swift", "WhitegramAIStreaming.swift", "WhitegramAIModels.swift", "WhitegramAIConversation.swift",
         "WhitegramAILegacyHistory.swift", "WhitegramAISettingsController.swift", "WhitegramVirusTotalService.swift",
         "WhitegramVirusTotalTargets.swift", "WhitegramVirusTotalMessageContext.swift", "WhitegramVirusTotalFileHasher.swift",

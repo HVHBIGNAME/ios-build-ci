@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 import sys
@@ -15,6 +16,9 @@ class ServiceRuntimeManifestTests(unittest.TestCase):
         files = {path.name for path in (ROOT / "cleanroom").glob("*.swift") if path.name.startswith(("WhitegramAI", "WhitegramService", "WhitegramVirusTotal"))}
         self.assertEqual(files, set(SERVICES_RUNTIME_FILES))
         self.assertTrue(all(path.startswith("submodules/SettingsUI/Sources/") for path in SERVICES_RUNTIME_FILES.values()))
+        handoff = json.loads((ROOT / "parity/services.json").read_text(encoding="utf-8"))
+        service_files = {name: destination for name, destination in handoff["runtime_files"].items() if name.startswith(("WhitegramAI", "WhitegramService", "WhitegramVirusTotal"))}
+        self.assertEqual(SERVICES_RUNTIME_FILES, service_files)
 
 
 @unittest.skipUnless(os.environ.get("WHITEGRAM_ASSEMBLED_SOURCE"), "Set WHITEGRAM_ASSEMBLED_SOURCE")

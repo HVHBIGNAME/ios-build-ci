@@ -1,6 +1,6 @@
 # Whitegram AI and VirusTotal services
 
-The recovered service implementation is ready for parent integration and Apple-host verification. The signed Whitegram provider-proxy adapter remains an explicit blocker. The current file maps, defaults, evidence and check results are in [parity/services.json](parity/services.json).
+The recovered service implementation includes an account-bound adapter to the signed Whitegram provider proxy. Native compilation, XCTest and authenticated device verification of this integration remain pending. The current file maps, defaults, evidence and check results are in [parity/services.json](parity/services.json).
 
 This port provides request/response implementations and interactive SettingsUI screens. The read-only API baseline is `C:/coding/telegram/whitegram/source-12.9.2`, qualified by `C:/coding/telegram/whitegram/recovery_20261002/campaign/reference-ready.json`. All service files below belong in **SettingsUI**, including the Foundation-only files. `WhitegramPreferences` and recovered `WhitegramLocalization` are imported from **TelegramCore**. Text/speech translation has its own module map in [TRANSLATION_PORT.md](TRANSLATION_PORT.md).
 
@@ -25,12 +25,13 @@ All paths in this table are relative to `whitegram/cleanroom/`.
 | `WhitegramVirusTotalController.swift` | File/indicator review, hash/lookup/upload/resume, statistics, engine results, report link |
 | `WhitegramServiceCore.swift` | Errors, limits, cancellation/completion arbitration, request gate/backoff |
 | `WhitegramServiceHTTP.swift` | Bounded ephemeral URLSession transport, redirect refusal, request construction |
+| `WhitegramServiceProxy.swift` | Account-bound clients, signed backend routing, provider-key forwarding, SSE/upload adaptation |
 | `WhitegramServiceCredentials.swift` | Keychain adapter, testable migration policy, preference-aware public callbacks |
-| `WhitegramServiceUI.swift` | Target ItemListController adapter, retained native presenters, text editor/viewer, clipboard |
+| `WhitegramServiceUI.swift` | Target ItemListController adapter, account connection/access status, retained native presenters, text editor/viewer, clipboard |
 
 ## Parent integration
 
-The assembler must import **all seventeen entries** from `service_patches.SERVICES_RUNTIME_FILES` into SettingsUI and route the appropriate menu/settings actions to:
+The assembler must import **all eighteen entries** from `service_patches.SERVICES_RUNTIME_FILES` into SettingsUI, together with the backend runtime described in [BACKEND_PORT.md](BACKEND_PORT.md), and route the appropriate menu/settings actions to:
 
 ```swift
 public func whitegramAISettingsController(context: AccountContext) -> ViewController
@@ -71,12 +72,14 @@ These preference-aware functions require the corresponding enabled flag and load
 @discardableResult
 public func whitegramGenerateAIText(
     _ text: String,
+    account: WhitegramAccountServices? = nil,
     completion: @escaping (Result<WhitegramAIResponse, WhitegramServiceError>) -> Void
 ) -> WhitegramServiceTask
 
 @discardableResult
 public func whitegramLookupVirusTotalHash(
     _ sha256: String,
+    account: WhitegramAccountServices? = nil,
     completion: @escaping (Result<WhitegramVirusTotalLookupResult, WhitegramServiceError>) -> Void
 ) -> WhitegramServiceTask
 
@@ -92,12 +95,30 @@ public static func hash(
 - Completion is **asynchronous, exactly once, on the main queue**, including validation errors and cancellation. Hash progress also runs on the main queue.
 - Keep the returned task and call `cancel()` when the caller ends. Discarding the task does not cancel it. Cancellation wins over a success queued but not yet delivered to the main queue.
 - The settings screens cancel active work when leaving the screen or entering the background, and use operation IDs to discard stale results. Presenting their own editor/picker does not end the screen's lifetime.
-- Public low-level clients are also available: `WhitegramAIService.generate(text:provider:model:apiKey:completion:)` and `WhitegramVirusTotalService.lookup(sha256:apiKey:completion:)`. These take explicit credentials and do not consult the enabled preferences. Prefer the wrappers and `.shared` clients for app integration.
+- Public low-level clients are also available: `WhitegramAIService.generate(text:provider:model:apiKey:route:completion:)` and `WhitegramVirusTotalService.lookup(sha256:apiKey:completion:)`. These take explicit credentials and do not consult the enabled preferences. Prefer the wrappers for app integration; `.shared` clients use the direct route.
 - Clients accept a `WhitegramServiceTransport` for testing. The default transport uses URLSession. `WhitegramServiceCancellable` supplies `cancel()`.
 - `WhitegramServiceStreamingTransport` supplies serial stream callbacks. `WhitegramServiceUploadTransport` must complete only after it has stopped reading the body file, including cancellation. The URLSession implementation retains the completion/snapshot through session invalidation.
 - UI connection-status persistence is performed by the controller, not by low-level or preference-aware callback clients.
 
-Additional callbacks are `whitegramLookupVirusTotalTarget`, `whitegramScanVirusTotalTarget` and `whitegramUploadAndScanVirusTotalFile`. Their full typed signatures are in `WhitegramVirusTotalMessageContext.swift`. Low-level `WhitegramVirusTotalService` also exposes `testConnection`, `scan`, `resumeAnalysis` and `uploadAndScan`. Scan progress distinguishes preparing, the prepared file hash, upload, accepted submission, and pending analysis. A returned analysis is successful only at `status == completed`.
+Additional callbacks are `whitegramLookupVirusTotalTarget`, `whitegramScanVirusTotalTarget` and `whitegramUploadAndScanVirusTotalFile`. They accept the same optional `account` parameter; their full typed signatures are in `WhitegramVirusTotalMessageContext.swift`. Low-level `WhitegramVirusTotalService` also exposes `testConnection`, `scan`, `resumeAnalysis` and `uploadAndScan`. Scan progress distinguishes preparing, the prepared file hash, upload, accepted submission, and pending analysis. A returned analysis is successful only at `status == completed`.
+
+### Account-bound proxy integration
+
+Create and retain `WhitegramAccountServices(userId:)` using the **Telegram CloudUser numeric ID** (`context.account.peerId.id._internalGetInt64Value()`). `AccountRecordId` is used for local conversation storage, not backend authorization. Pass this object to preference-aware callbacks. An omitted account works only when the configured route is explicitly direct; it never selects an arbitrary active Telegram account.
+
+`services.ai(route:)` and `services.virusTotal(route:)` reuse each account's proxy clients and request gates. AI low-level calls must also receive the matching `route:` argument. The native AI and VirusTotal coordinators retain these clients, expose **Connect / Refresh Whitegram Access**, and cancel connection/request work on their existing screen/background lifecycle. Connection uses `WhitegramBackendAuthentication(context:)`; access/session notifications refresh the status only for the matching user.
+
+The adapter routes generation, model discovery, indicator lookups, submissions and polling through `WhitegramBackendAuthorizedTransport`:
+
+| Provider | Signed backend path |
+| --- | --- |
+| Gemini | `/v1/proxy/gemini/v1beta/models` and `/v1/proxy/gemini/v1beta/models/{model}:generateContent` |
+| Groq | `/v1/proxy/groq/openai/v1/models` and `/v1/proxy/groq/openai/v1/chat/completions` |
+| VirusTotal | `/v1/proxy/virustotal/v3/...` |
+
+Gemini pagination stays in separately encoded query items. Provider credentials become `X-Provider-Key`; the backend retains its own Whitegram `Authorization`, application/device/session signatures, verified access and pinned TLS. Provider status, error body and Retry-After are preserved, including JSON VirusTotal 404s. Groq consumer errors remain typed across the backend boundary. Session replacement/revocation stops active work; there is no retry against a direct provider.
+
+Proxy upload destinations must be in the official `/api/v3/` namespace or the backend's `/v1/proxy/virustotal/v3/` namespace and are normalized to the backend origin. Direct-only `/_ah/upload/` URLs are rejected in proxy mode. The historical server's large-file upload response needs device verification; this adapter does not invent another signed upload endpoint. Upload completion waits for the backend to stop reading the caller-owned body file, including after cancellation.
 
 ## Implemented behavior
 
@@ -126,7 +147,7 @@ Direct requests use `GET /api/v3/files/{sha256}`, `/urls/{base64url-id}` or `/ip
 
 - URL scan: form-encoded `POST /api/v3/urls` preserving the reviewed query parameters.
 - Existing file reanalysis: `POST /api/v3/files/{sha256}/analyse`.
-- Upload: multipart `POST /api/v3/files` through **32 MiB inclusive**; larger files first obtain `GET /api/v3/files/upload_url`. Returned upload URLs must remain on `https://www.virustotal.com` at an allowed upload path. No redirect forwarding is allowed.
+- Upload: multipart `POST /api/v3/files` through **32 MiB inclusive**; larger files first obtain `GET /api/v3/files/upload_url`. In direct mode, returned upload URLs must remain on `https://www.virustotal.com` at an allowed upload path. Proxy mode uses the namespace restrictions above. No redirect forwarding is allowed.
 - Status: `GET /api/v3/analyses/{id}`, at most **20 checks**, normally 15 seconds apart. Queued/in-progress/empty statistics never become a clean verdict. Bounded GET rate-limit delays are supported; POST is never retried automatically.
 - Connection test: lookup the original fixed **`https://vk.com`** probe. It does not submit that URL for scanning.
 
@@ -152,8 +173,8 @@ VirusTotal's JSON `404 / NotFoundError` maps to `.notFound(sha256:)` and is disp
 - Generation budget: **4,096 output tokens**. This may include a model's reasoning budget; a model that returns no visible text gets a no-text error.
 - Response: **2 MiB AI**, **4 MiB VirusTotal**, enforced against declared length and accumulated chunks.
 - File: **512 MiB**, read in **1 MiB** chunks; empty files are supported.
-- Idle/request timeout: **45 s**. Resource timeout: **90 s**, or **600 s** for upload. Native attachment download is bounded to **300 s**.
-- One HTTP request at a time per client. Shared AI client: at least **1 s** between starts. Shared VirusTotal client: at least **15 s**. Cancellation does not refund this spacing.
+- Direct idle/request timeout: **45 s**; resource timeout: **90 s**. The backend uses **30 s / 60 s**. Both upload resource timeouts are **600 s**. Native attachment download is bounded to **300 s**.
+- One HTTP request at a time per client. Shared direct and retained account-bound AI clients: at least **1 s** between starts. VirusTotal clients: at least **15 s**. Cancellation does not refund this spacing.
 - `429` and `503` with `Retry-After` extend backoff. Seconds and HTTP dates are supported; malformed/missing 429 values use 60 s, extreme values are capped at seven days. Only analysis-status GETs retry bounded rate limits (at most 300 seconds per delay and within the 20-check budget). Generation, report lookup, model discovery and POST submission are not automatically retried.
 - HTTP authentication/permission/model errors, offline/timeout failures, oversized responses, bad JSON and cancellation are surfaced as fixed errors. Raw provider error bodies and URLSession descriptions are not displayed or logged.
 - Sessions are ephemeral with cache, cookies and shared URL credential storage disabled. All redirects are refused, including same-host redirects, so API-key headers are never forwarded by redirection. Normal system TLS validation is retained.
@@ -167,13 +188,13 @@ VirusTotal's JSON `404 / NotFoundError` maps to `.notFound(sha256:)` and is disp
 | `aiProvider` | `gemini` or `groq`; existing case variants are read case-insensitively |
 | `geminiModelId`, `groqModelId` | Separate editable model strings |
 | `geminiApiKey`, `groqApiKey` | Legacy credential lookup keys and Keychain account names; new tokens are not saved in preferences |
-| `geminiUseProxy`, `groqUseProxy` | Original default **true**. Unsupported signed proxy fails explicitly; only explicit false selects Direct API |
+| `geminiUseProxy`, `groqUseProxy` | Original default **true**. Uses the account-bound signed proxy; only explicit false selects Direct API |
 | `virusTotalEnabled` | Enables hash/URL/IP HTTP lookups; local hashing can be used independently |
 | `virusTotalUseProxy` | **New Bool, default true**, mirrors `wg_virusTotalUseProxy`. Explicit false enables Direct API; original VirusTotal had a mandatory proxy |
 | `virusTotalApiKey` | Legacy lookup key and Keychain account name |
 | `virusTotalConnectionStatus` | Timestamped string from the current controller's real request outcome; cleared when its key changes |
 
-Direct networking uses the system's URLSession configuration. The recovered proxy path requires an account-bound signed Whitegram session, beta permission, pinned TLS and **`X-Provider-Key`**, retaining Whitegram's `Authorization` header. Original VirusTotal has `/v1/proxy/virustotal/v3`; upload responses rewrite the official API prefix to this proxy. The current backend client lacks a provider-header/SSE/body-file transport contract and strips error response bodies needed for `404 NotFoundError`. Exact coordination requirements and original addresses are recorded in the services handoff. No original-proxy flag silently selects Direct API. Historical saved connection strings are not treated as a fresh check.
+Direct networking uses the system's URLSession configuration. The recovered proxy path requires an account-bound signed Whitegram session, beta permission, pinned TLS and **`X-Provider-Key`**, retaining Whitegram's `Authorization` header. The adapter now consumes the backend's status-preserving, SSE and body-file transport contract. Original addresses and integration details are recorded in the services handoff. Missing sessions/signing configuration, denied/unverified access and changed sessions have distinct fixed errors. No original-proxy flag silently selects Direct API. Historical saved connection strings are not treated as a fresh check.
 
 Keys use generic-password Keychain items with:
 
@@ -207,6 +228,8 @@ python3 -B whitegram/tests/services/run_swift_tests.py
 
 The runner copies the thirteen non-UI production files into an isolated, dependency-free SwiftPM host beneath `tests/services/.host-package`, records SHA-256 digests, and keeps build/cache/temp artifacts beneath `tests/services/.host-artifacts`. It does not compile a substitute service implementation. It accepts `--swift <executable>` and `--filter <XCTest filter>`.
 
+The account-bound adapter has **13 additional XCTest methods** in `tests/backend/WhitegramServiceProxyTests.swift`. Run `python3 -B whitegram/tests/backend/run_native.py` on macOS. This runner copies 32 production files, including the actual service/proxy/backend implementations, and is already called by the native CI stage. Cases cover signed provider routing, model queries, missing/expired/mismatched sessions, access/signing failures, route/account requirements, status bodies, rate limits, session replacement, Groq SSE/errors, VirusTotal polling/upload URLs and cancellation after the file reader stops. These methods have only been syntax-checked here; the runner reports macOS is required on this Windows host.
+
 - macOS: all 83 methods are supplied. The SwiftPM package targets macOS 10.15.4+.
 - Linux: Foundation tests are available; CryptoKit/Darwin hashing and upload-file cases are excluded. The redirect test skips FoundationNetworking's unimplemented URLProtocol redirect callback.
 - No tests require real credentials or permit a request to reach a provider. URLSession tests install a URLProtocol that intercepts every URL; the other client tests inject a manual transport.
@@ -218,11 +241,13 @@ Offline syntax/source-contract check used in this Windows workspace:
 C:\coding\telegram\whitegram\whitegram-check-env\Scripts\python.exe -B whitegram/tests/services/check_sources.py --target C:\coding\telegram\whitegram\source-12.9.2
 ```
 
-This checks Swift syntax, target controller signatures/imports, endpoint/auth-storage invariants, masked editors and bounded reads. It is **syntax/static validation, not Swift compilation or runtime verification**. The current check covers seventeen production and eight test Swift files. `test_service_patches.py` supplies three in-memory source tests, including fail-before-write and history composition; set `WHITEGRAM_ASSEMBLED_SOURCE` to the read-only ready reference. No provider request or device execution is claimed.
+This checks Swift syntax, target controller signatures/imports, endpoint/auth-storage invariants, masked editors and bounded reads. It is **syntax/static validation, not Swift compilation or runtime verification**. The current check covers eighteen production and eight direct-service test Swift files; `test_backend_patches.py` parses the backend and proxy XCTest sources. `test_service_patches.py` supplies three source tests, including runtime/handoff map equality, fail-before-write and history composition; set `WHITEGRAM_ASSEMBLED_SOURCE` to the read-only ready reference. No provider request or device execution is claimed.
+
+The **2026-10-05** proxy increment passed 43 Python checks: three service source/manifest tests, seven backend source/composition tests, seven protocol-evidence tests and 26 full-composition/runtime/build-dependency tests. The service parser/contracts and tracked whitespace check also passed. Exact commands and reference/candidate paths are in `proxy_integration_checks` in the parity manifest. Native runners reported unavailable macOS/Swift rather than a test pass.
 
 ## Remaining integration/unsupported features
 
-- Signed proxy adapter/session/pinning integration for AI and VirusTotal. Current direct workflows are executable only after explicit route selection.
+- Apple-host and authenticated server validation of the signed proxy adapter, including original model paths, session/access changes, SSE and the large-file upload response namespace.
 - Original AI Telegram tool execution, audio/image/file inputs, dynamic/tuned model endpoints and any additional plugin bindings. Text-only replies never claim that an unconnected tool executed.
 - Exact retired-AI menu eligibility is parent-owned; original 3.1.1 has no active AI main section. Existing history and credentials are preserved.
 - Native Swift/UIKit/Security build and provider/device validation. No live credentials, API requests or scans were used in development.

@@ -24,14 +24,27 @@ public struct WhitegramServiceHTTPResponse {
 
 /// A transport must call completion exactly once, including after cancellation.
 public protocol WhitegramServiceTransport: AnyObject {
+    var route: WhitegramServiceRoute { get }
     @discardableResult
     func send(_ request: URLRequest, maximumResponseBytes: Int, completion: @escaping (Result<WhitegramServiceHTTPResponse, WhitegramServiceError>) -> Void) -> WhitegramServiceCancellable
 }
 
+extension WhitegramServiceTransport {
+    public var route: WhitegramServiceRoute { return .direct }
+}
+
 public protocol WhitegramServiceUploadTransport: WhitegramServiceTransport {
+    /// Validate provider-issued upload destinations for this transport's route.
+    func validatedUploadURL(_ value: String) throws -> URL
     /// Complete only after the transport has stopped reading bodyFile, including on cancellation.
     @discardableResult
     func upload(_ request: URLRequest, bodyFile: URL, maximumResponseBytes: Int, progress: @escaping (Int64, Int64) -> Void, completion: @escaping (Result<WhitegramServiceHTTPResponse, WhitegramServiceError>) -> Void) -> WhitegramServiceCancellable
+}
+
+extension WhitegramServiceUploadTransport {
+    public func validatedUploadURL(_ value: String) throws -> URL {
+        return try WhitegramVirusTotalScanWire.uploadURL(value)
+    }
 }
 
 public protocol WhitegramServiceStreamingTransport: WhitegramServiceTransport {

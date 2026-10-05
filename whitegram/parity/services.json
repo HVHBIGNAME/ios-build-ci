@@ -1,7 +1,7 @@
 {
   "role": "services",
-  "status": "ready_for_parent_integration_with_documented_blockers",
-  "updated_date": "2026-10-02",
+  "status": "proxy_integrated_in_source_native_verification_pending",
+  "updated_date": "2026-10-05",
   "full_original_parity_claimed": false,
   "workspace": "C:/coding/telegram/whitegram/ios-build-ci",
   "reference": {
@@ -11,7 +11,7 @@
     "baseline_overlay_revision": "dba65e0a2c3b573f5f92a68807b9bc5771e6514c",
     "use": "Read-only assembled baseline. SourcePatches tests compose the candidate in memory and verify reference contents remain unchanged."
   },
-  "files_changed_scope": "Owned candidate files, including recovered work continued in this checkout; shared parent and other-worker files were not edited.",
+  "files_changed_scope": "Service/translation port inventory, extended with account-bound proxy integration and backend-host fixtures. Native and device verification remain separate.",
   "files_changed": [
     "whitegram/translation_patches.py", "whitegram/service_patches.py",
     "whitegram/cleanroom/WhitegramTranslationSettings.swift",
@@ -25,6 +25,7 @@
     "whitegram/cleanroom/WhitegramTranslationSettingsController.swift",
     "whitegram/cleanroom/WhitegramServiceCore.swift",
     "whitegram/cleanroom/WhitegramServiceHTTP.swift",
+    "whitegram/cleanroom/WhitegramServiceProxy.swift",
     "whitegram/cleanroom/WhitegramServiceCredentials.swift",
     "whitegram/cleanroom/WhitegramServiceUI.swift",
     "whitegram/cleanroom/WhitegramAIService.swift",
@@ -53,6 +54,7 @@
     "whitegram/tests/services/WhitegramVirusTotalScanTests.swift",
     "whitegram/tests/services/WhitegramVirusTotalTargetTests.swift",
     "whitegram/tests/services/run_swift_tests.py", "whitegram/tests/services/check_sources.py",
+    "whitegram/tests/backend/run_native.py", "whitegram/tests/backend/WhitegramServiceProxyTests.swift",
     "whitegram/tests/services/Package.swift.in", "whitegram/tests/services/.gitignore",
     "whitegram/SERVICES_PORT.md", "whitegram/TRANSLATION_PORT.md", "whitegram/parity/services.json"
   ],
@@ -71,10 +73,9 @@
     {"image_id": 55, "addresses": ["0xdab264", "0xdabab4", "0xdb0fb8", "0xdb6898", "0xdbc8e4", "0xdb3ea8"], "exports": ["vt-test-connection.asm", "vt-connection-probe-target.asm", "vt-scan-file.asm", "vt-upload-route.asm"], "finding": "VirusTotal's fixed probe is https://vk.com, direct-upload threshold is 32 MiB, and original requests use signed Whitegram proxy authorization. Upload URL responses rewrite the official API prefix to the proxy base."},
     {"image_id": 46, "addresses": ["0x2d80a0", "0x2dd23c", "0x2de3d0"], "exports": ["proxy-authorized-request.asm", "proxy-apply-authorization.asm", "proxy-provider-header.asm"], "finding": "authorizedRequest(proxyProvider:providerKey:path:method:contentType:accept:) constructs /v1/proxy/<provider>/<path>; applyAuthorization checks session/beta access and adds X-Provider-Key without replacing signed Whitegram Authorization."}
   ],
-  "implemented_keys": ["localTranslationEnabled", "translateBeforeSending", "translationTargetLang", "voiceTranslationEnabled", "showSiriTranscriptionWarning", "siriTranscriptionWarningDismissed", "geminiEnabled", "aiProvider", "geminiModelId", "groqModelId", "geminiApiKey", "groqApiKey", "wg_geminiChatHistory_v5", "wg_groqChatHistory_v5", "virusTotalEnabled", "virusTotalApiKey", "virusTotalConnectionStatus"],
+  "implemented_keys": ["localTranslationEnabled", "translateBeforeSending", "translationTargetLang", "voiceTranslationEnabled", "showSiriTranscriptionWarning", "siriTranscriptionWarningDismissed", "geminiEnabled", "aiProvider", "geminiModelId", "groqModelId", "geminiApiKey", "groqApiKey", "geminiUseProxy", "groqUseProxy", "wg_geminiChatHistory_v5", "wg_groqChatHistory_v5", "virusTotalEnabled", "virusTotalApiKey", "virusTotalConnectionStatus"],
   "additional_keys": ["translationUseApple", "translationReviewBeforeSending", "translationTranslateTranscripts", "virusTotalUseProxy"],
   "remaining_keys": [
-    {"key": "geminiUseProxy/groqUseProxy/original VirusTotal proxy", "reason": "Code/integration gap: needs an account-bound signed, beta-authorized, pinned provider-proxy transport. Existing backend raw requests cannot carry provider headers, stream SSE or upload body files, and discard non-2xx bodies. Current true flags fail explicitly; Direct API requires explicit selection."},
     {"key": "original AI Telegram tool execution and additional multimodal/plugin entrypoints", "reason": "Current clients implement text conversations, discovery, streaming and history import. They do not advertise or execute Telegram tools or audio/image/file AI input. Tool replies, including mixed text/tool content, fail explicitly. Original retired-menu eligibility remains parent-owned."}
   ],
   "inventory_corrections": [
@@ -84,19 +85,24 @@
     "showSiriTranscriptionWarning: constant true with independent persistent dismissal, not a disable switch.",
     "virustotal: submission/upload/polling/probe/attachment review have production consumers and fixtures. Snapshot lifetime now extends through transport invalidation, and prepared hashes become report targets.",
     "ai: exact v5 entry import, account/provider/revision isolation, interrupted-request recovery, partial SSE text, model discovery, defaults and tool-result rejection are implemented.",
-    "ai_proxy: absent/malformed proxy preferences never select Direct; the original VirusTotal mandatory proxy is also preserved until an explicit Direct API choice."
+    "ai_proxy: absent/malformed proxy preferences select the account-bound signed adapter. Missing session/access/signing state fails explicitly; only Boolean false selects Direct API."
   ],
   "backend_coordination": {
-    "status": "Awaiting an account-bound provider-proxy transport contract; no live request performed.",
+    "status": "WhitegramServiceProxyTransport consumes WhitegramBackendAuthorizedTransport for provider headers, preserved status bodies, SSE and body-file uploads. Native fixtures supplied; no live request performed.",
     "original_calls": ["46:0x2d80a0 authorizedRequest(proxyProvider:providerKey:path:method:contentType:accept:)", "46:0x2dd23c applyAuthorization(to:providerKey:)", "46:0x2de3d0 returns X-Provider-Key", "55:0xdab264 fixed VirusTotal probe", "55:0xdb0fb8 file scan", "55:0xdb3ea8 upload URL response rewrite"],
     "virus_total_path": "/v1/proxy/virustotal/v3 (original image55 string 0x4bd9b10)",
+    "adapter": "whitegram/cleanroom/WhitegramServiceProxy.swift",
+    "account_binding": "WhitegramAccountServices uses Telegram CloudUser numeric IDs. Both service coordinators retain account clients and expose Connect / Refresh Whitegram Access. Optional account parameters preserve direct call sites; omitted accounts cannot use proxy mode.",
+    "gemini_paths": ["/v1/proxy/gemini/v1beta/models", "/v1/proxy/gemini/v1beta/models/{model}:generateContent"],
+    "groq_paths": ["/v1/proxy/groq/openai/v1/models", "/v1/proxy/groq/openai/v1/chat/completions"],
+    "upload_urls": "Official /api/v3/ and signed /v1/proxy/virustotal/v3/ destinations normalize to the backend origin with separate query items. Direct-only /_ah/upload/ URLs are rejected; the historical large-file response namespace still needs device verification.",
     "requirements": [
       "Forward credentials as X-Provider-Key while retaining Whitegram Authorization, session/device signatures, beta access checks and pinned TLS.",
       "Preserve status/body/Retry-After, especially VirusTotal 404 NotFoundError; do not turn an arbitrary 404 into an unknown clean report.",
       "Supply serial SSE chunks and completion for Groq, and disk-backed multipart upload/progress for VirusTotal.",
       "An upload transport must complete only after it has stopped reading bodyFile, including cancellation; its completion closure owns the snapshot.",
-      "Bind the provider request to an explicit Telegram account/user and reject changed sessions. Context-less public wrappers need account-aware overloads before proxy integration; do not infer an arbitrary active account.",
-      "Verify the forwarded Gemini/Groq path and query with original caller evidence before enabling the adapter. Never retry a rejected proxy request against Direct API."
+      "Bind the provider request to an explicit Telegram CloudUser ID and reject changed sessions. Callers must pass WhitegramAccountServices to the preference-aware wrappers for proxy mode; do not infer an arbitrary active account.",
+      "Verify forwarded Gemini/Groq paths and queries with the authenticated historical server. Never retry a rejected proxy request against Direct API."
     ]
   },
   "runtime_files": {
@@ -111,6 +117,7 @@
     "WhitegramTranslationSettingsController.swift": "submodules/SettingsUI/Sources/WhitegramTranslationSettingsController.swift",
     "WhitegramServiceCore.swift": "submodules/SettingsUI/Sources/WhitegramServiceCore.swift",
     "WhitegramServiceHTTP.swift": "submodules/SettingsUI/Sources/WhitegramServiceHTTP.swift",
+    "WhitegramServiceProxy.swift": "submodules/SettingsUI/Sources/WhitegramServiceProxy.swift",
     "WhitegramServiceCredentials.swift": "submodules/SettingsUI/Sources/WhitegramServiceCredentials.swift",
     "WhitegramServiceUI.swift": "submodules/SettingsUI/Sources/WhitegramServiceUI.swift",
     "WhitegramAIService.swift": "submodules/SettingsUI/Sources/WhitegramAIService.swift",
@@ -127,7 +134,7 @@
     "WhitegramVirusTotalScan.swift": "submodules/SettingsUI/Sources/WhitegramVirusTotalScan.swift",
     "WhitegramVirusTotalController.swift": "submodules/SettingsUI/Sources/WhitegramVirusTotalController.swift"
   },
-  "runtime_manifest_apis": ["translation_patches.TRANSLATION_RUNTIME_FILES (9 entries)", "service_patches.SERVICES_RUNTIME_FILES (17 entries)"],
+  "runtime_manifest_apis": ["translation_patches.TRANSLATION_RUNTIME_FILES (9 entries)", "service_patches.SERVICES_RUNTIME_FILES (18 entries)"],
   "patch_entrypoint": ["apply_translation_patches(root)", "apply_service_patches(root)"],
   "in_memory_patch_apis": ["translation_patches(patches: SourcePatches) -> None", "service_patches(patches: SourcePatches) -> None"],
   "patch_order": [
@@ -167,9 +174,10 @@
     "whitegramTranslateDraft(context:text:entities:toLang:provider:fromLang:) -> Signal<WhitegramTranslationResult, WhitegramTranslationFailure>; fromLang defaults nil",
     "whitegramTranslateVoiceText(context:text:toLang:) -> Signal<WhitegramTranslationResult, WhitegramTranslationFailure>",
     "whitegramTranslationTarget(defaultLanguage:) and whitegramTranslationSettingsSignal()",
-    "whitegramGenerateAIText(_:completion:) -> WhitegramServiceTask",
+    "WhitegramAccountServices(userId: CloudUser numeric ID), ai(route:), virusTotal(route:), backend; retain per screen/account",
+    "whitegramGenerateAIText(_:account:completion:) -> WhitegramServiceTask; account defaults nil and proxy mode requires it",
     "WhitegramAIService.generate(messages:provider:model:apiKey:route:completion:), generateStreaming(...onText:completion:), fetchModels(provider:apiKey:route:pageToken:completion:)",
-    "whitegramLookupVirusTotalHash(_:completion:), whitegramLookupVirusTotalTarget(_:completion:), whitegramScanVirusTotalTarget(_:progress:completion:), whitegramUploadAndScanVirusTotalFile(url:fileName:expectedHash:progress:completion:)",
+    "whitegramLookupVirusTotalHash(_:account:completion:), whitegramLookupVirusTotalTarget(_:account:completion:), whitegramScanVirusTotalTarget(_:account:progress:completion:), whitegramUploadAndScanVirusTotalFile(url:fileName:expectedHash:account:progress:completion:); account defaults nil and proxy mode requires it",
     "WhitegramVirusTotalService.lookup, scan, resumeAnalysis, testConnection, uploadAndScan; explicit low-level init(route:) defaults direct, preference-aware wrappers enforce configured route",
     "WhitegramVirusTotalFileHasher.hash(url:progress:completion:)",
     "whitegramMigrateServiceCredentials() -> [WhitegramServiceCredential: WhitegramServiceError]"
@@ -178,7 +186,7 @@
     {"module": "TelegramCore", "modules": ["Postbox", "SwiftSignalKit"], "sdk": ["Foundation", "CoreFoundation"], "note": "Settings, UTF-16/segment rules, draft guard, bounded Google client and message-batch store. FoundationNetworking is conditional for host tests only."},
     {"module": "TranslateUI", "modules": ["TelegramCore", "TelegramUIPreferences", "AccountContext", "SwiftSignalKit"], "sdk": ["Foundation", "UIKit", "SwiftUI", "NaturalLanguage", "Translation"], "note": "Keep iOS 13 deployment compatibility; TranslationSession code is iOS 18 guarded, and its SDK linkage needs Apple build verification."},
     {"module": "TelegramUI", "modules": ["TelegramCore", "TelegramUIPreferences", "AccountContext", "ChatInterfaceState", "ChatPresentationInterfaceState", "Display", "PresentationDataUtils", "OverlayStatusController", "TextFormat", "TranslateUI", "SwiftSignalKit"], "sdk": ["Foundation", "UIKit", "NaturalLanguage"]},
-    {"module": "SettingsUI", "modules": ["AccountContext", "Display", "ItemListUI", "PresentationDataUtils", "SwiftSignalKit", "TelegramCore", "TelegramUIPreferences", "TelegramPresentationData", "TranslateUI"], "sdk": ["Foundation", "CoreFoundation", "UIKit", "Security", "UniformTypeIdentifiers", "CryptoKit", "Darwin"], "note": "All 17 service files live here. Hash/upload requires iOS 13.4+/macOS 10.15.4+; older hosts expose fixed errors."},
+    {"module": "SettingsUI", "modules": ["AccountContext", "Display", "ItemListUI", "PresentationDataUtils", "SwiftSignalKit", "TelegramCore", "TelegramUIPreferences", "TelegramPresentationData", "TranslateUI"], "sdk": ["Foundation", "CoreFoundation", "UIKit", "Security", "UniformTypeIdentifiers", "CryptoKit", "Darwin"], "note": "All 18 service files live here together with the backend runtime from BACKEND_RUNTIME_FILES. Hash/upload requires iOS 13.4+/macOS 10.15.4+; older hosts expose fixed errors."},
     {"module": "ChatSendMessageActionUI and interactive file/instant-video nodes", "modules": ["TelegramCore"], "note": "Original settings/localization plus optional send callback; media nodes retain existing LocalAudioTranscription, ConvertOpusToAAC, UndoUI and Telegram engine dependencies."}
   ],
   "defaults_and_schema": {
@@ -205,16 +213,17 @@
     "credential_storage": "Device-local Keychain service <bundleIdentifier>.Whitegram.Services.v1, account geminiApiKey/groqApiKey/virusTotalApiKey. Secure write precedes legacy cleanup; errors prevent plaintext networking fallback. Parent archive/export must exclude these keys and their wg_ mirrors regardless of migration result."
   },
   "parent_integration": [
-    "Import SERVICES_RUNTIME_FILES and the updated TRANSLATION_RUNTIME_FILES wholesale (26 destinations above). New Google core transport, legacy AI history, SSE/model discovery, message-batch store, Apple host, scan and multipart files must not be omitted.",
+    "Import SERVICES_RUNTIME_FILES and the updated TRANSLATION_RUNTIME_FILES wholesale (27 destinations above), together with BACKEND_RUNTIME_FILES. Account-bound proxy, Google core transport, legacy AI history, SSE/model discovery, message-batch store, Apple host, scan and multipart files must not be omitted.",
     "Register four new Bool keys plus original siriTranscriptionWarningDismissed in shared archive/schema; keep original proxy/Siri/provider/model defaults consistent with these readers without overwriting explicit saved choices.",
     "Keep localTranslationEnabled as Google. The main/generated titles are parent-owned; original s.translateBeforeSending describes a With Translation send-menu button and wh.voiceTranslation describes Apple Speech.",
     "Use original localized keys for original controls and notices. Additional workflow/error explanations remain English. The parent's localization runtime is a required TelegramCore dependency.",
     "Preserve the UTF-16 scalar-boundary fix and the ViewController-typed progress property. Composer/send action validates both source and installed-result context, including replies and effects, before native send.",
     "Keep original Gemini/Groq v5 histories and credentials. Do not replay the destructive AI retirement migration; resolve active/legacy menu eligibility separately (the original 26-section main menu has no AI section).",
     "Use the source APIs for explicit review/submission. Opening service controllers never uploads or submits. VirusTotal's message action observes its enable flag; downloading a Telegram attachment, looking up its hash and uploading its bytes are distinct actions.",
-    "Coordinate the provider-proxy contract above with backend before enabling proxy support. An unavailable original route must not silently go direct.",
+    "Retain WhitegramAccountServices with the Telegram CloudUser numeric ID and use it for proxy calls. An unavailable original route must not silently go direct.",
     "Run parent-owned complete transform composition, BUILD integration and native suites on Apple hardware. Do not count this source handoff as an Xcode/device or live-service pass."
   ],
+  "tests_run_note": "The following entries record the 2026-10-02 handoff. The 2026-10-05 proxy increment is recorded separately in proxy_integration_checks.",
   "tests_run": [
     {"command": "C:/coding/telegram/whitegram/whitegram-check-env/Scripts/python.exe -B whitegram/tests/services/check_sources.py --target C:/coding/telegram/whitegram/source-12.9.2", "result": "PASS: 17 service production files and 8 XCTest source files parsed; endpoint, credential, bounded-read and target-controller source contracts passed. 83 XCTest methods supplied, not executed."},
     {"command": "WHITEGRAM_ASSEMBLED_SOURCE=C:/coding/telegram/whitegram/source-12.9.2; python -B -m unittest discover -s whitegram/tests -p test_translation_patches.py -v", "python": "C:/coding/telegram/whitegram/whitegram-check-env/Scripts/python.exe", "result": "PASS: 9 tests. Nine production translation files and two XCTest files parse; eleven native source transforms preserve syntax, replies/effect paths, optional send callback, Apple/Siri wiring, replay and fail-before-write invariants. Reference unchanged."},
@@ -222,8 +231,26 @@
     {"command": "git diff --check -- <owned service/translation Swift, patch, test and documentation paths>", "result": "PASS: no whitespace errors. Git emitted existing LF-to-CRLF advice only."},
     {"command": "whitegram-rebuild/.venv/Scripts/python.exe -B -m wgtool audit-query/audit-function audit-full-3.1.1 ...", "result": "Read-only original evidence recovery succeeded; new role exports verify the original IPA hash and write only campaign/services."}
   ],
+  "proxy_integration_checks": {
+    "date": "2026-10-05",
+    "python": "C:/coding/telegram/whitegram/whitegram-check-env/Scripts/python.exe",
+    "source_checks": [
+      {"command": "python -B whitegram/tests/services/check_sources.py --target C:/coding/telegram/whitegram/recovery_20261002/candidate-12.9.2", "result": "PASS: 18 production and 8 direct-service XCTest source files parsed; source contracts passed. The 83 direct-service XCTest methods were not executed."},
+      {"command": "WHITEGRAM_ASSEMBLED_SOURCE=C:/coding/telegram/whitegram/source-12.9.2; python -B -m unittest discover -s whitegram/tests -p test_service_patches.py -v", "result": "PASS: 3 tests, including installer/handoff map equality for all 18 service files, menu/history composition and fail-before-write validation."},
+      {"command": "WHITEGRAM_ASSEMBLED_SOURCE=C:/coding/telegram/whitegram/source-12.9.2; python -B -m unittest discover -s whitegram/tests -p test_backend_patches.py -v", "result": "PASS: 7 tests, including syntax parsing of the new 13-method proxy XCTest source and backend/traffic composition."},
+      {"command": "python -B -m unittest discover -s whitegram/tests -p test_backend_protocol.py -v", "result": "PASS: 7 offline protocol evidence tests."},
+      {"command": "python -B -m unittest -v test_full_composition test_runtime_integration test_build_dependencies", "workdir": "whitegram/tests", "environment": {"WHITEGRAM_ASSEMBLED_SOURCE": "C:/coding/telegram/whitegram/recovery_20261002/candidate-12.9.2", "WHITEGRAM_PUBLIC_SOURCE": "C:/coding/telegram/whitegram/whitegram-public"}, "result": "PASS: 26 tests, no skips; full installer order/replay, all-runtime installation coverage, syntax comparison and build dependency checks."},
+      {"command": "git diff --check", "result": "PASS: no whitespace errors; Git emitted LF-to-CRLF advice."},
+      {"command": "aislop scan --changes --json", "result": "No findings in supported files. Dominant Swift sources are unsupported and unscored."}
+    ],
+    "native_attempts": [
+      {"command": "python -B whitegram/tests/backend/run_native.py", "result": "BLOCKED (exit 2): macOS with Swift, CryptoKit and Security is required; no native tests ran."},
+      {"command": "python -B whitegram/tests/services/run_swift_tests.py", "result": "BLOCKED (exit 2): Swift is unavailable; no type checking or runtime tests ran."}
+    ]
+  },
   "native_tests_supplied_not_run": {
     "services": {"runner": "whitegram/tests/services/run_swift_tests.py", "methods": 83, "coverage": "Production requests/decoders/SSE/models, key migration, history/import/stale revisions, URLSession limits, target validation, hash/snapshot/32-MiB upload routing, delayed cancellation, polling and explicit proxy rejection"},
+    "service_proxy": {"runner": "whitegram/tests/backend/run_native.py", "methods": 13, "production_files_in_host": 32, "coverage": "Actual service/proxy/backend routing and signatures, model query preservation, session/access/signing failures, account/route requirements, HTTP error bodies, rate limiting, session replacement, intercepted URLSession SSE and typed errors, VirusTotal submission/polling/upload namespaces and cancellation after reader termination"},
     "translation": {"runner": "whitegram/tests/translation/run_native.py", "methods": 19, "coverage": "Production settings and state guard, UTF-16 scalar boundaries, protected segments, original outgoing/voice/Siri rules, Google wire/URLSession response limits and cancellation; every HTTP URL intercepted"},
     "swift_type_check_ran": false,
     "xctest_ran": false,
@@ -237,10 +264,10 @@
     "Apple text-translation language availability, system model download permission, unsupported pairs, queue cancellation and host presentation.",
     "Keychain migration on a locked/unlocked device; actual Gemini/Groq model access, SSE cancellation and the preserved legacy-history import UX.",
     "VirusTotal file-provider coordination, attachment download, 32-MiB upload boundary, scan resume/quotas/HTTP failures and snapshot deletion after URLSession invalidation.",
-    "Live authenticated original Whitegram proxy/beta/pinning/session behavior after the missing transport contract is integrated."
+    "Live authenticated original Whitegram proxy/beta/pinning/session behavior, including model endpoints, pagination, SSE and the large-file upload response namespace."
   ],
   "precise_remaining_blockers": [
-    {"owner": "backend + parent/services integration", "kind": "code and external state", "blocker": "No stable account-bound provider-proxy API with X-Provider-Key, preserved error bodies, SSE and disk-file uploads. No live signed session/beta authorization/pinning validation. Direct-only low-level clients and explicit rejection policy are not original proxy parity."},
+    {"owner": "backend + services integration", "kind": "native and external verification", "blocker": "The signed account-bound proxy adapter and native fixtures are implemented, but no native execution or live signed session/beta/pinning/provider validation has run for this increment. Direct-only /_ah/upload/ URLs are rejected in proxy mode; historical large-file responses need verification."},
     {"owner": "parent", "kind": "integration", "blocker": "Shared runtime copy maps, new-key archive/schema/default registration, localization linkage, complete multi-worker transform composition and BUILD dependency integration are outside service ownership."},
     {"owner": "parent Apple host", "kind": "verification", "blocker": "Windows source checks cannot establish Swift type correctness, UIKit/SwiftUI/Speech presentation, Keychain/file-provider behavior or live provider availability. Native fixtures are supplied, not executed here."},
     {"owner": "services/legacy AI integration", "kind": "remaining parity surface", "blocker": "Original retired AI's Telegram tools and multimodal inputs are not implemented. Gemini's old model allow-list coercion is deliberately not applied to explicit custom selections; original screen layout and added English explanations are not pixel/localization parity claims."}

@@ -213,12 +213,13 @@ extension WhitegramAIProvider {
 
 /// Uses the enabled provider/model and its Keychain credential. The caller must obtain explicit submission intent.
 @discardableResult
-public func whitegramGenerateAIText(_ text: String, completion: @escaping (Result<WhitegramAIResponse, WhitegramServiceError>) -> Void) -> WhitegramServiceTask {
+public func whitegramGenerateAIText(_ text: String, account: WhitegramAccountServices? = nil, completion: @escaping (Result<WhitegramAIResponse, WhitegramServiceError>) -> Void) -> WhitegramServiceTask {
     do {
         guard WhitegramPreferences.bool("geminiEnabled") else { throw WhitegramServiceError.disabled }
         guard let provider = WhitegramAIProvider.configured else { throw WhitegramServiceError.invalidProvider }
         guard let key = try WhitegramServiceCredentials.vault.token(for: provider.credential) else { throw WhitegramServiceError.missingAPIKey }
-        return WhitegramAIService.shared.generate(text: text, provider: provider, model: provider.configuredModel, apiKey: key, route: provider.configuredRoute, completion: completion)
+        let route = provider.configuredRoute
+        return try route.aiService(account: account).generate(text: text, provider: provider, model: provider.configuredModel, apiKey: key, route: route, completion: completion)
     } catch {
         let operation = WhitegramServiceOperation(completion: completion)
         operation.finish(.failure(error as? WhitegramServiceError ?? .preferences))
@@ -228,16 +229,9 @@ public func whitegramGenerateAIText(_ text: String, completion: @escaping (Resul
 
 /// Looks up only this explicitly supplied hash, using the enabled setting and Keychain credential.
 @discardableResult
-public func whitegramLookupVirusTotalHash(_ sha256: String, completion: @escaping (Result<WhitegramVirusTotalLookupResult, WhitegramServiceError>) -> Void) -> WhitegramServiceTask {
-    do {
-        guard WhitegramPreferences.bool("virusTotalEnabled") else { throw WhitegramServiceError.disabled }
-        try WhitegramServiceRoute.configuredVirusTotal.requireAvailable()
-        guard let key = try WhitegramServiceCredentials.vault.token(for: .virusTotal) else { throw WhitegramServiceError.missingAPIKey }
-        return WhitegramVirusTotalService.shared.lookup(sha256: sha256, apiKey: key, completion: completion)
-    } catch {
-        let operation = WhitegramServiceOperation(completion: completion)
-        operation.finish(.failure(error as? WhitegramServiceError ?? .preferences))
-        return operation.task
+public func whitegramLookupVirusTotalHash(_ sha256: String, account: WhitegramAccountServices? = nil, completion: @escaping (Result<WhitegramVirusTotalLookupResult, WhitegramServiceError>) -> Void) -> WhitegramServiceTask {
+    return whitegramWithVirusTotalCredential(account: account, completion: completion) { key, service in
+        service.lookup(sha256: sha256, apiKey: key, completion: completion)
     }
 }
 #endif

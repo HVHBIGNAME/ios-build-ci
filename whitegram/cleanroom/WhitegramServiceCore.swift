@@ -15,6 +15,10 @@ public enum WhitegramServiceError: Error, Equatable, LocalizedError {
     case conversationFull
     case legacyHistoryFormat
     case originalProxyUnavailable
+    case originalProxySessionChanged
+    case originalProxyAccessDenied
+    case originalProxyAccessUnverified
+    case originalProxySigningUnavailable
     case streamingUnavailable
     case unsupportedToolCall
     case invalidHash
@@ -55,7 +59,11 @@ public enum WhitegramServiceError: Error, Equatable, LocalizedError {
         case .conversationChanged: return "This conversation changed in another screen. Reload it before sending again."
         case .conversationFull: return "This conversation has reached its local history limit. Clear its history to start a new conversation."
         case .legacyHistoryFormat: return "The original v5 history is not a supported role/text JSON array. It has been preserved without modification."
-        case .originalProxyUnavailable: return "The original Whitegram proxy requires an authenticated, signed Whitegram API session. That session is unavailable. Select Direct API explicitly to use your provider key."
+        case .originalProxyUnavailable: return "Connect this Telegram account to Whitegram before using its signed provider proxy. Account-less calls cannot use that route."
+        case .originalProxySessionChanged: return "The Whitegram account session changed. Connect or refresh this account before retrying."
+        case .originalProxyAccessDenied: return "This Telegram account does not have access to the Whitegram provider proxy."
+        case .originalProxyAccessUnverified: return "Whitegram proxy access has not been verified for this account. Connect or refresh its access status."
+        case .originalProxySigningUnavailable: return "The Whitegram application key or device signing identity is unavailable."
         case .streamingUnavailable: return "This transport does not support the provider's streaming protocol. No fallback request was sent."
         case .unsupportedToolCall: return "The model requested a Telegram tool that is not connected in this client. No tool was executed."
         case .invalidHash: return "A SHA-256 hash must contain exactly 64 hexadecimal characters."
@@ -121,8 +129,8 @@ public enum WhitegramServiceRoute: String, Equatable {
         return number.boolValue ? .originalProxy : .direct
     }
 
-    func requireAvailable() throws {
-        guard self == .direct else { throw WhitegramServiceError.originalProxyUnavailable }
+    func requireAvailable(using transport: WhitegramServiceTransport? = nil) throws {
+        guard self == (transport?.route ?? .direct) else { throw WhitegramServiceError.originalProxyUnavailable }
     }
 }
 
