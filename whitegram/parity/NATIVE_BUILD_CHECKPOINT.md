@@ -1,6 +1,6 @@
-# Native build verification — 2026-10-04
+# Native build verification — 2026-10-05
 
-The twelfth integrated run completed the full release build and produced a locally verified IPA. See the final section for the artifact, revision and checksum. Device validation remains outstanding.
+The thirteenth integrated run completed the full release build and produced a locally verified IPA. See the final section for the artifact, revision and checksum. Device validation remains outstanding.
 
 ## Initial integrated run
 
@@ -139,3 +139,19 @@ The artifact was downloaded under `recovery_20261002/build-37176472659/` and ver
 A separate local check confirmed a canonical 32-byte backend application key in the main app, no copied key in extension plists, and no stale signing-profile files or signature directories. No key values were printed or added to the report.
 
 This is an unsigned device IPA requiring signing for installation. On-device launch, authenticated-service behavior and complete original-app parity have not been validated by this build.
+
+## Thirteenth integrated run: account-bound service proxy
+
+- Commit: `427abad7c17f75f20bf6fef2f92285bb09ee03aa`.
+- Run: https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/37317400968 — **success**, 29m13s.
+- All source/plugin checks and every scheduled native Swift suite passed, followed by full release compilation, framework linking, packaging and IPA upload.
+- The direct service suite executed **83 tests**, and the backend host executed **43 tests**. That host now compiles 32 production files, including `WhitegramServiceProxy.swift` and the service sources it adapts.
+- All **13 new `WhitegramServiceProxyTests` cases passed**: signed Gemini/Groq/VirusTotal proxy paths, `X-Provider-Key` forwarding with retained Whitegram authorization, Gemini page-token preservation, missing/expired/mismatched/unverified session and signing failures, explicit account and matching-route requirements, preserved VirusTotal 404 bodies with provider 401 keeping the session, backend Retry-After backoff, session-replacement stream cancellation with other accounts untouched, intercepted-URLSession Groq SSE across a split UTF-8 boundary, typed consumer errors across the backend boundary, VirusTotal submission/polling on the signed route, upload-destination namespace restriction, and proxy upload cancellation completing only after URLSession stopped reading the body file.
+- Only compiler diagnostic was one unused-result warning in a new test, fixed by retaining and cancelling the scan task.
+- Artifact: [WhiteGram-12.9.4-34639-unsigned](https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/37317400968/artifacts), containing `WhiteGram.ipa` and `WhiteGram-verification.json`.
+- IPA size: **74,645,278 bytes**. SHA-256: `233dae8c8577aab04bcc6e3028c84c5deb10a28818fd1fd58b8a71e635ecabd7`.
+- Identity: `whitegram.telegra.Telegraph`, version `12.9.4`, build `34639`, arm64.
+
+The artifact was downloaded under `build-427abad/` and re-hashed locally; the local and CI digests match. ZIP integrity, all six extension identities, 13 alternate icons and the exact bytes of all six plugin SDK scripts passed.
+
+These are synthetic-session and intercepted-HTTP fixtures. No authenticated historical Whitegram request was made, so live proxy provider behavior, the Gemini/Groq endpoint shapes and the historical large-file upload URL namespace still require a device account authorized for that service.

@@ -1,6 +1,6 @@
 {
   "role": "services",
-  "status": "proxy_integrated_in_source_native_verification_pending",
+  "status": "proxy_integrated_and_natively_verified",
   "updated_date": "2026-10-05",
   "full_original_parity_claimed": false,
   "workspace": "C:/coding/telegram/whitegram/ios-build-ci",
@@ -246,14 +246,21 @@
     "native_attempts": [
       {"command": "python -B whitegram/tests/backend/run_native.py", "result": "BLOCKED (exit 2): macOS with Swift, CryptoKit and Security is required; no native tests ran."},
       {"command": "python -B whitegram/tests/services/run_swift_tests.py", "result": "BLOCKED (exit 2): Swift is unavailable; no type checking or runtime tests ran."}
-    ]
+    ],
+    "native_verification": {
+      "run": "https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/37317400968",
+      "revision": "427abad7c17f75f20bf6fef2f92285bb09ee03aa",
+      "conclusion": "success",
+      "results": "Direct service host executed 83 tests; backend host executed 43 tests from 32 production files. All 13 WhitegramServiceProxyTests cases passed. Full release compilation, framework linking and IPA packaging succeeded.",
+      "artifact": {"bytes": 74645278, "sha256": "233dae8c8577aab04bcc6e3028c84c5deb10a28818fd1fd58b8a71e635ecabd7", "local_digest_match": true}
+    }
   },
   "native_tests_supplied_not_run": {
     "services": {"runner": "whitegram/tests/services/run_swift_tests.py", "methods": 83, "coverage": "Production requests/decoders/SSE/models, key migration, history/import/stale revisions, URLSession limits, target validation, hash/snapshot/32-MiB upload routing, delayed cancellation, polling and explicit proxy rejection"},
-    "service_proxy": {"runner": "whitegram/tests/backend/run_native.py", "methods": 13, "production_files_in_host": 32, "coverage": "Actual service/proxy/backend routing and signatures, model query preservation, session/access/signing failures, account/route requirements, HTTP error bodies, rate limiting, session replacement, intercepted URLSession SSE and typed errors, VirusTotal submission/polling/upload namespaces and cancellation after reader termination"},
+    "service_proxy": {"runner": "whitegram/tests/backend/run_native.py", "methods": 13, "production_files_in_host": 32, "coverage": "Actual service/proxy/backend routing and signatures, model query preservation, session/access/signing failures, account/route requirements, HTTP error bodies, rate limiting, session replacement, intercepted URLSession SSE and typed errors, VirusTotal submission/polling/upload namespaces and cancellation after reader termination", "executed": {"run": "37317400968", "result": "13 passed, 0 failures"}},
     "translation": {"runner": "whitegram/tests/translation/run_native.py", "methods": 19, "coverage": "Production settings and state guard, UTF-16 scalar boundaries, protected segments, original outgoing/voice/Siri rules, Google wire/URLSession response limits and cancellation; every HTTP URL intercepted"},
-    "swift_type_check_ran": false,
-    "xctest_ran": false,
+    "swift_type_check_ran": true,
+    "xctest_ran": true,
     "device_checks_ran": false,
     "live_provider_requests": false
   },
@@ -267,7 +274,7 @@
     "Live authenticated original Whitegram proxy/beta/pinning/session behavior, including model endpoints, pagination, SSE and the large-file upload response namespace."
   ],
   "precise_remaining_blockers": [
-    {"owner": "backend + services integration", "kind": "native and external verification", "blocker": "The signed account-bound proxy adapter and native fixtures are implemented, but no native execution or live signed session/beta/pinning/provider validation has run for this increment. Direct-only /_ah/upload/ URLs are rejected in proxy mode; historical large-file responses need verification."},
+    {"owner": "backend + services integration", "kind": "external verification", "blocker": "The signed account-bound proxy adapter is implemented, natively tested and shipped, but no authenticated historical request was made. Live provider behavior, Gemini/Groq endpoint shapes and the historical large-file upload URL namespace remain unverified. Direct-only /_ah/upload/ URLs are rejected in proxy mode."},
     {"owner": "parent", "kind": "integration", "blocker": "Shared runtime copy maps, new-key archive/schema/default registration, localization linkage, complete multi-worker transform composition and BUILD dependency integration are outside service ownership."},
     {"owner": "parent Apple host", "kind": "verification", "blocker": "Windows source checks cannot establish Swift type correctness, UIKit/SwiftUI/Speech presentation, Keychain/file-provider behavior or live provider availability. Native fixtures are supplied, not executed here."},
     {"owner": "services/legacy AI integration", "kind": "remaining parity surface", "blocker": "Original retired AI's Telegram tools and multimodal inputs are not implemented. Gemini's old model allow-list coercion is deliberately not applied to explicit custom selections; original screen layout and added English explanations are not pixel/localization parity claims."}

@@ -1,6 +1,6 @@
 # Integrated Whitegram source port
 
-Latest assembled-candidate checkpoint: [2026-10-03 parent checkpoint](parity/PARENT_CHECKPOINT.md), including complete installer replay and its source-test results. The [2026-10-05 service-proxy increment](SERVICES_PORT.md#tests-and-verification) adds account-bound routing and integration fixtures, with 43 passing Python checks; native execution remains pending. Native build/artifact checkpoints below apply to their named revisions.
+Latest integrated verification: [2026-10-05 native checkpoint](parity/NATIVE_BUILD_CHECKPOINT.md). It covers the account-bound service-proxy increment (revision `427abad`), whose 13 integration cases, 83 direct service cases, 43 backend cases and full release IPA build all passed. See [2026-10-03 parent checkpoint](parity/PARENT_CHECKPOINT.md) for the assembled-candidate results, and the Apple build checkpoints below for their named revisions.
 
 ## Inputs
 

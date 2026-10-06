@@ -280,7 +280,7 @@ final class WhitegramServiceProxyTests: XCTestCase {
         let submitted = expectation(description: "submitted; waiting to poll")
         scheduler.scheduled = { submitted.fulfill() }
         let done = expectation(description: "analysis completed")
-        service.startScan(target: .url("https://example.com/a?q=one+two&x=1"), analysisId: nil, scheduler: scheduler,
+        let task = service.startScan(target: .url("https://example.com/a?q=one+two&x=1"), analysisId: nil, scheduler: scheduler,
             progress: { _ in }, apiKey: "fixture-key") { result in
             completed = true
             XCTAssertEqual(try? result.get().status, .completed)
@@ -318,6 +318,7 @@ final class WhitegramServiceProxyTests: XCTestCase {
             XCTAssertEqual(call.request.httpMethod, "GET")
             XCTAssertEqual(call.request.url?.path, "/v1/proxy/virustotal/v3/analyses/fixture-analysis")
         }
+        task.cancel()
     }
 
     func testUploadDestinationsStayWithinSignedVirusTotalNamespace() throws {
