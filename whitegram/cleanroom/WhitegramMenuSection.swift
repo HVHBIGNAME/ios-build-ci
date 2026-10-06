@@ -298,5 +298,5 @@ public enum WhitegramMenuCatalog {
         )
     ]
 
-    public static let implemented: Set<String> = ["about", "ghost", "privacy", "plugins", "fonts", "icons", "voiceChanger", "virusTotal", "messages", "tabs", "camera", "translation", "misc", "sessions", "publicSettings", "interface", "appearance", "info", "search", "allSettings", "localization", "player", "liquidGlass", "localStars"]
+    public static let implemented: Set<String> = ["about", "apiStatus", "donate", "ghost", "privacy", "plugins", "fonts", "icons", "voiceChanger", "virusTotal", "messages", "tabs", "camera", "translation", "misc", "sessions", "publicSettings", "interface", "appearance", "info", "search", "allSettings", "localization", "player", "radio", "features", "traffic", "liquidGlass", "localStars", "notifications"]
 }

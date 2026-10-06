@@ -77,7 +77,7 @@ public struct WhitegramSettingsState: Codable, Equatable {
     public var messageBorderColorHex: String = ""
     public var whitegramNotificationsEnabled: Bool = false
     public var persistentNotificationsEnabled: Bool = false
-    public var backgroundKeepAlive: Bool = false
+    public var backgroundKeepAlive: Bool = true
     public var ghostModeEnabled: Bool = false
     public var disableOnlineStatus: Bool = false
     public var disableTypingStatus: Bool = false

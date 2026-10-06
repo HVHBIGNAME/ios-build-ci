@@ -12,6 +12,9 @@ enum WhitegramPortCapabilities {
     // Each writable key has an installed consumer in runtime_patches,
     // interface_patches, history_patches, or WhitegramForkBridge.
     static let booleans: [String: String] = [
+        "showRAMUsage": "showRAMUsage",
+        "whitegramNotifications": "whitegramNotificationsEnabled",
+        "persistentNotifications": "persistentNotificationsEnabled", "backgroundKeepAlive": "backgroundKeepAlive",
         "hideDescriptions": "hideSettingsDescriptions",
         "keepUnavailableAccounts": "keepUnavailableAccounts", "accountSwitcherEnabled": "accountSwitcherEnabled",
         "playbackPitchFollowsSpeed": "musicPlaybackPitchFollowsSpeed", "crossfadeEnabled": "musicCrossfadeEnabled",
@@ -51,10 +54,24 @@ enum WhitegramPortCapabilities {
         "customFontEnabled": "customFontEnabled", "hideRecordButton": "hideRecordButton", "noChannelSwitch": "noChannelSwitch"
     ]
 
+    static let informationKeys: [String: String] = [
+        "persistentNotificationsInfo": "info.persistentNotifications"
+    ]
+
     static let screens: [String: String] = [
         "menuLanguagePicker": "localization",
         "keychainAccounts": "keychainAccounts", "accountTransfer": "accountTransfer", "botAccounts": "botAccounts",
         "playbackSpeedSlider": "player", "crossfadeSlider": "player", "equalizerOpen": "equalizer",
+        "bassEffect": "player", "customMusicCard": "player",
+        "antiCensorshipEnabled": "traffic",
+        "profilePhotos": "profilePhotos", "profilePhotoWallpaper": "profilePhotos",
+        "resetProfilePhotoWallpaper": "profilePhotos", "profilePhotoWallPublic": "profilePhotos", "profilePhotoWallStatus": "profilePhotos",
+        "profileLyricEnabled": "profile", "profileLyricPicker": "profile", "profileLyricAnimationPicker": "profile",
+        "profileQuoteEnabled": "profile", "profileQuoteEditor": "profile", "profileWhitegramBadgeEnabled": "profile",
+        "profileSceneEnabled": "profile", "profileScenePicker": "profile",
+        "whitegramProfileReactionsEnabled": "profile", "profileReactionsPicker": "profile",
+        "profileWallEnabled": "profileWall", "wallBlockedUsers": "profileWall", "whitegramStreakEnabled": "streaks",
+        "whitegramPresenceEnabled": "radio", "whitegramPresencePreciseEnabled": "radio",
         "staticZoom": "media", "maxDownloadSpeed": "media", "sendAcceleration": "media", "downloadAccelPicker": "media",
         "localStarsEnabled": "localStars", "localStarsCountSlider": "localStars", "localStarsCountCustom": "localStars",
         "tabBarScaleButton": "appearanceControls", "tabBarScaleSlider": "appearanceControls", "tabBarWidthSlider": "appearanceControls",
@@ -65,6 +82,7 @@ enum WhitegramPortCapabilities {
         "sendLargePhotos": "media", "photoQualitySlider": "media", "alwaysSendHD": "media",
         "cleanMetadataOnSend": "media", "rememberLastCamera": "media",
         "translationTargetLang": "translation", "translateBeforeSending": "translation",
+        "localTranslationEnabled": "translation", "voiceTranslationEnabled": "translation", "siriTranscriptionWarning": "translation",
         "exportSettings": "settingsTransfer", "importSettings": "settingsTransfer",
         "saveSettingsToKeychain": "settingsTransfer", "restoreSettingsFromKeychain": "settingsTransfer",
         "messageBorder": "appearanceExtensions", "transparentMessages": "appearanceExtensions",
@@ -81,8 +99,12 @@ enum WhitegramPortCapabilities {
         "virusTotalEnabled": "virusTotal", "virusTotalApiKeyRow": "virusTotal", "virusTotalStatusRow": "virusTotal",
         "voiceChangerEnabled": "voice", "voiceChangerModeSlider": "voice", "voiceChangerPresetSelector": "voice",
         "voiceChangerPitchSlider": "voice", "voiceChangerTimbreSlider": "voice", "voiceChangerEchoSlider": "voice", "voiceChangerClaritySlider": "voice",
+        "voiceBleepEnabled": "voice", "voiceBleepModeSelector": "voice", "voiceChangerInCalls": "voice",
+        "voiceChangerApiKeyRow": "voiceRemote", "voiceChangerStatusRow": "voiceRemote",
+        "voiceChangerVoiceRow": "voiceRemote", "voiceChangerUseProxy": "voiceRemote",
         "geminiEnabled": "ai", "geminiApiKeyRow": "ai", "geminiModelRow": "ai",
-        "aiProviderRow": "ai", "groqApiKeyRow": "ai", "groqModelRow": "ai"
+        "aiProviderRow": "ai", "groqApiKeyRow": "ai", "groqModelRow": "ai",
+        "geminiUseProxy": "ai", "groqUseProxy": "ai"
     ]
 
     static let russianTitles: [String: String] = [
@@ -132,6 +154,7 @@ enum WhitegramPortCapabilities {
     }
 
     static func title(_ row: WhitegramSettingsRowDescriptor, baseLanguage: String) -> String {
+        if let key = informationKeys[row.id] { return WhitegramLocalization.string(key, baseLanguage: baseLanguage) }
         let key = (row.kind == .headerRow ? "h." : "s.") + row.id
         if WhitegramLocalizationStrings.values[key] != nil {
             return WhitegramLocalization.string(key, baseLanguage: baseLanguage)

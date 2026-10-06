@@ -31,6 +31,8 @@ private final class WhitegramSettingsCoordinator {
             let alert = UIAlertController(title: "Whitegram", message: "Could not save preference.", preferredStyle: .alert)
             alert.addAction(UIAlertAction(title: "OK", style: .default))
             self.controller?.present(alert, animated: true)
+        } else if key == "whitegramNotificationsEnabled", value {
+            self.context.sharedContext.applicationBindings.registerForNotifications { _ in }
         }
     }
 
@@ -44,6 +46,12 @@ private final class WhitegramSettingsCoordinator {
         case "botAccounts": target = whitegramBotAccountsController(context: self.context)
         case "player": target = whitegramPlayerSettingsController(context: self.context)
         case "equalizer": target = whitegramPlayerEqualizerController(context: self.context)
+        case "radio": target = whitegramRadioController(context: self.context)
+        case "traffic": target = whitegramTrafficController(context: self.context)
+        case "profile": target = whitegramProfileController(context: self.context)
+        case "profilePhotos": target = whitegramProfilePhotosController(context: self.context, userId: self.context.account.peerId.id._internalGetInt64Value())
+        case "profileWall": target = whitegramProfileWallController(context: self.context, userId: self.context.account.peerId.id._internalGetInt64Value())
+        case "streaks": target = whitegramProfileStreakController(context: self.context)
         case "appearanceControls": target = whitegramAppearanceControlsController(context: self.context)
         case "localStars": target = whitegramLocalStarsController(context: self.context)
         case "glass": target = whitegramGlassController(context: self.context)
@@ -60,6 +68,7 @@ private final class WhitegramSettingsCoordinator {
         case "fonts": target = whitegramFontsController(context: self.context)
         case "plugins": target = whitegramPluginManagerController(context: self.context)
         case "voice": target = whitegramVoiceSettingsController(context: self.context)
+        case "voiceRemote": target = whitegramVoiceRemoteSettingsController(context: self.context)
         case "virusTotal": target = whitegramVirusTotalController(context: self.context)
         case "ai": target = whitegramAISettingsController(context: self.context)
         default: return
@@ -95,6 +104,9 @@ private struct WhitegramSettingsRow: ItemListNodeEntry {
         if self.descriptor.kind == .headerRow {
             return ItemListSectionHeaderItem(presentationData: presentationData, text: self.title, sectionId: self.section)
         }
+        if WhitegramPortCapabilities.informationKeys[self.descriptor.id] != nil {
+            return ItemListTextItem(presentationData: presentationData, text: .plain(self.title), sectionId: self.section, style: .blocks)
+        }
         if let value {
             return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: self.title, value: value, sectionId: self.section, style: .blocks, updated: { arguments.update(self.descriptor.id, value: $0) })
         }
@@ -114,7 +126,7 @@ public func whitegramGeneratedSettingsController(context: AccountContext, sectio
         let russian = WhitegramLocalization.selectedLanguage(baseLanguage: presentationData.strings.baseLanguageCode) == "ru"
         let rows = WhitegramSettingsCatalog.rows.compactMap { descriptor -> WhitegramSettingsRow? in
             if let sections, !sections.contains(descriptor.section) { return nil }
-            let supported = WhitegramPortCapabilities.booleans[descriptor.id] != nil || WhitegramPortCapabilities.screens[descriptor.id] != nil
+            let supported = WhitegramPortCapabilities.booleans[descriptor.id] != nil || WhitegramPortCapabilities.screens[descriptor.id] != nil || WhitegramPortCapabilities.informationKeys[descriptor.id] != nil
             if availableOnly && !supported { return nil }
             let rowTitle = WhitegramPortCapabilities.title(descriptor, baseLanguage: presentationData.strings.baseLanguageCode)
             if !coordinator.query.isEmpty && !rowTitle.localizedCaseInsensitiveContains(coordinator.query) && !descriptor.id.localizedCaseInsensitiveContains(coordinator.query) { return nil }

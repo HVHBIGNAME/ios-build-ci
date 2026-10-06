@@ -1,0 +1,9 @@
+// swift-tools-version: 5.9
+import PackageDescription
+
+let package = Package(name: "WhitegramSystemChecks", platforms: [.macOS(.v12)], targets: [
+    .target(name: "TelegramCore"),
+    .target(name: "Display"),
+    .target(name: "TelegramUI"),
+    .testTarget(name: "WhitegramSystemTests", dependencies: ["TelegramCore", "Display", "TelegramUI"])
+])

@@ -193,6 +193,7 @@ class MenuIntegrationTests(unittest.TestCase):
         catalog = (OVERLAY / "cleanroom/WhitegramMenuSection.swift").read_text(encoding="utf-8")
         menu = (OVERLAY / "cleanroom/WhitegramMainMenuController.swift").read_text(encoding="utf-8")
         implemented = set(re.findall(r'"(\w+)"', catalog.split("static let implemented:", 1)[1]))
+        self.assertTrue({"radio", "features", "traffic", "apiStatus", "donate"} <= implemented)
         routes = set()
         for cases in re.findall(r'case ((?:"\w+"(?:, )?)+):', menu):
             routes.update(re.findall(r'"(\w+)"', cases))

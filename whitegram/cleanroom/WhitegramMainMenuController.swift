@@ -135,6 +135,10 @@ public func whitegramMainMenuController(context: AccountContext) -> ViewControll
         switch section.id {
         case "about":
             pushController?(whitegramAboutController(context: context, section: section))
+        case "apiStatus":
+            pushController?(whitegramAPIStatusController(context: context))
+        case "donate":
+            context.sharedContext.applicationBindings.openUrl("https://t.me/heypaindonationbot")
         case "ghost", "privacy":
             pushController?(whitegramPrivacySettingsController(context: context))
         case "messages":
@@ -149,6 +153,12 @@ public func whitegramMainMenuController(context: AccountContext) -> ViewControll
             pushController?(whitegramVoiceSettingsController(context: context))
         case "player":
             pushController?(whitegramPlayerSettingsController(context: context))
+        case "radio":
+            pushController?(whitegramRadioController(context: context))
+        case "features":
+            pushController?(whitegramProfileController(context: context))
+        case "traffic":
+            pushController?(whitegramTrafficController(context: context))
         case "liquidGlass":
             pushController?(whitegramGlassController(context: context))
         case "localStars":
@@ -172,7 +182,7 @@ public func whitegramMainMenuController(context: AccountContext) -> ViewControll
         case "publicSettings":
             pushController?(whiteGramSettingsController(context: context))
         default:
-            let sections: [String: Set<Int>] = ["appearance": [3, 9], "interface": [5], "info": [6], "misc": [8]]
+            let sections: [String: Set<Int>] = ["appearance": [3, 9], "interface": [5], "info": [6], "misc": [8], "notifications": [11]]
             if let sections = sections[section.id] {
                 pushController?(whitegramGeneratedSettingsController(context: context, sections: sections, title: section.title(baseLanguage: baseLanguage), availableOnly: true))
             }

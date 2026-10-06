@@ -114,6 +114,7 @@ jobs:
           python3 -B whitegram/tests/privacy/run_native.py || failed=1
           python3 -B whitegram/tests/accounts/run_native.py || failed=1
           python3 -B whitegram/tests/backend/run_native.py || failed=1
+          python3 -B whitegram/tests/system/run_native.py || failed=1
           python3 -B whitegram/tests/appearance_parity/run_native.py || failed=1
           python3 -B whitegram/tests/media/run_native.py || failed=1
           python3 -B whitegram/tests/voice/run_native.py --require-swift || failed=1

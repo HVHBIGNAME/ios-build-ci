@@ -52,6 +52,8 @@ The next increment also installs the translation, media/camera and service-messa
 
 The feature-specific documents describe the supported behavior and remaining limits: [public APIs](PUBLIC_API_REVIEW.md), [appearance](APPEARANCE_PORT.md), [history](HISTORY_PORT.md), [plugins](PLUGIN_RUNTIME.md), [services](SERVICES_PORT.md), and [voice](VOICE_PORT.md). [Feature coverage](FEATURE_COVERAGE.md) audits all 333 catalog rows at starting revision `6d8f529`; its counts deliberately exclude the subsequent history/plugin/appearance work.
 
+The RAM indicator and local-notification/background runtime, including recovered defaults, native hooks and remaining device-comparison work, are documented in [SYSTEM_PORT.md](SYSTEM_PORT.md). Their macOS policy/metrics suite is part of the pre-build native gate.
+
 ## Fresh-tree verification
 
 A new detached worktree was created from the pinned Telegram commit, then processed by `port_public.py --apply`, `compat-12.9.4.py` and `configure.py`.
