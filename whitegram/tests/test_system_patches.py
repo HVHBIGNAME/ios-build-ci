@@ -88,6 +88,17 @@ class SystemCompositionTests(unittest.TestCase):
         self.assertEqual(staged.pending[APPLICATION_CONTEXT].count("self.whitegramLocalNotifications = WhitegramLocalNotifications("), 1)
         self.assertEqual(staged.pending[APP_DELEGATE].count("self.whitegramBackgroundKeepAlive = WhitegramBackgroundKeepAlive("), 1)
 
+    def test_lock_observer_uses_owning_module_and_checks_for_a_configured_passcode(self):
+        runtime = (OVERLAY / "cleanroom/WhitegramLocalNotifications.swift").read_text(encoding="utf-8")
+        owner = (self.root / "submodules/AppLock/Sources/AppLock.swift").read_text(encoding="utf-8")
+        self.assertIn("import AppLock\n", runtime)
+        self.assertIn("public final class AppLockContextImpl:", owner)
+        self.assertIn("public var isCurrentlyLocked: Signal<Bool, NoError>", owner)
+        self.assertIn(".single(!appInForeground || isCurrentlyLocked)", owner)
+        self.assertIn("combineLatest(context.sharedContext.accountManager.accessChallengeData(), lock.isCurrentlyLocked)", runtime)
+        self.assertIn("self?.isLocked = challenge.data.isLockable && value", runtime)
+        self.assertIn("private var isLocked = true", runtime)
+
     def test_composed_swift_introduces_no_parser_errors(self):
         staged = SourcePatches(self.root)
         stage(staged)

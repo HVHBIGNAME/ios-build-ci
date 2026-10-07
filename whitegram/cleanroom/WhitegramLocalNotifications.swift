@@ -1,3 +1,4 @@
+import AppLock
 import Foundation
 import PlatformRestrictionMatching
 import Postbox
@@ -19,8 +20,9 @@ final class WhitegramLocalNotifications {
     init(context: AccountContextImpl) {
         self.context = context
         if let lock = context.sharedContext.appLockContext as? AppLockContextImpl {
-            self.lockDisposable.set((lock.isCurrentlyLocked |> deliverOnMainQueue).start(next: { [weak self] value in
-                self?.isLocked = value
+            self.lockDisposable.set((combineLatest(context.sharedContext.accountManager.accessChallengeData(), lock.isCurrentlyLocked)
+            |> deliverOnMainQueue).start(next: { [weak self] challenge, value in
+                self?.isLocked = challenge.data.isLockable && value
             }))
         }
         for name in [UIApplication.willEnterForegroundNotification, UIApplication.didBecomeActiveNotification] {

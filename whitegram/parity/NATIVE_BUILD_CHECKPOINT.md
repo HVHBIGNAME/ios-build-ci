@@ -155,3 +155,13 @@ This is an unsigned device IPA requiring signing for installation. On-device lau
 The artifact was downloaded under `build-427abad/` and re-hashed locally; the local and CI digests match. ZIP integrity, all six extension identities, 13 alternate icons and the exact bytes of all six plugin SDK scripts passed.
 
 These are synthetic-session and intercepted-HTTP fixtures. No authenticated historical Whitegram request was made, so live proxy provider behavior, the Gemini/Groq endpoint shapes and the historical large-file upload URL namespace still require a device account authorized for that service.
+
+## RAM/notification increment: initial native run
+
+- Commit: `bf695d2c06f33843805341cf415fcf8a90346470`.
+- Run: https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/37461794672 — failed during TelegramUI compilation.
+- Source/plugin checks and every scheduled native Swift suite passed. The new system suite executed **21 XCTest cases with zero failures**, including live Darwin physical-footprint measurement and AVFoundation decoding of the silent WAV.
+- Display, TelegramCore and SettingsUI compiled. TelegramUI reported a missing `AppLock` import in `WhitegramLocalNotifications`; the subsequent generic-inference diagnostic was on the same unresolved lock signal.
+- No IPA was produced. The follow-up explicitly imports the type's owning module and combines the foreground-sensitive lock signal with the actual passcode challenge so users without a passcode retain notification previews. Configured passcodes still hide the body while backgrounded; unknown lock state remains hidden.
+
+The full release build must confirm the follow-up revision separately.
