@@ -13,7 +13,8 @@ SYSTEM_RUNTIME_FILES = {
         "WhitegramNotificationSettings", "WhitegramLocalNotificationId",
     )},
     **{name + ".swift": "submodules/TelegramUI/Sources/" + name + ".swift" for name in (
-        "WhitegramSilentAudio", "WhitegramBackgroundKeepAlive", "WhitegramNotificationContent", "WhitegramLocalNotifications",
+        "WhitegramSilentAudio", "WhitegramKeepAliveController", "WhitegramKeepAliveAudio",
+        "WhitegramBackgroundKeepAlive", "WhitegramNotificationContent", "WhitegramNotificationEnrichment", "WhitegramLocalNotifications",
     )},
 }
 
@@ -73,9 +74,21 @@ def background_patches(patches: SourcePatches) -> None:
     _replace_once(patches, "backgroundKeepAlive", APP_DELEGATE, anchor,
         anchor + "    private var whitegramBackgroundKeepAlive: WhitegramBackgroundKeepAlive?\n")
     anchor = "            let sharedApplicationContext = SharedApplicationContext(sharedContext: sharedContext, notificationManager: notificationManager, wakeupManager: wakeupManager)\n"
-    _replace_once(patches, "backgroundKeepAlive", APP_DELEGATE, anchor, anchor + """            self.whitegramBackgroundKeepAlive = WhitegramBackgroundKeepAlive(audioSession: sharedContext.mediaManager.audioSession,
+    legacy = anchor + """            self.whitegramBackgroundKeepAlive = WhitegramBackgroundKeepAlive(audioSession: sharedContext.mediaManager.audioSession,
                 activityUpdated: { [weak wakeupManager] active in wakeupManager?.setWhitegramKeepAlive(active) })
-""")
+"""
+    updated = anchor + """            self.whitegramBackgroundKeepAlive = WhitegramBackgroundKeepAlive(audioSession: sharedContext.mediaManager.audioSession,
+                ownAudioActive: sharedContext.mediaManager.activeGlobalMediaPlayerAccountId |> map { $0?.1 ?? false },
+                callsActive: combineLatest(hasActiveCalls,
+                    (sharedContext.callManager?.currentCallSignal ?? .single(nil)) |> map { $0 != nil },
+                    (sharedContext.callManager?.currentGroupCallSignal ?? .single(nil)) |> map { $0 != nil })
+                    |> map { systemCall, appCall, groupCall in systemCall || appCall || groupCall },
+                activityUpdated: { [weak wakeupManager] active in wakeupManager?.setWhitegramKeepAlive(active) })
+"""
+    value = patches.read(APP_DELEGATE)
+    if legacy in value and anchor in value.replace(legacy, ""):
+        raise ValueError(f"backgroundKeepAlive: {APP_DELEGATE}: mixed or duplicate system hooks")
+    _replace_once(patches, "backgroundKeepAlive", APP_DELEGATE, legacy if legacy in value else anchor, updated)
     anchor = "    private var hasActiveAudioSession: Bool = false\n"
     _replace_once(patches, "backgroundKeepAlive", WAKEUP, anchor,
         anchor + "    private var whitegramKeepAlive: Bool = false\n")
@@ -93,9 +106,10 @@ def background_patches(patches: SourcePatches) -> None:
     _replace_once(patches, "backgroundKeepAlive", WAKEUP,
         "                if (self.inForeground && primary) || !tasks.isEmpty ||",
         "                if ((self.inForeground || self.whitegramKeepAlive) && primary) || !tasks.isEmpty ||")
-    _replace_once(patches, "backgroundKeepAlive", WAKEUP,
-        "account.shouldExplicitelyKeepWorkerConnections.set(.single(tasks.backgroundAudio ||",
-        "account.shouldExplicitelyKeepWorkerConnections.set(.single((self.whitegramKeepAlive && primary) || tasks.backgroundAudio ||")
+    legacy_worker = "account.shouldExplicitelyKeepWorkerConnections.set(.single((self.whitegramKeepAlive && primary) || tasks.backgroundAudio ||"
+    if legacy_worker in patches.read(WAKEUP):
+        _replace_once(patches, "backgroundKeepAlive", WAKEUP, legacy_worker,
+            "account.shouldExplicitelyKeepWorkerConnections.set(.single(tasks.backgroundAudio ||")
 
 
 def apply_system_patches(root: Path) -> dict[str, list[str]]:

@@ -1,6 +1,7 @@
 """Exercise system hooks without mutating the pinned, assembled Telegram tree."""
 
 import os
+import plistlib
 from pathlib import Path
 import sys
 import unittest
@@ -111,10 +112,55 @@ class SystemCompositionTests(unittest.TestCase):
         stage(staged)
         result = staged.pending[WAKEUP]
         self.assertIn("((self.inForeground || self.whitegramKeepAlive) && primary)", result)
-        self.assertIn("(self.whitegramKeepAlive && primary) || tasks.backgroundAudio", result)
+        self.assertIn("account.shouldExplicitelyKeepWorkerConnections.set(.single(tasks.backgroundAudio ||", result)
+        self.assertNotIn("(self.whitegramKeepAlive && primary) || tasks.backgroundAudio", result)
         presence = [line.strip() for line in result.splitlines() if "shouldKeepOnlinePresence.set" in line]
         original = [line.strip() for line in staged.original[WAKEUP].splitlines() if "shouldKeepOnlinePresence.set" in line]
         self.assertEqual(presence, original)
+
+    def test_background_audio_uses_media_playback_and_call_signals(self):
+        staged = SourcePatches(self.root)
+        background_patches(staged)
+        text = staged.pending[APP_DELEGATE]
+        self.assertIn("ownAudioActive: sharedContext.mediaManager.activeGlobalMediaPlayerAccountId", text)
+        self.assertIn("callsActive: combineLatest(hasActiveCalls,", text)
+        self.assertIn("sharedContext.callManager?.currentCallSignal", text)
+        self.assertIn("sharedContext.callManager?.currentGroupCallSignal", text)
+
+    def test_previous_keepalive_installation_is_upgraded_and_replays(self):
+        staged = SourcePatches(self.root)
+        background_patches(staged)
+        upgraded = staged.pending[APP_DELEGATE]
+        lines = """                ownAudioActive: sharedContext.mediaManager.activeGlobalMediaPlayerAccountId |> map { $0?.1 ?? false },
+                callsActive: combineLatest(hasActiveCalls,
+                    (sharedContext.callManager?.currentCallSignal ?? .single(nil)) |> map { $0 != nil },
+                    (sharedContext.callManager?.currentGroupCallSignal ?? .single(nil)) |> map { $0 != nil })
+                    |> map { systemCall, appCall, groupCall in systemCall || appCall || groupCall },
+"""
+        self.assertIn(lines, upgraded)
+        staged.pending[APP_DELEGATE] = upgraded.replace(lines, "")
+        background_patches(staged)
+        self.assertEqual(staged.pending[APP_DELEGATE], upgraded)
+        background_patches(staged)
+        self.assertEqual(staged.pending[APP_DELEGATE], upgraded)
+
+    def test_communication_metadata_and_audio_background_mode_are_in_the_app_plist(self):
+        for name in ("Info.plist", "InfoBazel.plist"):
+            info = plistlib.loads((self.root / "Telegram/Telegram-iOS" / name).read_bytes())
+            with self.subTest(plist=name):
+                self.assertIn("INSendMessageIntent", info["NSUserActivityTypes"])
+                self.assertIn("audio", info["UIBackgroundModes"])
+
+    def test_cached_media_uses_real_media_box_api_and_releases_staging_after_submission(self):
+        media_box = (self.root / "submodules/Postbox/Sources/MediaBox.swift").read_text(encoding="utf-8")
+        self.assertIn("public func completedResourcePath(_ resource: MediaResource", media_box)
+        enrichment = (OVERLAY / "cleanroom/WhitegramNotificationEnrichment.swift").read_text(encoding="utf-8")
+        self.assertIn("mediaBox.completedResourcePath(resource)", enrichment)
+        self.assertIn("guard preview == .full", enrichment)
+        self.assertIn("!message.containsSecretMedia", enrichment)
+        self.assertIn("$0 is MediaSpoilerMessageAttribute", enrichment)
+        runtime = (OVERLAY / "cleanroom/WhitegramLocalNotifications.swift").read_text(encoding="utf-8")
+        self.assertIn("center.add(request) { [weak self] error in\n                    prepared.releaseTemporaryFiles()", runtime)
 
     def test_notification_hook_reaches_each_received_batch_before_foreground_filter(self):
         staged = SourcePatches(self.root)
@@ -127,7 +173,7 @@ class SystemCompositionTests(unittest.TestCase):
     def test_late_missing_anchor_fails_before_any_source_is_written(self):
         staged = SourcePatches(self.root)
         text = staged.read(WAKEUP)
-        staged.pending[WAKEUP] = text.replace("account.shouldExplicitelyKeepWorkerConnections.set", "changedUpstream.set")
+        staged.pending[WAKEUP] = text.replace("|| !tasks.isEmpty ||", "|| !changedTasks.isEmpty ||")
         with patch("system_patches.SourcePatches", return_value=staged), patch.object(Path, "write_bytes") as writes:
             with self.assertRaisesRegex(ValueError, "backgroundKeepAlive"):
                 apply_system_patches(self.root)

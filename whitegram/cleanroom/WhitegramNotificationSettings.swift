@@ -44,3 +44,44 @@ public enum WhitegramNotificationPreview: Equatable {
         return !isLocked && displayPreviews ? .full : .senderOnly
     }
 }
+
+public enum WhitegramNotificationText {
+    public static func subtitle(baseLanguage: String, replyToMe: Bool, mentioned: Bool) -> String? {
+        if replyToMe { return baseLanguage == "ru" ? "↩︎ Ответ на ваше сообщение" : "↩︎ Replied to your message" }
+        if mentioned { return baseLanguage == "ru" ? "@ Упоминание" : "@ Mentioned you" }
+        return nil
+    }
+
+    public static func emojiPresentation(_ text: String, hasCustomEmoji: Bool) -> String {
+        guard hasCustomEmoji else { return text }
+        var result = ""
+        result.reserveCapacity(text.count + 4)
+        for character in text {
+            result.append(character)
+            if character.unicodeScalars.count == 1, let scalar = character.unicodeScalars.first,
+               scalar.properties.isEmoji && !scalar.properties.isEmojiPresentation {
+                result.append("\u{FE0F}")
+            }
+        }
+        return result
+    }
+
+    public static func redactingSpoilers(_ text: String, ranges: [Range<Int>]) -> String {
+        let result = NSMutableString(string: text)
+        var merged: [Range<Int>] = []
+        for range in ranges.sorted(by: { $0.lowerBound < $1.lowerBound }) {
+            let lower = max(0, range.lowerBound)
+            let upper = min(result.length, range.upperBound)
+            guard lower < upper else { continue }
+            if let last = merged.last, lower <= last.upperBound {
+                merged[merged.count - 1] = last.lowerBound ..< max(last.upperBound, upper)
+            } else {
+                merged.append(lower ..< upper)
+            }
+        }
+        for range in merged.reversed() {
+            result.replaceCharacters(in: NSRange(location: range.lowerBound, length: range.count), with: "•••")
+        }
+        return result as String
+    }
+}

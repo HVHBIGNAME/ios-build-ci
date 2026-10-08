@@ -60,15 +60,16 @@ final class WhitegramLocalNotifications {
                 }
                 let preview = WhitegramNotificationPreview.resolve(isLocked: self.isLocked,
                     displayPreviews: self.settings.displayPreviews, displayName: self.settings.displayNameOnLockscreen)
-                guard let content = WhitegramNotificationContent.make(context: self.context, messages: messages,
+                guard let prepared = WhitegramNotificationContent.make(context: self.context, messages: messages,
                     threadData: threadData, id: id, preview: preview, playSound: self.settings.playSounds) else {
                     self.ledger.finish(ticket, delivered: false)
                     return
                 }
-                let request = UNNotificationRequest(identifier: id.rawValue, content: content,
+                let request = UNNotificationRequest(identifier: id.rawValue, content: prepared.content,
                     trigger: UNTimeIntervalNotificationTrigger(timeInterval: 0.1, repeats: false))
                 let center = self.center
                 center.add(request) { [weak self] error in
+                    prepared.releaseTemporaryFiles()
                     DispatchQueue.main.async {
                         guard let self else {
                             center.removePendingNotificationRequests(withIdentifiers: [id.rawValue])
@@ -103,12 +104,23 @@ final class WhitegramLocalNotifications {
 
     private func cancelPending() {
         self.center.removePendingNotificationRequests(withIdentifiers: self.ledger.invalidatePending())
+        let accountId = self.context.account.id.int64
+        self.center.getPendingNotificationRequests { [weak self] requests in
+            DispatchQueue.main.async {
+                guard let self, UIApplication.shared.applicationState == .active || !WhitegramNotificationSettings.current.enabled else { return }
+                let ids = requests.compactMap { request -> String? in
+                    guard WhitegramLocalNotificationId(rawValue: request.identifier)?.accountId == accountId else { return nil }
+                    return request.identifier
+                }
+                self.center.removePendingNotificationRequests(withIdentifiers: ids)
+            }
+        }
     }
 
     func clearReadMessages(_ ids: [MessageId]) {
         let maximumIds = ids.map(self.id)
-        self.ledger.recordRead(maximumIds)
-        guard !maximumIds.isEmpty, !WhitegramNotificationSettings.current.persistent else { return }
+        self.center.removePendingNotificationRequests(withIdentifiers: self.ledger.recordRead(maximumIds))
+        guard !maximumIds.isEmpty else { return }
         let matching: (String) -> Bool = { identifier in
             guard let id = WhitegramLocalNotificationId(rawValue: identifier) else { return false }
             return maximumIds.contains { id.isRead(by: $0) }
@@ -119,7 +131,6 @@ final class WhitegramLocalNotifications {
             center.removeDeliveredNotifications(withIdentifiers: notifications.map { $0.request.identifier }.filter(matching))
         }
         center.getPendingNotificationRequests { requests in
-            guard !WhitegramNotificationSettings.current.persistent else { return }
             center.removePendingNotificationRequests(withIdentifiers: requests.map(\.identifier).filter(matching))
         }
     }

@@ -98,17 +98,21 @@ public final class WhitegramNotificationLedger {
     }
 
     public func invalidatePending() -> [String] {
-        let ids = self.pending.keys.map(\.rawValue)
+        // add(_:completionHandler:) acknowledges scheduling, not delivery of the 0.1-second trigger.
+        let ids = Set(self.pending.keys).union(self.delivered).map(\.rawValue)
         self.pending.removeAll()
         return ids
     }
 
-    public func recordRead(_ ids: [WhitegramLocalNotificationId]) {
+    @discardableResult
+    public func recordRead(_ ids: [WhitegramLocalNotificationId]) -> [String] {
         for id in ids {
             let scope = Scope(id)
             self.readWatermarks[scope] = max(self.readWatermarks[scope] ?? Int32.min, id.messageId)
         }
+        let cancelled = Set(self.pending.keys).union(self.delivered).filter(self.isRead).map(\.rawValue)
         self.pending = self.pending.filter { !self.isRead($0.key) }
+        return cancelled
     }
 
     private func isRead(_ id: WhitegramLocalNotificationId) -> Bool {

@@ -71,4 +71,25 @@ final class WhitegramNotificationPolicyTests: XCTestCase {
             }
         }
     }
+
+    func testOriginalReplySubtitleTakesPrecedenceOverMention() {
+        XCTAssertEqual(WhitegramNotificationText.subtitle(baseLanguage: "ru", replyToMe: true, mentioned: true), "↩︎ Ответ на ваше сообщение")
+        XCTAssertEqual(WhitegramNotificationText.subtitle(baseLanguage: "en", replyToMe: true, mentioned: false), "↩︎ Replied to your message")
+        XCTAssertEqual(WhitegramNotificationText.subtitle(baseLanguage: "ru", replyToMe: false, mentioned: true), "@ Упоминание")
+        XCTAssertEqual(WhitegramNotificationText.subtitle(baseLanguage: "uk", replyToMe: false, mentioned: true), "@ Mentioned you")
+        XCTAssertNil(WhitegramNotificationText.subtitle(baseLanguage: "en", replyToMe: false, mentioned: false))
+    }
+
+    func testCustomEmojiPresentationPreservesAlreadyQualifiedAndCombinedCharacters() {
+        XCTAssertEqual(WhitegramNotificationText.emojiPresentation("❤", hasCustomEmoji: false), "❤")
+        XCTAssertEqual(WhitegramNotificationText.emojiPresentation("❤", hasCustomEmoji: true), "❤️")
+        let combined = "❤️ 👩‍💻 🇺🇦 😀 текст"
+        XCTAssertEqual(WhitegramNotificationText.emojiPresentation(combined, hasCustomEmoji: true), combined)
+    }
+
+    func testOverlappingSpoilersCannotExposeTheBeginningAfterOffsetsShift() {
+        XCTAssertEqual(WhitegramNotificationText.redactingSpoilers("0123456789abcdef", ranges: [0 ..< 10, 5 ..< 15]), "•••f")
+        XCTAssertEqual(WhitegramNotificationText.redactingSpoilers("😀secret end", ranges: [2 ..< 8]), "😀••• end")
+        XCTAssertEqual(WhitegramNotificationText.redactingSpoilers("secret", ranges: [-2 ..< 100]), "•••")
+    }
 }

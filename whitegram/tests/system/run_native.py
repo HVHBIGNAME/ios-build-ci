@@ -15,7 +15,7 @@ SOURCE = HERE.parents[1] / "cleanroom"
 SOURCES = {
     "TelegramCore": ("WhitegramPreferences.swift", "WhitegramNotificationSettings.swift", "WhitegramLocalNotificationId.swift"),
     "Display": ("WhitegramRAMUsage.swift",),
-    "TelegramUI": ("WhitegramSilentAudio.swift",),
+    "TelegramUI": ("WhitegramSilentAudio.swift", "WhitegramKeepAliveController.swift"),
 }
 
 

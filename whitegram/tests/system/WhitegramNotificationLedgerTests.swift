@@ -98,6 +98,26 @@ final class WhitegramNotificationLedgerTests: XCTestCase {
         XCTAssertNotNil(ledger.reserve(id(501)))
     }
 
+    func testForegroundCancelsAcceptedRequestsBeforeTheirDelayedTrigger() throws {
+        let ledger = WhitegramNotificationLedger()
+        let ticket = try XCTUnwrap(ledger.reserve(id(1)))
+        ledger.finish(ticket, delivered: true)
+        XCTAssertEqual(ledger.invalidatePending(), [id(1).rawValue])
+        XCTAssertNil(ledger.reserve(id(1)))
+    }
+
+    func testReadCancelsAcceptedAndInFlightRequestsWithoutCrossingAccounts() throws {
+        let ledger = WhitegramNotificationLedger()
+        let scheduled = try XCTUnwrap(ledger.reserve(id(1)))
+        ledger.finish(scheduled, delivered: true)
+        let pending = try XCTUnwrap(ledger.reserve(id(2)))
+        let other = try XCTUnwrap(ledger.reserve(id(2, account: 2)))
+        XCTAssertEqual(Set(ledger.recordRead([id(2)])), [id(1).rawValue, id(2).rawValue])
+        XCTAssertFalse(ledger.isCurrent(pending))
+        XCTAssertTrue(ledger.isCurrent(other))
+        XCTAssertNil(ledger.reserve(id(1)))
+    }
+
     func testOriginalFiveHundredEntryDedupWindowKeepsTheNewestAtReset() throws {
         let ledger = WhitegramNotificationLedger()
         for number in 1 ... 501 {
