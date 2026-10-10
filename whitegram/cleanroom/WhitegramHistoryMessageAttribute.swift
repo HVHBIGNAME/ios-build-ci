@@ -32,17 +32,19 @@ public final class WhitegramHistoryMessageAttribute: WhitegramHistoryPersistentA
     public let isDeleted: Bool
     public let deletedAt: Int32?
     public let isLocallyRestored: Bool
+    public let isShortened: Bool
     public let edits: [WhitegramHistoryEdit]
 
     public var originalText: String? { return self.edits.first?.text }
     public var originalEntities: [MessageTextEntity]? { return self.edits.first?.entities }
     public var whitegramPreserveGlobalDeletion: Bool { return self.isDeleted }
 
-    public init(isDeleted: Bool = false, deletedAt: Int32? = nil, isLocallyRestored: Bool = false, edits: [WhitegramHistoryEdit] = []) {
+    public init(isDeleted: Bool = false, deletedAt: Int32? = nil, isLocallyRestored: Bool = false, edits: [WhitegramHistoryEdit] = [], isShortened: Bool = false) {
         self.isDeleted = isDeleted
         self.deletedAt = deletedAt
         self.isLocallyRestored = isLocallyRestored
         self.edits = edits
+        self.isShortened = isShortened
     }
 
     public init(decoder: PostboxDecoder) {
@@ -50,6 +52,7 @@ public final class WhitegramHistoryMessageAttribute: WhitegramHistoryPersistentA
         self.deletedAt = decoder.decodeOptionalInt32ForKey("dt")
         self.isLocallyRestored = decoder.decodeBoolForKey("r", orElse: false)
         self.edits = decoder.decodeObjectArrayWithDecoderForKey("e")
+        self.isShortened = decoder.decodeBoolForKey("s", orElse: false)
     }
 
     public func encode(_ encoder: PostboxEncoder) {
@@ -58,19 +61,25 @@ public final class WhitegramHistoryMessageAttribute: WhitegramHistoryPersistentA
         else { encoder.encodeNil(forKey: "dt") }
         encoder.encodeBool(self.isLocallyRestored, forKey: "r")
         encoder.encodeObjectArray(self.edits, forKey: "e")
+        encoder.encodeBool(self.isShortened, forKey: "s")
     }
 
     public func withDeletion(_ deleted: Bool, at date: Int32? = nil) -> WhitegramHistoryMessageAttribute {
-        return WhitegramHistoryMessageAttribute(isDeleted: deleted, deletedAt: deleted ? (self.deletedAt ?? date) : nil, isLocallyRestored: !deleted || self.isLocallyRestored, edits: self.edits)
+        return WhitegramHistoryMessageAttribute(isDeleted: deleted, deletedAt: deleted ? (self.deletedAt ?? date) : nil, isLocallyRestored: !deleted || self.isLocallyRestored, edits: self.edits, isShortened: self.isShortened)
     }
 
     public func withoutEdits() -> WhitegramHistoryMessageAttribute {
-        return WhitegramHistoryMessageAttribute(isDeleted: self.isDeleted, deletedAt: self.deletedAt, isLocallyRestored: self.isLocallyRestored)
+        return WhitegramHistoryMessageAttribute(isDeleted: self.isDeleted, deletedAt: self.deletedAt, isLocallyRestored: self.isLocallyRestored, isShortened: self.isShortened)
     }
 
     public func appending(_ edit: WhitegramHistoryEdit) -> WhitegramHistoryMessageAttribute {
         if let last = self.edits.last, last.text == edit.text && last.entities == edit.entities && last.date == edit.date { return self }
-        return WhitegramHistoryMessageAttribute(isDeleted: self.isDeleted, deletedAt: self.deletedAt, isLocallyRestored: self.isLocallyRestored, edits: self.edits + [edit])
+        return WhitegramHistoryMessageAttribute(isDeleted: self.isDeleted, deletedAt: self.deletedAt, isLocallyRestored: self.isLocallyRestored, edits: self.edits + [edit], isShortened: self.isShortened)
+    }
+
+    public func withShortening(_ shortened: Bool) -> WhitegramHistoryMessageAttribute {
+        return WhitegramHistoryMessageAttribute(isDeleted: self.isDeleted, deletedAt: self.deletedAt,
+            isLocallyRestored: self.isLocallyRestored, edits: self.edits, isShortened: shortened)
     }
 
     public var associatedPeerIds: [PeerId] {

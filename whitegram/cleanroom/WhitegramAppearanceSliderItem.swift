@@ -12,16 +12,21 @@ final class WhitegramAppearanceSliderItem: ListViewItem, ItemListItem {
     let range: ClosedRange<Double>
     let value: Double
     let suffix: String
+    let step: Double
+    let fractionDigits: Int
     let enabled: Bool
     let sectionId: ItemListSectionId
     let updated: (Double) -> Void
 
-    init(presentationData: ItemListPresentationData, title: String, range: ClosedRange<Double>, value: Double, suffix: String, enabled: Bool = true, sectionId: ItemListSectionId, updated: @escaping (Double) -> Void) {
+    init(presentationData: ItemListPresentationData, title: String, range: ClosedRange<Double>, value: Double, suffix: String, step: Double = 1.0, fractionDigits: Int = 0, enabled: Bool = true, sectionId: ItemListSectionId, updated: @escaping (Double) -> Void) {
         self.presentationData = presentationData
         self.title = title
         self.range = range
         self.value = min(range.upperBound, max(range.lowerBound, value))
         self.suffix = suffix
+        precondition(step.isFinite && step > 0.0 && (0 ... 6).contains(fractionDigits))
+        self.step = step
+        self.fractionDigits = fractionDigits
         self.enabled = enabled
         self.sectionId = sectionId
         self.updated = updated
@@ -99,7 +104,9 @@ private final class WhitegramAppearanceSliderNode: ListViewItemNode {
     }
 
     private func updateLabel() {
-        let value = String(Int(self.slider.value.rounded())) + (self.item?.suffix ?? "")
+        guard let item = self.item else { return }
+        let number = min(item.range.upperBound, max(item.range.lowerBound, (Double(self.slider.value) / item.step).rounded() * item.step))
+        let value = String(format: "%.*f", item.fractionDigits, number) + item.suffix
         self.valueLabel.text = value
         self.slider.accessibilityValue = value
     }
@@ -111,7 +118,7 @@ private final class WhitegramAppearanceSliderNode: ListViewItemNode {
 
     @objc private func commit() {
         guard let item = self.item, item.enabled else { return }
-        let value = Double(self.slider.value.rounded())
+        let value = min(item.range.upperBound, max(item.range.lowerBound, (Double(self.slider.value) / item.step).rounded() * item.step))
         self.slider.value = Float(value)
         self.updateLabel()
         if value != item.value { item.updated(value) }

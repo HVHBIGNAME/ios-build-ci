@@ -42,7 +42,7 @@ def main() -> int:
         source.mkdir(parents=True)
         tests.mkdir(parents=True)
         (root / "Package.swift").write_text(PACKAGE, encoding="utf-8")
-        for name in ("WhitegramHistoryModels.swift", "WhitegramHistoryStore.swift", "WhitegramHistoryPolicy.swift", "WhitegramHistoryLegacyBackup.swift"):
+        for name in ("WhitegramHistoryModels.swift", "WhitegramHistoryStore.swift", "WhitegramHistoryPolicy.swift", "WhitegramHistoryLegacyBackup.swift", "WhitegramMessageShortening.swift"):
             shutil.copyfile(overlay / "cleanroom" / name, source / name)
         for path in here.glob("*Tests.swift"):
             shutil.copyfile(path, tests / path.name)

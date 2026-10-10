@@ -34,6 +34,8 @@ let package = Package(name: "WhitegramLocalizationChecks", platforms: [.macOS(.v
             shutil.copyfile(overlay / "generated" / name, core / name)
         shutil.copyfile(overlay / "generated/WhitegramSettingsCatalog.swift", settings / "WhitegramSettingsCatalog.swift")
         shutil.copyfile(overlay / "cleanroom/WhitegramPortCapabilities.swift", settings / "WhitegramPortCapabilities.swift")
+        shutil.copyfile(overlay / "cleanroom/WhitegramSettingsList.swift", settings / "WhitegramSettingsList.swift")
+        shutil.copyfile(here / "WhitegramSettingsListTests.swift", tests / "WhitegramSettingsListTests.swift")
         shutil.copyfile(here / "WhitegramLocalizationTests.swift", tests / "WhitegramLocalizationTests.swift")
         return subprocess.run([swift, "test", "--package-path", str(root)], check=False).returncode
 

@@ -22,7 +22,7 @@ HISTORY_RUNTIME_FILES = {
     **{name + ".swift": "submodules/TelegramCore/Sources/" + name + ".swift" for name in (
         "WhitegramHistoryModels", "WhitegramHistoryStore", "WhitegramHistoryCapture",
         "WhitegramHistoryPolicy", "WhitegramHistoryMessageAttribute", "WhitegramHistoryRuntime",
-        "WhitegramHistoryOperations", "WhitegramHistoryLegacyBackup",
+        "WhitegramHistoryOperations", "WhitegramHistoryLegacyBackup", "WhitegramMessageShortening",
     )},
     **{name + ".swift": "submodules/SettingsUI/Sources/" + name + ".swift" for name in (
         "WhitegramHistoryController", "WhitegramHistoryPresentation", "WhitegramHistoryNativeController",

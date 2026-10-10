@@ -16,6 +16,13 @@ func check(_ condition: @autoclosure () -> Bool, _ message: String) {
 }
 
 let defaults = WhitegramAppearancePolicy(values: [:])
+let stickerDefaults = WhitegramStickerSettings(values: [:])
+check(stickerDefaults.recentLimit == 20, "Disabled recent override preserves Telegram's limit")
+check(stickerDefaults.favoriteLimit(default: 5) == 5 && stickerDefaults.favoriteLimit(default: 10) == 10, "Disabled favorite override preserves free and premium limits")
+let unlimitedStickers = WhitegramStickerSettings(values: ["unlimitedRecentStickers": true, "unlimitedFavoriteStickers": true])
+check(unlimitedStickers.recentLimit == 999, "Original recent limit is 999, not unbounded")
+check(unlimitedStickers.favoriteLimit(default: 5) == 9999, "Original favorite limit is 9999")
+check(!WhitegramStickerSettings(values: ["unlimitedRecentStickers": 1]).unlimitedRecent, "A numeric value cannot enable sticker retention")
 check(defaults.stickerScale == 1.0, "Unset stickers use original size")
 check(defaults.tabWidthPercent == 100.0, "Tab width stores percent, not factor")
 check(defaults.tabHeightPercent == 100.0, "Tab height stores percent, not factor")
@@ -86,6 +93,9 @@ check(WhitegramGlassSettings.resetValues["classicInterface"] == nil, "Glass rese
 let suite = "WhitegramAppearanceTests." + UUID().uuidString
 let legacy = UserDefaults(suiteName: suite)!
 defer { legacy.removePersistentDomain(forName: suite) }
+legacy.set(true, forKey: "wg_unlimitedRecentStickers")
+check(WhitegramStickerSettings(values: [:], legacyDefaults: legacy).recentLimit == 999, "Original sticker preference is read")
+check(WhitegramStickerSettings(values: ["unlimitedRecentStickers": false], legacyDefaults: legacy).recentLimit == 20, "Explicit false overrides the legacy sticker preference")
 legacy.set(true, forKey: "wg_hideReactions")
 legacy.set(150.0, forKey: "wg_tabBarWidthScale")
 legacy.set(true, forKey: "wg_liquidGlassProfile")

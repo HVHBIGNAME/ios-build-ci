@@ -28,6 +28,8 @@ from transfer_patches import TRANSFER_RUNTIME_FILES, apply_transfer_patches
 from backend_patches import BACKEND_RUNTIME_FILES, apply_backend_patches
 from traffic_patches import TRAFFIC_RUNTIME_FILES, apply_traffic_patches
 from system_patches import SYSTEM_RUNTIME_FILES, apply_system_patches
+from sticker_patches import STICKER_RUNTIME_FILES, apply_sticker_patches
+from shortening_patches import apply_shortening_patches
 from swift_syntax_patches import apply_swift_syntax_patches
 from build_patches import add_dep, apply_build_patches
 
@@ -136,6 +138,8 @@ cleanroom_files = {
     "cleanroom/WhitegramMenuSection.swift": "submodules/SettingsUI/Sources/WhitegramMenuSection.swift",
     "cleanroom/WhitegramMainMenuController.swift": "submodules/SettingsUI/Sources/WhitegramMainMenuController.swift",
     "cleanroom/WhitegramGeneratedSettingsScreen.swift": "submodules/SettingsUI/Sources/WhitegramGeneratedSettingsScreen.swift",
+    "cleanroom/WhitegramSettingsList.swift": "submodules/SettingsUI/Sources/WhitegramSettingsList.swift",
+    "cleanroom/WhitegramSettingsNumber.swift": "submodules/SettingsUI/Sources/WhitegramSettingsNumber.swift",
     "cleanroom/WhitegramSettingsPlaceholderController.swift": "submodules/SettingsUI/Sources/WhitegramSettingsPlaceholderController.swift",
     "generated/WhitegramSettingsState.swift": "submodules/TelegramCore/Sources/WhitegramSettingsState.swift",
     "generated/WhitegramSettingsCatalog.swift": "submodules/SettingsUI/Sources/WhitegramSettingsCatalog.swift",
@@ -168,7 +172,7 @@ for manifest in (
     APPEARANCE_RUNTIME_FILES, APPEARANCE_PARITY_RUNTIME_FILES, APPEARANCE_ICON_PACK_RUNTIME_FILES,
     APPEARANCE_GLASS_RUNTIME_FILES, HISTORY_RUNTIME_FILES, ACCOUNTS_RUNTIME_FILES,
     PRIVACY_RUNTIME_FILES, TRANSFER_RUNTIME_FILES, PLAYER_RUNTIME_FILES, BACKEND_RUNTIME_FILES, TRAFFIC_RUNTIME_FILES,
-    SYSTEM_RUNTIME_FILES,
+    SYSTEM_RUNTIME_FILES, STICKER_RUNTIME_FILES,
 ):
     cleanroom_files.update({"cleanroom/" + name: destination for name, destination in manifest.items()})
 for name in (
@@ -188,6 +192,7 @@ for name in (
     "WhitegramServiceHTTP.swift", "WhitegramServiceCredentials.swift", "WhitegramServiceUI.swift",
     "WhitegramSettingsArchiveKeychain.swift", "WhitegramSettingsTransferController.swift",
     "WhitegramSettingsTransferDocuments.swift",
+    "WhitegramDiagnosticsController.swift",
 ):
     cleanroom_files["cleanroom/" + name] = "submodules/SettingsUI/Sources/Whitegram/" + name
 for name in SERVICES_RUNTIME_FILES:
@@ -253,7 +258,7 @@ for patcher in (
     apply_translation_patches, apply_service_patches, apply_media_camera_patches,
     apply_transfer_patches, apply_message_action_patches, apply_content_control_patches,
     apply_player_patches, apply_swift_syntax_patches, apply_voice_patches,
-    apply_backend_patches, apply_traffic_patches, apply_system_patches,
+    apply_backend_patches, apply_traffic_patches, apply_system_patches, apply_sticker_patches, apply_shortening_patches,
 ):
     report = patcher(source_root)
     if isinstance(report, dict):

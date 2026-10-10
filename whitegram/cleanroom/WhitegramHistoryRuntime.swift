@@ -156,6 +156,21 @@ public enum WhitegramHistoryRuntime {
         return message.withUpdatedStableVersion(stableVersion: message.stableVersion &+ UInt32(truncatingIfNeeded: self.policy.hashValue))
     }
 
+    public static func setShortened(postbox: Postbox, id: MessageId, shortened: Bool) -> Signal<Bool, NoError> {
+        return postbox.transaction { transaction in
+            guard let message = transaction.getMessage(id) else { return false }
+            if shortened {
+                guard WhitegramPreferences.bool("messageShortenEnabled", default: UserDefaults.standard.bool(forKey: "wg_messageShortenEnabled")),
+                      WhitegramMessageShortening.canShorten(message.text) else { return false }
+            }
+            transaction.updateMessage(id) { current in
+                let attribute = (current.whitegramHistoryAttribute ?? WhitegramHistoryMessageAttribute()).withShortening(shortened)
+                return .update(self.replacingAttribute(current, attribute))
+            }
+            return true
+        }
+    }
+
     public static func statusText(_ text: String, message: Message, accountPeerId: PeerId, russian: Bool) -> String {
         guard let attribute = message.whitegramHistoryAttribute else { return text }
         let prefix: String

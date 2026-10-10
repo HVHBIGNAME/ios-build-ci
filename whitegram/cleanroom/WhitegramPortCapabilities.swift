@@ -51,18 +51,61 @@ enum WhitegramPortCapabilities {
         "disableTypingStatus": "disableTypingStatus", "disableRecordingStatus": "disableRecordingStatus",
         "disableUploadingStatus": "disableUploadingStatus", "disableReadReceipts": "disableReadReceipts",
         "disableStoryReadReceipts": "disableStoryReadReceipts", "disableAds": "disableAds",
-        "customFontEnabled": "customFontEnabled", "hideRecordButton": "hideRecordButton", "noChannelSwitch": "noChannelSwitch"
+        "customFontEnabled": "customFontEnabled", "hideRecordButton": "hideRecordButton", "noChannelSwitch": "noChannelSwitch",
+        "fakeLocationEnabled": "fakeLocationEnabled",
+        "messageShortenEnabled": "messageShortenEnabled",
+        "unlimitedRecentStickers": "unlimitedRecentStickers", "unlimitedFavoriteStickers": "unlimitedFavoriteStickers",
+        "bassEffect": "bassEffect", "customMusicCard": "wgCustomMusicCard",
+        "staticZoom": "staticZoomEnabled", "maxDownloadSpeed": "maxDownloadSpeed", "sendAcceleration": "sendAccelerationEnabled",
+        "localStarsEnabled": "localStarsEnabled",
+        "sendLargePhotos": "sendLargePhotos", "alwaysSendHD": "alwaysSendHD",
+        "cleanMetadataOnSend": "cleanMetadataOnSend", "rememberLastCamera": "rememberLastCamera",
+        "messageBorder": "messageBorderEnabled", "transparentMessages": "transparentMessages",
+        "semiTransparentBubbles": "semiTransparentBubbles", "showCharCountTyping": "showCharCountTyping",
+        "showCharCountMessages": "showCharCountMessages", "showActionTime": "showActionTime", "hideBusinessBotPanel": "hideBusinessBotPanel",
+        "liquidGlassBubbles": "liquidGlassBubbles", "glassMessageBubbles": "glassMessageBubbles", "liquidGlassSettings": "liquidGlassSettings",
+        "liquidGlassProfile": "liquidGlassProfile", "liquidGlassGifts": "liquidGlassGifts", "liquidGlassInlineButtons": "liquidGlassInlineButtons",
+        "glassTinting": "glassTinting", "fakeLiquidGlass": "fakeLiquidGlass", "colorInsteadOfGlass": "colorInsteadOfGlass", "lightChatUI": "lightChatUI",
+        "voiceChangerEnabled": "voiceChangerEnabled", "voiceBleepEnabled": "voiceBleepEnabled", "voiceChangerInCalls": "voiceChangerInCalls"
     ]
 
     static let informationKeys: [String: String] = [
-        "persistentNotificationsInfo": "info.persistentNotifications"
+        "persistentNotificationsInfo": "info.persistentNotifications",
+        "showDeletedInfo": "di.showDeleted", "showEditedInfo": "di.showEdited", "cacheInfo": "di.cache",
+        "appearanceInfo": "di.appearance", "cameraInfo": "di.camera", "interfaceInfo": "di.interface",
+        "infoDisplayInfo": "di.info", "tabsInfo": "di.tabs", "miscUIInfo": "di.misc", "bubblesInfo": "di.bubbles",
+        "ghostModeInfo": "di.ghost", "privacyInfo": "di.privacy", "localStarsInfo": "di.stars", "fontsInfo": "di.fonts",
+        "sessionsInfo": "di.sessions", "spyInfo": "di.spy", "analyticsInfo": "di.analytics", "pluginsInfo": "di.plugins",
+        "openlockVPNInfo": "di.openlockVPN", "voiceBleepInfo": "s.voiceBleep.desc", "voiceChangerInfo": "wh.voiceChangerEnabled"
+    ]
+
+    static let titleKeys: [String: String] = [
+        "messagesHeader": "h.messages", "cacheHeader": "h.cache", "appearanceHeader": "h.appearance",
+        "cameraHeader": "h.camera", "interfaceHeader": "h.interface", "infoDisplayHeader": "h.info",
+        "tabsHeader": "h.tabs", "miscUIHeader": "h.misc", "bubblesHeader": "h.bubbles", "liquidGlassHeader": "h.liquidGlass",
+        "notificationsHeader": "h.notifications", "ghostModeHeader": "h.ghost", "privacyHeader": "h.privacy",
+        "localStarsHeader": "h.stars", "fontsHeader": "h.fonts", "sessionsHeader": "h.sessions", "spyHeader": "h.spy",
+        "analyticsHeader": "h.analytics", "iconsHeader": "h.icons", "pluginsHeader": "h.plugins", "translationHeader": "h.translation",
+        "antiCensorshipHeader": "h.antiCensorship", "virusTotalHeader": "h.virusTotal", "featuresHeader": "h.features", "playerHeader": "section.player",
+        "fakeLocationEnabled": "s.fakeLocation", "fakeLocationPicker": "s.fakeLocationPicker",
+        "messageShortenEnabled": "s.shortenMenu",
+        "unlimitedRecentStickers": "s.unlimitedStickers", "unlimitedFavoriteStickers": "s.unlimitedFavoriteStickers",
+        "stickerSizeSlider": "s.stickerSize", "stickerSizeAction": "s.stickerSize",
+        "tabBarScaleSlider": "s.tabBarScale", "tabBarWidthSlider": "s.tabBarWidth",
+        "photoQualitySlider": "s.photoQuality", "deletedMessagesOpacitySlider": "s.deletedOpacity",
+        "playbackSpeedSlider": "player.playbackSpeed", "playbackPitchFollowsSpeed": "player.pitchFollowsSpeed",
+        "crossfadeEnabled": "player.crossfadeEnabled", "crossfadeSlider": "player.crossfade", "equalizerOpen": "player.equalizerOpen",
+        "showDeletedMessages": "s.showDeleted", "showCharCountTyping": "s.charCountTyping", "showCharCountMessages": "s.charCountMsgs",
+        "localStarsEnabled": "s.localStars", "localStarsCountSlider": "s.starsCount",
+        "alwaysSendHD": "s.alwaysHD", "rememberLastCamera": "s.rememberCamera", "sendAcceleration": "s.sendAccel",
+        "liquidGlassBubbles": "s.liquidGlass", "voiceBleepEnabled": "s.voiceBleep"
     ]
 
     static let screens: [String: String] = [
+        "analyticsStaticRow": "diagnostics", "exportSystemLogs": "diagnostics",
         "menuLanguagePicker": "localization",
         "keychainAccounts": "keychainAccounts", "accountTransfer": "accountTransfer", "botAccounts": "botAccounts",
         "playbackSpeedSlider": "player", "crossfadeSlider": "player", "equalizerOpen": "equalizer",
-        "bassEffect": "player", "customMusicCard": "player",
         "antiCensorshipEnabled": "traffic",
         "profilePhotos": "profilePhotos", "profilePhotoWallpaper": "profilePhotos",
         "resetProfilePhotoWallpaper": "profilePhotos", "profilePhotoWallPublic": "profilePhotos", "profilePhotoWallStatus": "profilePhotos",
@@ -72,23 +115,15 @@ enum WhitegramPortCapabilities {
         "whitegramProfileReactionsEnabled": "profile", "profileReactionsPicker": "profile",
         "profileWallEnabled": "profileWall", "wallBlockedUsers": "profileWall", "whitegramStreakEnabled": "streaks",
         "whitegramPresenceEnabled": "radio", "whitegramPresencePreciseEnabled": "radio",
-        "staticZoom": "media", "maxDownloadSpeed": "media", "sendAcceleration": "media", "downloadAccelPicker": "media",
-        "localStarsEnabled": "localStars", "localStarsCountSlider": "localStars", "localStarsCountCustom": "localStars",
+        "downloadAccelPicker": "media", "fakeLocationPicker": "location",
+        "localStarsCountSlider": "localStars", "localStarsCountCustom": "localStars",
         "tabBarScaleButton": "appearanceControls", "tabBarScaleSlider": "appearanceControls", "tabBarWidthSlider": "appearanceControls",
-        "liquidGlassBubbles": "glass", "glassMessageBubbles": "glass", "liquidGlassSettings": "glass",
-        "liquidGlassProfile": "glass", "liquidGlassGifts": "glass", "liquidGlassInlineButtons": "glass",
-        "glassTinting": "glass", "fakeLiquidGlass": "glass", "colorInsteadOfGlass": "glass",
         "myIconPacks": "iconPacks", "createIconPack": "iconPacks",
-        "sendLargePhotos": "media", "photoQualitySlider": "media", "alwaysSendHD": "media",
-        "cleanMetadataOnSend": "media", "rememberLastCamera": "media",
+        "photoQualitySlider": "media",
         "translationTargetLang": "translation", "translateBeforeSending": "translation",
         "localTranslationEnabled": "translation", "voiceTranslationEnabled": "translation", "siriTranscriptionWarning": "translation",
         "exportSettings": "settingsTransfer", "importSettings": "settingsTransfer",
         "saveSettingsToKeychain": "settingsTransfer", "restoreSettingsFromKeychain": "settingsTransfer",
-        "messageBorder": "appearanceExtensions", "transparentMessages": "appearanceExtensions",
-        "semiTransparentBubbles": "appearanceExtensions", "showCharCountTyping": "appearanceExtensions",
-        "showCharCountMessages": "appearanceExtensions", "showActionTime": "appearanceExtensions",
-        "hideBusinessBotPanel": "appearanceExtensions",
         "compactChatList": "chats",
         "clearSavedChatHistory": "history", "restoreChatsView": "history", "clearDeletedCache": "history",
         "clearEditedCache": "history", "exportDeletedBackup": "history", "importDeletedBackup": "history",
@@ -97,9 +132,9 @@ enum WhitegramPortCapabilities {
         "customFontsManager": "fonts", "customFontPicker": "fonts", "fontHistoryItem": "fonts",
         "pluginsOpen": "plugins", "pluginRow": "plugins",
         "virusTotalEnabled": "virusTotal", "virusTotalApiKeyRow": "virusTotal", "virusTotalStatusRow": "virusTotal",
-        "voiceChangerEnabled": "voice", "voiceChangerModeSlider": "voice", "voiceChangerPresetSelector": "voice",
+        "voiceChangerModeSlider": "voice", "voiceChangerPresetSelector": "voice",
         "voiceChangerPitchSlider": "voice", "voiceChangerTimbreSlider": "voice", "voiceChangerEchoSlider": "voice", "voiceChangerClaritySlider": "voice",
-        "voiceBleepEnabled": "voice", "voiceBleepModeSelector": "voice", "voiceChangerInCalls": "voice",
+        "voiceBleepModeSelector": "voice",
         "voiceChangerApiKeyRow": "voiceRemote", "voiceChangerStatusRow": "voiceRemote",
         "voiceChangerVoiceRow": "voiceRemote", "voiceChangerUseProxy": "voiceRemote",
         "geminiEnabled": "ai", "geminiApiKeyRow": "ai", "geminiModelRow": "ai",
@@ -153,8 +188,13 @@ enum WhitegramPortCapabilities {
         return WhitegramPreferences.bool(key, default: fallback)
     }
 
+    static func supports(_ id: String) -> Bool {
+        return booleans[id] != nil || screens[id] != nil || informationKeys[id] != nil
+    }
+
     static func title(_ row: WhitegramSettingsRowDescriptor, baseLanguage: String) -> String {
         if let key = informationKeys[row.id] { return WhitegramLocalization.string(key, baseLanguage: baseLanguage) }
+        if let key = titleKeys[row.id] { return WhitegramLocalization.string(key, baseLanguage: baseLanguage) }
         let key = (row.kind == .headerRow ? "h." : "s.") + row.id
         if WhitegramLocalizationStrings.values[key] != nil {
             return WhitegramLocalization.string(key, baseLanguage: baseLanguage)

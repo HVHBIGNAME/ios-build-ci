@@ -18,6 +18,7 @@ SOURCES = (
     "WhitegramFontArchivePlan.swift",
     "WhitegramIconPackArchive.swift",
     "WhitegramGlassSettings.swift",
+    "WhitegramStickerSettings.swift",
 )
 
 
