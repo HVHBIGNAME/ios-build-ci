@@ -71,14 +71,31 @@ final class WhitegramBackendURLSessionTests: XCTestCase {
         BackendNoNetworkProtocol.handler = { _ in started.fulfill() }
         BackendNoNetworkProtocol.stopped = { stopped.fulfill() }
         let done = expectation(description: "cancel completed")
+        done.assertForOverFulfill = true
         let task = transport(fixture).execute(path: "/v1/proxy/virustotal/v3/files", method: "POST", bodyFile: file, contentType: "application/octet-stream") { result in
             XCTAssertEqual(result.failure, .cancelled)
             done.fulfill()
         }
         wait(for: [started], timeout: 3)
         task.cancel()
+        task.cancel()
         wait(for: [stopped, done], timeout: 3, enforceOrder: true)
         XCTAssertTrue(FileManager.default.fileExists(atPath: file.path))
+    }
+
+    func testCancellationBeforeProtocolStartsStillCompletesExactlyOnce() {
+        let fixture = BackendFixture()
+        BackendNoNetworkProtocol.handler = { _ in }
+        let done = expectation(description: "early cancellation")
+        done.assertForOverFulfill = true
+        let task = transport(fixture).execute(path: "/v1/proxy/virustotal/v3/files/fixture") { result in
+            XCTAssertTrue(Thread.isMainThread)
+            XCTAssertEqual(result.failure, .cancelled)
+            done.fulfill()
+        }
+        task.cancel()
+        task.cancel()
+        wait(for: [done], timeout: 3)
     }
 
     func testSPKIWrappingMatchesOriginalP256AndP384Prefixes() {

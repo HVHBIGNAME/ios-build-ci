@@ -141,6 +141,7 @@ private final class WhitegramBackendURLTask: NSObject, WhitegramBackendTask, URL
     private var data = Data()
     private var response: HTTPURLResponse?
     private var terminalError: WhitegramBackendError?
+    private var terminalResult: Result<WhitegramBackendHTTPResponse, WhitegramBackendError>?
     private let startedAt = ProcessInfo.processInfo.systemUptime
 
     init(maximumBytes: Int, transfer: WhitegramBackendTransfer, completion: @escaping (Result<WhitegramBackendHTTPResponse, WhitegramBackendError>) -> Void) {
@@ -202,14 +203,30 @@ private final class WhitegramBackendURLTask: NSObject, WhitegramBackendTask, URL
 
     private func finish(_ result: Result<WhitegramBackendHTTPResponse, WhitegramBackendError>) {
         lock.lock()
+        guard self.completion != nil, self.terminalResult == nil else { lock.unlock(); return }
+        self.terminalResult = result
+        let session = self.session
+        lock.unlock()
+        // didCompleteWithError can precede URLProtocol.stopLoading on cancellation.
+        // Session invalidation is the ownership boundary for the upload's body file.
+        if let session { session.invalidateAndCancel() }
+        else { completeAfterInvalidation() }
+    }
+
+    private func completeAfterInvalidation() {
+        lock.lock()
+        guard let result = self.terminalResult else { lock.unlock(); return }
         let completion = self.completion
         self.completion = nil
-        let session = self.session
         self.session = nil
         self.task = nil
+        self.terminalResult = nil
         lock.unlock()
-        session?.invalidateAndCancel()
         if let completion { DispatchQueue.main.async { completion(result) } }
+    }
+
+    func urlSession(_ session: URLSession, didBecomeInvalidWithError error: Error?) {
+        completeAfterInvalidation()
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
