@@ -136,4 +136,22 @@ final class WhitegramLocalizationTests: XCTestCase {
         XCTAssertEqual(WhitegramPortCapabilities.booleanValue("readOnAction"), false)
         XCTAssertNil(WhitegramPortCapabilities.booleanValue("not.a.control"))
     }
+
+    func testOriginalAboutDestinationsAreSupportedWithoutOpeningThem() throws {
+        let expected = [
+            "whitegramChannelButton": "tg://resolve?domain=thewhitegram",
+            "whitegramBetaButton": "tg://join?invite=7HTGVoUzpXk4NDc9",
+            "developerButton": "tg://resolve?domain=heypaintech",
+            "openlockVPN": "tg://resolve?domain=openlockvpnbot"
+        ]
+        XCTAssertEqual(WhitegramPortCapabilities.links, expected)
+        for (id, url) in expected {
+            XCTAssertTrue(WhitegramPortCapabilities.supports(id))
+            let row = try XCTUnwrap(WhitegramSettingsCatalog.rows.first { $0.id == id })
+            XCTAssertEqual(row.kind, .linkRow)
+            XCTAssertEqual(URLComponents(string: url)?.scheme, "tg")
+            XCTAssertNil(WhitegramPortCapabilities.booleanValue(id))
+        }
+        XCTAssertNil(WhitegramPortCapabilities.links["untrusted"])
+    }
 }

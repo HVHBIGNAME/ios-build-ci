@@ -30,6 +30,7 @@ from traffic_patches import TRAFFIC_RUNTIME_FILES, apply_traffic_patches
 from system_patches import SYSTEM_RUNTIME_FILES, apply_system_patches
 from sticker_patches import STICKER_RUNTIME_FILES, apply_sticker_patches
 from shortening_patches import apply_shortening_patches
+from chat_list_visibility_patches import apply_chat_list_visibility_patches
 from swift_syntax_patches import apply_swift_syntax_patches
 from build_patches import add_dep, apply_build_patches
 
@@ -259,6 +260,7 @@ for patcher in (
     apply_transfer_patches, apply_message_action_patches, apply_content_control_patches,
     apply_player_patches, apply_swift_syntax_patches, apply_voice_patches,
     apply_backend_patches, apply_traffic_patches, apply_system_patches, apply_sticker_patches, apply_shortening_patches,
+    apply_chat_list_visibility_patches,
 ):
     report = patcher(source_root)
     if isinstance(report, dict):

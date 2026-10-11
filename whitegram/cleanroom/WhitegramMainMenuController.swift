@@ -227,20 +227,37 @@ private func whitegramAboutController(context: AccountContext, section: Whitegra
             "Whitegram", "\(version) (\(build))",
             russian ? "База исходников: Telegram 12.9.2" : "Source baseline: Telegram 12.9.2",
             russian ? "Частичный перенос функций Whitegram. Полное соответствие оригиналу не подтверждено." : "Partial Whitegram feature port. Full parity with the original has not been verified."
-        ]
+        ],
+        links: ["whitegramChannelButton", "whitegramBetaButton", "developerButton", "openlockVPN"]
     )
+}
+
+private final class WhitegramSimpleArguments {
+    let context: AccountContext
+    weak var controller: ViewController?
+
+    init(context: AccountContext) { self.context = context }
+
+    func open(_ id: String) {
+        guard let url = WhitegramPortCapabilities.links[id] else { return }
+        self.context.sharedContext.openExternalUrl(context: self.context, urlContext: .generic, url: url, forceExternal: false,
+            presentationData: self.context.sharedContext.currentPresentationData.with { $0 },
+            navigationController: self.controller?.navigationController as? NavigationController,
+            dismissInput: { [weak self] in self?.controller?.view.endEditing(true) })
+    }
 }
 
 private struct WhitegramSimpleEntry: ItemListNodeEntry {
     let text: String
     let index: Int
+    var link: String? = nil
 
     var section: ItemListSectionId { return 0 }
 
     var stableId: Int { return self.index }
 
     static func ==(lhs: WhitegramSimpleEntry, rhs: WhitegramSimpleEntry) -> Bool {
-        return lhs.index == rhs.index
+        return lhs.index == rhs.index && lhs.text == rhs.text && lhs.link == rhs.link
     }
 
     static func <(lhs: WhitegramSimpleEntry, rhs: WhitegramSimpleEntry) -> Bool {
@@ -248,6 +265,11 @@ private struct WhitegramSimpleEntry: ItemListNodeEntry {
     }
 
     func item(presentationData: ItemListPresentationData, arguments: Any) -> ListViewItem {
+        if let link = self.link {
+            return ItemListActionItem(presentationData: presentationData, systemStyle: .glass, title: self.text,
+                kind: .generic, alignment: .natural, sectionId: self.section, style: .blocks,
+                action: { (arguments as! WhitegramSimpleArguments).open(link) })
+        }
         return ItemListTextItem(
             presentationData: presentationData,
             text: .plain(self.text),
@@ -257,11 +279,17 @@ private struct WhitegramSimpleEntry: ItemListNodeEntry {
     }
 }
 
-public func whitegramSimpleInfoController(context: AccountContext, title: String, lines: [String]) -> ViewController {
-    let signal = context.sharedContext.presentationData
+public func whitegramSimpleInfoController(context: AccountContext, title: String, lines: [String], links: [String] = []) -> ViewController {
+    let arguments = WhitegramSimpleArguments(context: context)
+    let signal = combineLatest(context.sharedContext.presentationData, whitegramLocalizationUpdates())
         |> deliverOnMainQueue
-        |> map { presentationData -> (ItemListControllerState, (ItemListNodeState, Any)) in
-            let entries: [WhitegramSimpleEntry] = lines.enumerated().map { WhitegramSimpleEntry(text: $1, index: $0) }
+        |> map { presentationData, _ -> (ItemListControllerState, (ItemListNodeState, Any)) in
+            var entries: [WhitegramSimpleEntry] = lines.enumerated().map { WhitegramSimpleEntry(text: $1, index: $0) }
+            for id in links where WhitegramPortCapabilities.links[id] != nil {
+                if let row = WhitegramSettingsCatalog.rows.first(where: { $0.id == id }) {
+                    entries.append(WhitegramSimpleEntry(text: WhitegramPortCapabilities.title(row, baseLanguage: presentationData.strings.baseLanguageCode), index: entries.count, link: id))
+                }
+            }
             let controllerState = ItemListControllerState(
                 presentationData: ItemListPresentationData(presentationData),
                 title: .text(title),
@@ -276,7 +304,9 @@ public func whitegramSimpleInfoController(context: AccountContext, title: String
                 style: .blocks,
                 animateChanges: false
             )
-            return (controllerState, (listState, NSNull()))
+            return (controllerState, (listState, arguments))
         }
-    return ItemListController(context: context, state: signal)
+    let controller = ItemListController(context: context, state: signal)
+    arguments.controller = controller
+    return controller
 }

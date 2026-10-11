@@ -54,6 +54,8 @@ enum WhitegramPortCapabilities {
         "customFontEnabled": "customFontEnabled", "hideRecordButton": "hideRecordButton", "noChannelSwitch": "noChannelSwitch",
         "fakeLocationEnabled": "fakeLocationEnabled",
         "messageShortenEnabled": "messageShortenEnabled",
+        "hideChatListTitle": "hideChatListTitle", "hideChatListPremiumBadge": "hideChatListPremiumBadge",
+        "hideSponsoredProxyChannel": "hideSponsoredProxyChannel",
         "unlimitedRecentStickers": "unlimitedRecentStickers", "unlimitedFavoriteStickers": "unlimitedFavoriteStickers",
         "bassEffect": "bassEffect", "customMusicCard": "wgCustomMusicCard",
         "staticZoom": "staticZoomEnabled", "maxDownloadSpeed": "maxDownloadSpeed", "sendAcceleration": "sendAccelerationEnabled",
@@ -89,6 +91,7 @@ enum WhitegramPortCapabilities {
         "antiCensorshipHeader": "h.antiCensorship", "virusTotalHeader": "h.virusTotal", "featuresHeader": "h.features", "playerHeader": "section.player",
         "fakeLocationEnabled": "s.fakeLocation", "fakeLocationPicker": "s.fakeLocationPicker",
         "messageShortenEnabled": "s.shortenMenu",
+        "whitegramChannelButton": "s.wgChannel", "whitegramBetaButton": "betaGate.title", "developerButton": "s.wgDeveloper",
         "unlimitedRecentStickers": "s.unlimitedStickers", "unlimitedFavoriteStickers": "s.unlimitedFavoriteStickers",
         "stickerSizeSlider": "s.stickerSize", "stickerSizeAction": "s.stickerSize",
         "tabBarScaleSlider": "s.tabBarScale", "tabBarWidthSlider": "s.tabBarWidth",
@@ -99,6 +102,14 @@ enum WhitegramPortCapabilities {
         "localStarsEnabled": "s.localStars", "localStarsCountSlider": "s.starsCount",
         "alwaysSendHD": "s.alwaysHD", "rememberLastCamera": "s.rememberCamera", "sendAcceleration": "s.sendAccel",
         "liquidGlassBubbles": "s.liquidGlass", "voiceBleepEnabled": "s.voiceBleep"
+    ]
+
+    // Original UI URL closures: 0xe06d84, 0xe06e00, 0xe06e7c, 0xe06ef8.
+    static let links: [String: String] = [
+        "whitegramChannelButton": "tg://resolve?domain=thewhitegram",
+        "whitegramBetaButton": "tg://join?invite=7HTGVoUzpXk4NDc9",
+        "developerButton": "tg://resolve?domain=heypaintech",
+        "openlockVPN": "tg://resolve?domain=openlockvpnbot"
     ]
 
     static let screens: [String: String] = [
@@ -189,10 +200,11 @@ enum WhitegramPortCapabilities {
     }
 
     static func supports(_ id: String) -> Bool {
-        return booleans[id] != nil || screens[id] != nil || informationKeys[id] != nil
+        return booleans[id] != nil || screens[id] != nil || informationKeys[id] != nil || links[id] != nil
     }
 
     static func title(_ row: WhitegramSettingsRowDescriptor, baseLanguage: String) -> String {
+        if row.id == "openlockVPN" { return "Openlock VPN" }
         if let key = informationKeys[row.id] { return WhitegramLocalization.string(key, baseLanguage: baseLanguage) }
         if let key = titleKeys[row.id] { return WhitegramLocalization.string(key, baseLanguage: baseLanguage) }
         let key = (row.kind == .headerRow ? "h." : "s.") + row.id

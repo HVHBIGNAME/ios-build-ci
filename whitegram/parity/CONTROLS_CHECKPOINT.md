@@ -1,6 +1,23 @@
 # Settings and local actions checkpoint
 
-Base commit: `b80eb28f928430a4bc80e5846c2b46957c1f4bd6`. This checkpoint covers the subsequent working-tree increment, not a built release or a full-client parity claim.
+Initial base commit: `b80eb28f928430a4bc80e5846c2b46957c1f4bd6`. Native verification and subsequent source increments are qualified below; none establishes full-client parity.
+
+## Native checkpoint: `f738ee1`
+
+The first increment was committed as `6907822`. Native run `38016100878` found two upload-cancellation ordering failures in the existing backend transport. `f738ee1` defers completion until URLSession invalidation and adds early/repeated cancellation coverage. [Run 38017177549](https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/38017177549) then passed the source checks, all native suites, release IPA build and packaged-artifact verification.
+
+Downloaded artifact: `C:/coding/telegram/whitegram/build-f738ee1/WhiteGram.ipa`, **74,709,608 bytes**, SHA-256 `222906ef5269807c0f3696304b6c68588a4b97b6fb6fae5cf82ec268179fc2ef`. Independent local `verify_ipa.py` verification passed CRC, arm64, version/build, all six extension identities, 13 alternate icons and exact committed plugin SDK bytes. This is an unsigned IPA; device interaction/visual parity has not been tested.
+
+The local-only verification statements below describe the initial snapshot before this native checkpoint.
+
+## Following increment: about links and chat-list visibility
+
+- Four recovered `tg://` destinations are now actions in both All Settings/search and About. They use the active account's internal URL resolver. No link is opened automatically and no membership change is performed by the implementation work.
+- `hideChatListTitle` and `hideChatListPremiumBadge` now reach both the component title model and legacy title view. A saved legacy `hideChatListPremiumStatus` is also honored. Only the text/status is hidden: the activity, passcode and proxy actions are retained. The original unfiltered title is retained for restoration.
+- `hideSponsoredProxyChannel` filters only additional `.proxy` entries; PSA and ordinary chat rows remain. Pin offsets are calculated from the filtered entries. Preferences trigger title/list recomputation without requiring a Postbox update.
+- Original evidence: UI `0xe06d84/0xe06e00/0xe06e7c/0xe06ef8` (links), row dispatch `0xe28c78/0xe28c58/0xe28c38/0xe28c18`, UI `0x16b2a4c..0x16b2acc` (component title), `0x1becd58/0x1bed408` (legacy title/status), `0x180e11c` (proxy-only filtering). Exports are in the continuation evidence directory.
+- Local validation: **254 Python tests passed** on the assembled candidate; **434 Swift files, zero new parser diagnostics**. Full installer replay passed. These latest changes require a new native run; the `f738ee1` artifact predates them.
+- Latest snapshot `routes-f738ee1-worktree2.json`: 123 switches, 76 disclosures, 11 sliders, two checkboxes, four links, one preview, 22 information rows, 29 header descriptors and **65 fallback rows** (57 interactive catalog rows plus eight text/value rows). These remain routing classifications, not a behavioral parity percentage.
 
 ## Implemented
 

@@ -51,6 +51,12 @@ for invalid in ["49.9", "100.1", "150", "NaN", "inf", ""] {
 check(!WhitegramAppearancePolicy(values: ["hideReactions": 1]).isEnabled("hideReactions"), "Numeric one is not a Boolean")
 check(WhitegramAppearancePolicy(values: ["hideReactions": true]).isEnabled("hideReactions"), "Boolean switch is honored")
 check(WhitegramAppearancePolicy(values: [:]) != WhitegramAppearancePolicy(values: ["lightChatUI": true]), "Blur replacement invalidates open-chat presentation")
+for key in ["hideChatListTitle", "hideChatListPremiumBadge", "hideChatListPremiumStatus", "hideSponsoredProxyChannel"] {
+    check(!WhitegramAppearancePolicy(values: [:]).isEnabled(key), "Chat-list visibility is opt-in")
+    check(!WhitegramAppearancePolicy(values: [key: 1]).isEnabled(key), "Numeric one cannot hide chat-list content")
+    let enabled = WhitegramAppearancePolicy(values: [key: true])
+    check(enabled.isEnabled(key) && enabled != WhitegramAppearancePolicy(values: [:]), "Visibility changes invalidate live presentation snapshots")
+}
 check(WhitegramAppearancePolicy.bubbleFillOpacity(transparent: false, semiTransparent: true) == 0.7, "Original semi-transparent alpha")
 check(WhitegramAppearancePolicy.bubbleFillOpacity(transparent: true, semiTransparent: true) == 0.0, "Transparent fill has stable conflict precedence")
 check(WhitegramAppearancePolicy.bubbleFillOpacity(transparent: false, semiTransparent: false) == 1.0, "Default fill is opaque")

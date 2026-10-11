@@ -61,6 +61,13 @@ private final class WhitegramSettingsCoordinator {
     }
 
     func open(_ id: String) {
+        if let url = WhitegramPortCapabilities.links[id] {
+            self.context.sharedContext.openExternalUrl(context: self.context, urlContext: .generic, url: url, forceExternal: false,
+                presentationData: self.context.sharedContext.currentPresentationData.with { $0 },
+                navigationController: self.controller?.navigationController as? NavigationController,
+                dismissInput: { [weak self] in self?.controller?.view.endEditing(true) })
+            return
+        }
         guard let screen = WhitegramPortCapabilities.screens[id] else { return }
         let target: ViewController
         switch screen {
@@ -162,6 +169,11 @@ private struct WhitegramSettingsRow: ItemListNodeEntry {
         }
         if let value {
             return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: self.title, value: value, sectionId: self.section, style: .blocks, updated: { arguments.update(self.descriptor.id, value: $0) })
+        }
+        if WhitegramPortCapabilities.links[self.descriptor.id] != nil {
+            return ItemListActionItem(presentationData: presentationData, systemStyle: .glass, title: self.title,
+                kind: .generic, alignment: .natural, sectionId: self.section, style: .blocks,
+                action: { arguments.open(self.descriptor.id) })
         }
         if WhitegramPortCapabilities.screens[self.descriptor.id] != nil {
             return ItemListDisclosureItem(presentationData: presentationData, systemStyle: .glass, title: self.title, label: self.russian ? "Настроить" : "Configure", sectionId: self.section, style: .blocks, action: { arguments.open(self.descriptor.id) })

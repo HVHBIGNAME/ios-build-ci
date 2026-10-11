@@ -18,7 +18,8 @@ public struct WhitegramAppearancePolicy: Equatable {
         "squareAvatars", "showFullViewCount", "showTimestampSeconds", "showOnlineDotInChats",
         "classicInterface", "liquidGlassBubbles", "glassMessageBubbles", "liquidGlassSettings",
         "liquidGlassProfile", "liquidGlassGifts", "liquidGlassInlineButtons", "glassTinting",
-        "fakeLiquidGlass", "colorInsteadOfGlass", "lightChatUI"
+        "fakeLiquidGlass", "colorInsteadOfGlass", "lightChatUI",
+        "hideChatListTitle", "hideChatListPremiumBadge", "hideChatListPremiumStatus"
     ]
 
     private let flags: [String: Bool]
