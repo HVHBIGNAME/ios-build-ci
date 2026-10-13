@@ -15,7 +15,7 @@ public struct WhitegramAppearancePolicy: Equatable {
         "hideSettingsAddAccount", "hideSettingsEmojiStatus", "hideSettingsProfileColor",
         "hideSettingsSetPhoto", "hideSettingsReorderAccounts", "hidePhoneNumber", "showPeerIDAndDC",
         "showChatCreationDate", "hideReactions", "hideAllChatsTab", "hideSponsoredProxyChannel",
-        "squareAvatars", "showFullViewCount", "showTimestampSeconds", "showOnlineDotInChats",
+        "squareAvatars", "showFullViewCount", "showTimestampSeconds", "showOnlineDotInChats", "zalgoFilterEnabled", "formattingToolbarEnabled",
         "classicInterface", "liquidGlassBubbles", "glassMessageBubbles", "liquidGlassSettings",
         "liquidGlassProfile", "liquidGlassGifts", "liquidGlassInlineButtons", "glassTinting",
         "fakeLiquidGlass", "colorInsteadOfGlass", "lightChatUI",

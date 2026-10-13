@@ -61,7 +61,7 @@ enum WhitegramSettingsArchiveSchema {
         iMessageChatStyle whitegramNotificationsEnabled persistentNotificationsEnabled backgroundKeepAlive ghostModeEnabled
         disableOnlineStatus disableTypingStatus disableRecordingStatus disableUploadingStatus disableReadReceipts
         disableStoryReadReceipts disableAds keepUnavailableAccounts saveProtectedContent removeSpoilers maxDownloadSpeed
-        hideGalleryCamera cleanMetadataOnSend formattingToolbarEnabled localStarsEnabled customFontEnabled disableChatSwipeOptions
+        hideGalleryCamera cleanMetadataOnSend formattingToolbarEnabled sendOnReturnKey localStarsEnabled customFontEnabled disableChatSwipeOptions
         disableSwipeToRecordStory hideBusinessBotPanel unlimitedPinnedChats showChatCreationDate forceDeviceMicrophone
         sendLargePhotos visualUsernameEnabled showCharCountTyping showCharCountMessages hideChannelAds chatScrollAnimation
         neutralMediaAccent scammerProtectionEnabled hideMyDeletedMessages hideMyEditedMessages onlineHistoryEnabled
@@ -93,6 +93,7 @@ enum WhitegramSettingsArchiveSchema {
         for key in ["photoCompressionQuality", "deletedMessagesOpacity"] { result[key] = .number(0...1) }
         result["stickerSizeScale"] = .number(0...2)
         result["downloadAccelMode"] = .integer(0...3)
+        result["autoFormatStyle"] = .integer(0...5)
         for key in ["tabBarScale", "tabBarWidthScale"] { result[key] = .number(50...150) }
         result["menuLanguage"] = .integer(0...2)
         result["localStarsCount"] = .integer(0...Int64.max)

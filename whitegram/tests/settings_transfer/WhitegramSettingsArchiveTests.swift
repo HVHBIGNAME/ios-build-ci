@@ -17,6 +17,28 @@ enum SettingsArchiveFixture {
 }
 
 final class WhitegramSettingsArchiveTests: XCTestCase {
+    func testReturnKeySettingRoundTripsCanonicalAndLegacyBooleanNames() throws {
+        for enabled in [false, true] {
+            let archive = try SettingsArchiveFixture.archive(["wg_sendOnReturnKey": enabled, "formattingToolbarEnabled": true])
+            let decoded = try WhitegramSettingsArchive(data: archive.encoded())
+            XCTAssertEqual(decoded.values["sendOnReturnKey"] as? Bool, enabled)
+            XCTAssertEqual(decoded.keys, ["formattingToolbarEnabled", "sendOnReturnKey"])
+        }
+        let invalid: [Any] = [1, "true", NSNull()]
+        for value in invalid {
+            XCTAssertThrowsError(try SettingsArchiveFixture.archive(["sendOnReturnKey": value]))
+        }
+        XCTAssertThrowsError(try SettingsArchiveFixture.archive(["sendOnReturnKey": false, "wg_sendOnReturnKey": true]))
+    }
+
+    func testAutoFormatStyleRoundTripAndBounds() throws {
+        let archive = try SettingsArchiveFixture.archive(["autoFormatStyle": 5, "autoFormatMixedScript": false, "autoFormatMixedScriptUppercase": false])
+        let decoded = try WhitegramSettingsArchive(data: archive.encoded())
+        XCTAssertEqual((decoded.values["autoFormatStyle"] as? NSNumber)?.intValue, 5)
+        for value in [-1, 6] { XCTAssertThrowsError(try SettingsArchiveFixture.archive(["autoFormatStyle": value])) }
+        XCTAssertThrowsError(try SettingsArchiveFixture.archive(["autoFormatStyle": true]))
+    }
+
     func testRoundTripRetainsTypesUnicodeAndExactInt64() throws {
         let archive = try SettingsArchiveFixture.archive([
             "ghostModeEnabled": true, "disableReadReceipts": false, "voiceChangerPitch": 1.5,

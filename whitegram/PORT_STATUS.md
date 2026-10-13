@@ -1,6 +1,8 @@
 # Integrated Whitegram source port
 
-Latest integrated verification: [2026-10-05 native checkpoint](parity/NATIVE_BUILD_CHECKPOINT.md). It covers the account-bound service-proxy increment (revision `427abad`), whose 13 integration cases, 83 direct service cases, 43 backend cases and full release IPA build all passed. See [2026-10-03 parent checkpoint](parity/PARENT_CHECKPOINT.md) for the assembled-candidate results, and the Apple build checkpoints below for their named revisions.
+Latest completed native build: revision `f6ac5d6364679686179283c0e78441baa7eeb7b7`, [run 38105228305](https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/38105228305) on 2026-10-11. Source integration, native Swift suites, release compilation and IPA upload passed. The earlier [service-proxy checkpoint](parity/NATIVE_BUILD_CHECKPOINT.md) and [parent checkpoint](parity/PARENT_CHECKPOINT.md) retain their revision-specific evidence.
+
+The current composer and sender-avatar increments are described in [COMPOSER_PORT.md](COMPOSER_PORT.md) and [ONLINE_INDICATOR_PORT.md](ONLINE_INDICATOR_PORT.md). Their new native build and device checks are tracked separately from the successful `f6ac5d6` artifact. The starting-revision feature-coverage counts below are historical, not current completion percentages.
 
 ## Inputs
 

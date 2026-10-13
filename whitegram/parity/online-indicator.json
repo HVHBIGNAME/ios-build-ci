@@ -1,0 +1,28 @@
+{
+  "feature": "showOnlineDotInChats",
+  "status": "overlay_integrated_source_checks_passed_native_validation_pending",
+  "original_ipa_sha256": "bd6d3a13046d5857c1389e2d794c4c2ca44cee89bb22880004bd77f84fe29837",
+  "original_evidence": {
+    "directory": "recovery_20261002/campaign/continuation-20261008",
+    "core_image": 46,
+    "getter": "0x201438",
+    "ui_image": 55,
+    "consumer": "0x157320c",
+    "geometry": "0x1573678",
+    "presence_signal": "0x15736a8",
+    "rendering": "0x1571a40",
+    "colors": "0x1571d90",
+    "first_emission": "0x1573864",
+    "animation_completion": "0x1571e74"
+  },
+  "runtime_files": {
+    "WhitegramChatOnlineIndicator.swift": "submodules/TelegramUI/Components/Chat/ChatMessageItemImpl/Sources/WhitegramChatOnlineIndicator.swift"
+  },
+  "patch_entrypoint": "online_indicator_patches.apply_online_indicator_patches",
+  "target": "submodules/TelegramUI/Components/Chat/ChatMessageItemImpl/Sources/ChatMessageDateHeader.swift",
+  "integration": "runtime registry and patch entrypoint registered in compat-12.9.4.py; Boolean route and recovered title registered in WhitegramPortCapabilities.swift",
+  "additional_dependencies": [],
+  "settings": {"key": "showOnlineDotInChats", "legacy_key": "wg_showOnlineDotInChats", "default": false, "schema_changed": false},
+  "verification": {"online_indicator_tests_passed": 5, "full_composition_tests_passed": 5, "settings_control_tests_passed": 4, "swift_syntax_parsed": true, "native_build_run": false, "device_checks_run": false},
+  "remaining": ["macOS full app build", "presence expiration/renewal and cancellation runtime checks", "device visual and lifecycle checks listed in ONLINE_INDICATOR_PORT.md"]
+}
