@@ -67,7 +67,7 @@ private final class WhitegramDiagnosticsCoordinator: WhitegramServiceListActions
             WhitegramServiceEntry(stableId: "testReport", order: 7, section: 3, content: .action(self.text("Отправить тестовый отчёт", "Send test report"), enabled && WhitegramErrorReporter.shared.enabled))
         ]
         if let status { rows.append(WhitegramServiceEntry(stableId: "status", order: 4, section: 2, content: .text(status))) }
-        self.entries.set(rows)
+        self.entries.set(rows.sorted())
     }
 
     func perform(_ id: String) {

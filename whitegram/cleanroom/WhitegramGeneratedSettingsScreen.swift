@@ -73,6 +73,7 @@ private final class WhitegramSettingsCoordinator {
         switch screen {
         case "diagnostics": target = whitegramDiagnosticsController(context: self.context)
         case "textFormatting": target = whitegramTextFormattingController(context: self.context)
+        case "visualUsername": target = whitegramVisualUsernameController(context: self.context)
         case "localization": target = whitegramLocalizationController(context: self.context)
         case "keychainAccounts": target = whitegramKeychainAccountsController(context: self.context)
         case "accountTransfer": target = whitegramAccountTransferController(context: self.context)

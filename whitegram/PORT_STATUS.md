@@ -4,6 +4,12 @@ Latest completed native build: revision `3625798b3f8f14856b905795f7c3402a94bd4f5
 
 The composer and sender-avatar increments in [COMPOSER_PORT.md](COMPOSER_PORT.md) and [ONLINE_INDICATOR_PORT.md](ONLINE_INDICATOR_PORT.md) are included in that successful build; their device checks remain pending. The subsequent [Wallet and Crypto Bot visibility](BOT_VISIBILITY_PORT.md) and [neutral media accent](MEDIA_ACCENT_PORT.md) increments pass local source checks and still need their own native build. The current combined source suite passes 286 tests. The starting-revision feature-coverage counts below are historical, not current completion percentages.
 
+The diagnostic candidate adds [automatic private reports](DIAGNOSTICS_PORT.md) and
+[profile appearance controls](PROFILE_APPEARANCE_PORT.md). The current outstanding
+catalog inventory is [CURRENT_BACKLOG.md](CURRENT_BACKLOG.md). Build 34640 and its
+subsequent fixes require a fresh native checkpoint before replacing the successful
+`3625798` artifact above.
+
 ## Inputs
 
 - Telegram source: `release-12.9.2`, commit `6ad963e5b62d354da79040f388ae2b9132fb17b8`.

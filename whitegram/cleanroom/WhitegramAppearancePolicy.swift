@@ -19,7 +19,8 @@ public struct WhitegramAppearancePolicy: Equatable {
         "classicInterface", "liquidGlassBubbles", "glassMessageBubbles", "liquidGlassSettings",
         "liquidGlassProfile", "liquidGlassGifts", "liquidGlassInlineButtons", "glassTinting",
         "fakeLiquidGlass", "colorInsteadOfGlass", "lightChatUI",
-        "hideChatListTitle", "hideChatListPremiumBadge", "hideChatListPremiumStatus"
+        "hideChatListTitle", "hideChatListPremiumBadge", "hideChatListPremiumStatus",
+        "hideGifts", "visualUsernameEnabled"
     ]
 
     private let flags: [String: Bool]
@@ -29,6 +30,7 @@ public struct WhitegramAppearancePolicy: Equatable {
     public let customFontName: String
     public let customFontEnabled: Bool
     public let assetRevision: String
+    public let visualUsername: String
 
     public init(values: [String: Any], legacyDefaults: UserDefaults? = nil) {
         func value(_ key: String) -> Any? {
@@ -47,6 +49,7 @@ public struct WhitegramAppearancePolicy: Equatable {
         let packId = (value("activeIconPackId") as? String) ?? ""
         let revision = (value("appearanceAssetRevision") as? String) ?? ""
         self.assetRevision = packId + ":" + revision
+        self.visualUsername = (value("visualUsername") as? String) ?? ""
     }
 
     public static var current: WhitegramAppearancePolicy {

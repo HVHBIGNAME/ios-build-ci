@@ -16,6 +16,12 @@ func check(_ condition: @autoclosure () -> Bool, _ message: String) {
 }
 
 let defaults = WhitegramAppearancePolicy(values: [:])
+check(WhitegramVisualUsername.normalized(" @Example_123 ") == "Example_123", "A visual username accepts one optional prefix")
+check(WhitegramVisualUsername.normalized("") == "", "Empty visual username clears the override")
+for invalid in ["@@name", "1name", "a b", "name\nmessage", "name/path", "имя", String(repeating: "a", count: 33)] {
+    check(WhitegramVisualUsername.normalized(invalid) == nil, "Reject malformed visual usernames")
+}
+check(WhitegramAppearancePolicy(values: ["visualUsername": "One"]) != WhitegramAppearancePolicy(values: ["visualUsername": "Two"]), "Editing the override invalidates the profile snapshot")
 let stickerDefaults = WhitegramStickerSettings(values: [:])
 check(stickerDefaults.recentLimit == 20, "Disabled recent override preserves Telegram's limit")
 check(stickerDefaults.favoriteLimit(default: 5) == 5 && stickerDefaults.favoriteLimit(default: 10) == 10, "Disabled favorite override preserves free and premium limits")

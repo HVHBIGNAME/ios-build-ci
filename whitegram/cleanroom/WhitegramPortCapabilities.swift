@@ -58,6 +58,7 @@ enum WhitegramPortCapabilities {
         "zalgoFilter": "zalgoFilterEnabled",
         "formattingToolbar": "formattingToolbarEnabled",
         "neutralMediaAccent": "neutralMediaAccent",
+        "hideGifts": "hideGifts", "visualUsernameEnabled": "visualUsernameEnabled",
         "hideChatListTitle": "hideChatListTitle", "hideChatListPremiumBadge": "hideChatListPremiumBadge",
         "hideSponsoredProxyChannel": "hideSponsoredProxyChannel",
         "unlimitedRecentStickers": "unlimitedRecentStickers", "unlimitedFavoriteStickers": "unlimitedFavoriteStickers",
@@ -97,6 +98,7 @@ enum WhitegramPortCapabilities {
         "messageShortenEnabled": "s.shortenMenu",
         "showOnlineDotInChats": "s.showOnlineDotInChats",
         "autoFormatStyleButton": "s.autoFormat",
+        "visualUsernameEnabled": "s.visualUsername", "visualUsernameButton": "s.visualUsernameLbl",
         "whitegramChannelButton": "s.wgChannel", "whitegramBetaButton": "betaGate.title", "developerButton": "s.wgDeveloper",
         "unlimitedRecentStickers": "s.unlimitedStickers", "unlimitedFavoriteStickers": "s.unlimitedFavoriteStickers",
         "stickerSizeSlider": "s.stickerSize", "stickerSizeAction": "s.stickerSize",
@@ -121,6 +123,7 @@ enum WhitegramPortCapabilities {
     static let screens: [String: String] = [
         "analyticsStaticRow": "diagnostics", "exportSystemLogs": "diagnostics",
         "autoFormatStyleButton": "textFormatting",
+        "visualUsernameButton": "visualUsername",
         "menuLanguagePicker": "localization",
         "keychainAccounts": "keychainAccounts", "accountTransfer": "accountTransfer", "botAccounts": "botAccounts",
         "playbackSpeedSlider": "player", "crossfadeSlider": "player", "equalizerOpen": "equalizer",

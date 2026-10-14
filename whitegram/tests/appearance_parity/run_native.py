@@ -19,6 +19,7 @@ SOURCES = (
     "WhitegramIconPackArchive.swift",
     "WhitegramGlassSettings.swift",
     "WhitegramStickerSettings.swift",
+    "WhitegramVisualUsername.swift",
 )
 
 
