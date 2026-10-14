@@ -100,6 +100,21 @@ public enum WhitegramServiceError: Error, Equatable, LocalizedError {
         case let .analysisPending(id): return "VirusTotal has not completed analysis \(id) within the polling limit. Check its status again; do not upload the file again."
         }
     }
+
+    var diagnosticCode: Int? {
+        switch self {
+        case .invalidResponse: return 1001
+        case .responseTooLarge: return 1002
+        case .requestTooLarge: return 1003
+        case .redirectRefused: return 1004
+        case .conversationStorage: return 1005
+        case .preferences: return 1006
+        case .fileUnreadable: return 1007
+        case .originalProxySigningUnavailable: return 1008
+        case let .keychain(status): return status
+        default: return nil
+        }
+    }
 }
 
 public enum WhitegramServiceLimits {
@@ -212,6 +227,10 @@ final class WhitegramServiceOperation<Value>: @unchecked Sendable {
     func finish(_ result: Result<Value, WhitegramServiceError>) {
         DispatchQueue.main.async {
             guard let cancelled = self.task.claimCompletion() else { return }
+            if !cancelled, case let .failure(error) = result, let code = error.diagnosticCode {
+                NotificationCenter.default.post(name: Notification.Name("WhitegramDiagnostics.runtimeError"), object: nil,
+                    userInfo: ["kind": "runtime", "component": "services", "code": code])
+            }
             self.completion(cancelled ? .failure(.cancelled) : result)
         }
     }

@@ -14,6 +14,7 @@ private final class WhitegramDiagnosticsCoordinator: WhitegramServiceListActions
     private var status: String?
     private var snapshot = ""
     private var export: WhitegramDiagnosticsExport?
+    private var statusObserver: NSObjectProtocol?
 
     init(context: AccountContext) {
         self.context = context
@@ -22,11 +23,21 @@ private final class WhitegramDiagnosticsCoordinator: WhitegramServiceListActions
             self.export = nil
             self.refresh()
         }
+        self.statusObserver = NotificationCenter.default.addObserver(forName: WhitegramErrorReporter.changed, object: nil, queue: .main) { [weak self] _ in self?.refresh() }
         self.refresh()
     }
 
-    deinit { self.collection.dispose() }
-    func setEnabled(_ enabled: Bool) {}
+    deinit {
+        self.collection.dispose()
+        if let statusObserver { NotificationCenter.default.removeObserver(statusObserver) }
+    }
+    func setEnabled(_ enabled: Bool) {
+        if !WhitegramPreferences.set(enabled, for: "automaticErrorReports") {
+            self.status = self.text("Не удалось сохранить настройку.", "Could not save the setting.")
+        }
+        WhitegramErrorReporter.shared.flush()
+        self.refresh()
+    }
 
     private func text(_ ru: String, _ en: String) -> String {
         let language = self.context.sharedContext.currentPresentationData.with { $0.strings.baseLanguageCode }
@@ -50,7 +61,10 @@ private final class WhitegramDiagnosticsCoordinator: WhitegramServiceListActions
             WhitegramServiceEntry(stableId: "snapshot", order: 0, section: 0, content: .text(self.snapshot)),
             WhitegramServiceEntry(stableId: "refresh", order: 1, section: 1, content: .action(self.text("Обновить", "Refresh"), enabled)),
             WhitegramServiceEntry(stableId: "copy", order: 2, section: 1, content: .action(self.text("Скопировать диагностику", "Copy Diagnostics"), enabled)),
-            WhitegramServiceEntry(stableId: "export", order: 3, section: 1, content: .action(self.text("Экспортировать журналы", "Export Logs"), enabled))
+            WhitegramServiceEntry(stableId: "export", order: 3, section: 1, content: .action(self.text("Экспортировать журналы", "Export Logs"), enabled)),
+            WhitegramServiceEntry(stableId: "automatic", order: 5, section: 3, content: .toggle(self.text("Автоматически отправлять ошибки", "Automatically send errors"), WhitegramErrorReporter.shared.enabled, enabled)),
+            WhitegramServiceEntry(stableId: "delivery", order: 6, section: 3, content: .text(WhitegramErrorReporter.shared.status)),
+            WhitegramServiceEntry(stableId: "testReport", order: 7, section: 3, content: .action(self.text("Отправить тестовый отчёт", "Send test report"), enabled && WhitegramErrorReporter.shared.enabled))
         ]
         if let status { rows.append(WhitegramServiceEntry(stableId: "status", order: 4, section: 2, content: .text(status))) }
         self.entries.set(rows)
@@ -59,6 +73,10 @@ private final class WhitegramDiagnosticsCoordinator: WhitegramServiceListActions
     func perform(_ id: String) {
         guard !self.busy && !self.presenter.isPresenting else { return }
         switch id {
+        case "testReport":
+            WhitegramErrorReporter.shared.record(kind: .test, component: .app, code: 0)
+            self.status = self.text("Тестовый отчёт поставлен в очередь.", "Test report queued.")
+            self.refresh()
         case "refresh": self.status = nil; self.refresh()
         case "copy":
             self.refresh()

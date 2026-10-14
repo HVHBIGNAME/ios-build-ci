@@ -266,6 +266,10 @@ private final class WhitegramBackendURLTask: NSObject, WhitegramBackendTask, URL
             abort(error as? WhitegramBackendError ?? .invalidResponse)
             return
         }
+        if response.statusCode >= 400 {
+            NotificationCenter.default.post(name: Notification.Name("WhitegramDiagnostics.runtimeError"), object: nil,
+                userInfo: ["kind": "http", "component": "backend", "code": response.statusCode])
+        }
         completionHandler(.allow)
     }
 
@@ -290,6 +294,10 @@ private final class WhitegramBackendURLTask: NSObject, WhitegramBackendTask, URL
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         if let failure { finish(.failure(failure)) }
         else if let error = error as NSError? {
+            if error.code != NSURLErrorCancelled {
+                NotificationCenter.default.post(name: Notification.Name("WhitegramDiagnostics.runtimeError"), object: nil,
+                    userInfo: ["kind": "network", "component": "backend", "code": error.code])
+            }
             finish(.failure(error.code == NSURLErrorCancelled ? .cancelled : .transport(error.code)))
         } else if let response {
             finish(.success(WhitegramBackendHTTPResponse(data: data, response: response, duration: ProcessInfo.processInfo.systemUptime - startedAt)))

@@ -49,6 +49,12 @@ for invalid in ["49.9", "100.1", "150", "NaN", "inf", ""] {
     check(WhitegramAppearancePolicy.parseTabHeightPercent(invalid) == nil, "Height custom input differs from slider range")
 }
 check(!WhitegramAppearancePolicy(values: ["hideReactions": 1]).isEnabled("hideReactions"), "Numeric one is not a Boolean")
+check(!WhitegramAppearancePolicy.hidesCryptoBotContact(enabled: false, isBot: true, usernames: ["CryptoBot"]), "Disabled contact filtering preserves Crypto Bot")
+check(!WhitegramAppearancePolicy.hidesCryptoBotContact(enabled: true, isBot: false, usernames: ["CryptoBot"]), "Ordinary users cannot match the bot filter")
+check(WhitegramAppearancePolicy.hidesCryptoBotContact(enabled: true, isBot: true, usernames: ["other", "cRyPtObOt"]), "Active bot aliases match case-insensitively")
+for usernames in [[], ["Crypto"], ["Crypto Bot"], ["CryptoBotSupport"], ["MyCryptoBot"], ["@CryptoBot"]] as [[String]] {
+    check(!WhitegramAppearancePolicy.hidesCryptoBotContact(enabled: true, isBot: true, usernames: usernames), "Similar names do not hide another contact")
+}
 check(WhitegramAppearancePolicy(values: ["hideReactions": true]).isEnabled("hideReactions"), "Boolean switch is honored")
 check(WhitegramAppearancePolicy(values: [:]) != WhitegramAppearancePolicy(values: ["lightChatUI": true]), "Blur replacement invalidates open-chat presentation")
 for key in ["hideChatListTitle", "hideChatListPremiumBadge", "hideChatListPremiumStatus", "hideSponsoredProxyChannel"] {
@@ -110,6 +116,14 @@ check(WhitegramGlassSettings(values: ["liquidGlassProfile": false], defaults: le
 check(WhitegramAppearancePolicy(values: [:], legacyDefaults: legacy).isEnabled("hideReactions"), "Original primitive is read")
 check(!WhitegramAppearancePolicy(values: ["hideReactions": false], legacyDefaults: legacy).isEnabled("hideReactions"), "Explicit saved false wins")
 check(WhitegramAppearancePolicy(values: [:], legacyDefaults: legacy).tabWidthPercent == 150.0, "Original percent mirror is read")
+for key in ["hideWallet", "hideCryptoBot", "neutralMediaAccent"] {
+    check(!defaults.isEnabled(key), "Appearance overrides default to off")
+    check(!WhitegramAppearancePolicy(values: [key: 1]).isEnabled(key), "Numeric values cannot enable appearance overrides")
+    legacy.set(true, forKey: "wg_" + key)
+    check(WhitegramAppearancePolicy(values: [:], legacyDefaults: legacy).isEnabled(key), "Appearance overrides read the legacy preference")
+    check(!WhitegramAppearancePolicy(values: [key: false], legacyDefaults: legacy).isEnabled(key), "Turning the switch off overrides a legacy true value")
+    check(WhitegramAppearancePolicy(values: [key: true]) != defaults, "Appearance overrides invalidate the appearance signal")
+}
 
 let actual = StarsAmount(value: 17, nanos: 250000000)
 let off = WhitegramLocalStars(values: [:])

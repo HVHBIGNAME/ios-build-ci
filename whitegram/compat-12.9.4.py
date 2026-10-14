@@ -31,6 +31,9 @@ from system_patches import SYSTEM_RUNTIME_FILES, apply_system_patches
 from sticker_patches import STICKER_RUNTIME_FILES, apply_sticker_patches
 from shortening_patches import apply_shortening_patches
 from chat_list_visibility_patches import apply_chat_list_visibility_patches
+from contact_visibility_patches import apply_contact_visibility_patches
+from media_accent_patches import MEDIA_ACCENT_RUNTIME_FILES, apply_media_accent_patches
+from diagnostics_patches import DIAGNOSTICS_RUNTIME_FILES, apply_diagnostics_patches
 from online_indicator_patches import ONLINE_INDICATOR_RUNTIME_FILES, apply_online_indicator_patches
 from text_processing_patches import TEXT_PROCESSING_RUNTIME_FILES, apply_text_processing_patches
 from formatting_toolbar_patches import FORMATTING_TOOLBAR_RUNTIME_FILES, apply_formatting_toolbar_patches
@@ -177,7 +180,7 @@ for manifest in (
     APPEARANCE_RUNTIME_FILES, APPEARANCE_PARITY_RUNTIME_FILES, APPEARANCE_ICON_PACK_RUNTIME_FILES,
     APPEARANCE_GLASS_RUNTIME_FILES, HISTORY_RUNTIME_FILES, ACCOUNTS_RUNTIME_FILES,
     PRIVACY_RUNTIME_FILES, TRANSFER_RUNTIME_FILES, PLAYER_RUNTIME_FILES, BACKEND_RUNTIME_FILES, TRAFFIC_RUNTIME_FILES,
-    SYSTEM_RUNTIME_FILES, STICKER_RUNTIME_FILES, ONLINE_INDICATOR_RUNTIME_FILES, TEXT_PROCESSING_RUNTIME_FILES, FORMATTING_TOOLBAR_RUNTIME_FILES,
+    SYSTEM_RUNTIME_FILES, STICKER_RUNTIME_FILES, ONLINE_INDICATOR_RUNTIME_FILES, TEXT_PROCESSING_RUNTIME_FILES, FORMATTING_TOOLBAR_RUNTIME_FILES, MEDIA_ACCENT_RUNTIME_FILES, DIAGNOSTICS_RUNTIME_FILES,
 ):
     cleanroom_files.update({"cleanroom/" + name: destination for name, destination in manifest.items()})
 for name in (
@@ -265,7 +268,7 @@ for patcher in (
     apply_player_patches, apply_swift_syntax_patches, apply_voice_patches,
     apply_backend_patches, apply_traffic_patches, apply_system_patches, apply_sticker_patches, apply_shortening_patches,
     apply_chat_list_visibility_patches, apply_online_indicator_patches, apply_text_processing_patches, apply_formatting_toolbar_patches,
-    apply_return_key_patches,
+    apply_return_key_patches, apply_contact_visibility_patches, apply_media_accent_patches, apply_diagnostics_patches,
 ):
     report = patcher(source_root)
     if isinstance(report, dict):

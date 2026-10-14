@@ -1,8 +1,8 @@
 # Integrated Whitegram source port
 
-Latest completed native build: revision `f6ac5d6364679686179283c0e78441baa7eeb7b7`, [run 38105228305](https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/38105228305) on 2026-10-11. Source integration, native Swift suites, release compilation and IPA upload passed. The earlier [service-proxy checkpoint](parity/NATIVE_BUILD_CHECKPOINT.md) and [parent checkpoint](parity/PARENT_CHECKPOINT.md) retain their revision-specific evidence.
+Latest completed native build: revision `3625798b3f8f14856b905795f7c3402a94bd4f56`, [run 38337625690](https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/38337625690) on 2026-10-13. Source integration, native Swift suites, release compilation, packaged-IPA verification and IPA upload passed. GitHub status was checked on 2026-10-14. The earlier [service-proxy checkpoint](parity/NATIVE_BUILD_CHECKPOINT.md) and [parent checkpoint](parity/PARENT_CHECKPOINT.md) retain their revision-specific evidence.
 
-The current composer and sender-avatar increments are described in [COMPOSER_PORT.md](COMPOSER_PORT.md) and [ONLINE_INDICATOR_PORT.md](ONLINE_INDICATOR_PORT.md). Their new native build and device checks are tracked separately from the successful `f6ac5d6` artifact. The starting-revision feature-coverage counts below are historical, not current completion percentages.
+The composer and sender-avatar increments in [COMPOSER_PORT.md](COMPOSER_PORT.md) and [ONLINE_INDICATOR_PORT.md](ONLINE_INDICATOR_PORT.md) are included in that successful build; their device checks remain pending. The subsequent [Wallet and Crypto Bot visibility](BOT_VISIBILITY_PORT.md) and [neutral media accent](MEDIA_ACCENT_PORT.md) increments pass local source checks and still need their own native build. The current combined source suite passes 286 tests. The starting-revision feature-coverage counts below are historical, not current completion percentages.
 
 ## Inputs
 

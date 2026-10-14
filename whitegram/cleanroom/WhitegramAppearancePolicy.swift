@@ -15,7 +15,7 @@ public struct WhitegramAppearancePolicy: Equatable {
         "hideSettingsAddAccount", "hideSettingsEmojiStatus", "hideSettingsProfileColor",
         "hideSettingsSetPhoto", "hideSettingsReorderAccounts", "hidePhoneNumber", "showPeerIDAndDC",
         "showChatCreationDate", "hideReactions", "hideAllChatsTab", "hideSponsoredProxyChannel",
-        "squareAvatars", "showFullViewCount", "showTimestampSeconds", "showOnlineDotInChats", "zalgoFilterEnabled", "formattingToolbarEnabled",
+        "squareAvatars", "showFullViewCount", "showTimestampSeconds", "showOnlineDotInChats", "zalgoFilterEnabled", "formattingToolbarEnabled", "neutralMediaAccent",
         "classicInterface", "liquidGlassBubbles", "glassMessageBubbles", "liquidGlassSettings",
         "liquidGlassProfile", "liquidGlassGifts", "liquidGlassInlineButtons", "glassTinting",
         "fakeLiquidGlass", "colorInsteadOfGlass", "lightChatUI",
@@ -55,6 +55,11 @@ public struct WhitegramAppearancePolicy: Equatable {
 
     public func isEnabled(_ key: String) -> Bool {
         return self.flags[key] ?? false
+    }
+
+    /// Filters the contacts list by bot username, never by a person's display name.
+    public static func hidesCryptoBotContact(enabled: Bool, isBot: Bool, usernames: [String]) -> Bool {
+        return enabled && isBot && usernames.contains(where: { $0.lowercased() == "cryptobot" })
     }
 
     public static func parseStickerPercent(_ text: String) -> Double? {

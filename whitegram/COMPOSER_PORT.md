@@ -49,7 +49,11 @@ installation, write-free replay, cross-patcher lifecycle composition, atomic
 rejection of damaged/duplicate hooks, label availability and Swift syntax.
 Foundation XCTest regressions cover Return policies, settings persistence,
 localization overrides and Unicode range behavior. The existing native CI runner
-includes these tests and the full app build.
+includes these tests and the full app build. Revision `3625798` completed
+[run 38337625690](https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/38337625690)
+on 2026-10-13: source validation, native suites, release compilation and verified
+IPA upload all passed. This supersedes the pending-CI status in the Windows
+checkpoint above.
 
 Device checks still needed: both input engines, hardware and software keyboards,
 IME confirmation, changing themes/languages, media captions, toolbar scrolling and

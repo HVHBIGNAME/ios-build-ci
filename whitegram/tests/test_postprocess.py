@@ -33,6 +33,8 @@ class PostprocessSigningConfigurationTests(unittest.TestCase):
     def run_postprocess(self, key):
         environment = dict(os.environ)
         environment.pop(ENV_NAME, None)
+        for name in ("WHITEGRAM_DIAGNOSTICS_URL", "WHITEGRAM_DIAGNOSTICS_UPLOAD_KEY"):
+            environment.pop(name, None)
         if key is not None:
             environment[ENV_NAME] = key
         return subprocess.run([sys.executable, "-B", str(POSTPROCESS), str(self.root)], env=environment,
@@ -57,6 +59,28 @@ class PostprocessSigningConfigurationTests(unittest.TestCase):
         result = self.run_postprocess(None)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn(KEY_NAME, plistlib.loads(main.read_bytes()))
+
+    def test_diagnostics_configuration_is_main_app_only_and_secrets_are_not_logged(self):
+        environment = dict(os.environ, WHITEGRAM_DIAGNOSTICS_URL="https://diagnostics.invalid/v1/reports",
+                           WHITEGRAM_DIAGNOSTICS_UPLOAD_KEY="b" * 64, GITHUB_SHA="a" * 40)
+        environment.pop(ENV_NAME, None)
+        result = subprocess.run([sys.executable, "-B", str(POSTPROCESS), str(self.root)], env=environment, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        main = plistlib.loads((self.app / "Info.plist").read_bytes())
+        extension = plistlib.loads((self.extension / "Info.plist").read_bytes())
+        self.assertEqual(main["WhitegramSourceRevision"], "a" * 40)
+        self.assertEqual(main["WhitegramDiagnosticsUploadKey"], "b" * 64)
+        self.assertNotIn("WhitegramDiagnosticsUploadKey", extension)
+        self.assertNotIn("b" * 64, result.stdout + result.stderr)
+
+    def test_invalid_diagnostics_configuration_is_atomic(self):
+        before = (self.app / "Info.plist").read_bytes()
+        environment = dict(os.environ, WHITEGRAM_DIAGNOSTICS_URL="http://diagnostics.invalid/v1/reports",
+                           WHITEGRAM_DIAGNOSTICS_UPLOAD_KEY="b" * 64, GITHUB_SHA="a" * 40)
+        environment.pop(ENV_NAME, None)
+        result = subprocess.run([sys.executable, "-B", str(POSTPROCESS), str(self.root)], env=environment, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual((self.app / "Info.plist").read_bytes(), before)
 
     def test_invalid_keys_fail_before_modifying_the_payload_and_are_not_logged(self):
         before = {path: path.read_bytes() for path in self.root.rglob("*") if path.is_file()}

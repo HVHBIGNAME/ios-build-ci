@@ -21,7 +21,7 @@ jobs:
         include:
           - source_version: release-12.9.2
             app_version: "12.9.4"
-            app_build: "34639"
+            app_build: "34640"
 
     steps:
       - name: Checkout build repository
@@ -116,6 +116,7 @@ jobs:
           python3 -B whitegram/tests/backend/run_native.py || failed=1
           python3 -B whitegram/tests/system/run_native.py || failed=1
           python3 -B whitegram/tests/appearance_parity/run_native.py || failed=1
+          python3 -B whitegram/tests/diagnostics/run_native.py || failed=1
           python3 -B whitegram/tests/media/run_native.py || failed=1
           python3 -B whitegram/tests/voice/run_native.py --require-swift || failed=1
           python3 -B whitegram/tests/player/run_native.py --require-swift || failed=1
@@ -149,6 +150,8 @@ jobs:
       - name: Собрать release IPA
         env:
           WHITEGRAM_BACKEND_APPLICATION_KEY: ${{ secrets.WHITEGRAM_BACKEND_APPLICATION_KEY }}
+          WHITEGRAM_DIAGNOSTICS_URL: ${{ secrets.WHITEGRAM_DIAGNOSTICS_URL }}
+          WHITEGRAM_DIAGNOSTICS_UPLOAD_KEY: ${{ secrets.WHITEGRAM_DIAGNOSTICS_UPLOAD_KEY }}
         run: |
           set -euxo pipefail
           source_dir=/Users/Shared/telegram-ios
@@ -166,6 +169,7 @@ jobs:
             --configurationPath=build-system/appstore-configuration.json \
             --codesigningInformationPath=build-system/fake-codesigning \
             --configuration=release_arm64 \
+            --outputBuildArtifactsPath=build/artifacts \
             --buildNumber="$build_number"
           mkdir -p build/artifacts
           if [[ -f bazel-bin/Telegram/Telegram.ipa ]]; then
@@ -230,5 +234,13 @@ jobs:
           path: |
             /Users/Shared/telegram-ios/build/artifacts/WhiteGram.ipa
             /Users/Shared/telegram-ios/build/artifacts/WhiteGram-verification.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload matching debug symbols
+        uses: actions/upload-artifact@v4
+        with:
+          name: WhiteGram-symbols-${{ github.sha }}
+          path: /Users/Shared/telegram-ios/build/artifacts/Telegram.DSYMs.zip
           if-no-files-found: error
           retention-days: 30

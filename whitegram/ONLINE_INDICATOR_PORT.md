@@ -81,9 +81,16 @@ Using `whitegram-check-env/Scripts/python.exe -B -m unittest discover` with
 These are source/installer checks. No Swift compiler or Xcode is available on
 this host; no new IPA was built and no device behavior was verified.
 
-### Pending native checks
+### Native build checkpoint (2026-10-13)
 
-1. Build the full app on macOS using the existing installer/build workflow.
+Revision `3625798` completed
+[run 38337625690](https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/38337625690).
+Source validation, native suites, full app compilation and verified IPA upload
+passed. The Windows-only results above remain their original dated checkpoint.
+
+### Pending device checks
+
+1. Install the signed `3625798` build on an iOS device.
 2. Toggle the switch with a group/topic sender avatar visible. Verify immediate
    enable/disable; bots, self, service/deleted users, and hidden authors stay clear.
 3. Exercise future, equal-to-now, expired, missing, and hidden/recent presence.

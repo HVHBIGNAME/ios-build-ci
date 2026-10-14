@@ -5,9 +5,21 @@ import os
 import plistlib
 import shutil
 import sys
+import re
+from urllib.parse import urlsplit
 from pathlib import Path
 
 backend_key = os.environ.get("WHITEGRAM_BACKEND_APPLICATION_KEY", "")
+diagnostics_url = os.environ.get("WHITEGRAM_DIAGNOSTICS_URL", "")
+diagnostics_key = os.environ.get("WHITEGRAM_DIAGNOSTICS_UPLOAD_KEY", "")
+revision = os.environ.get("GITHUB_SHA", "")
+if diagnostics_url or diagnostics_key:
+    parsed = urlsplit(diagnostics_url)
+    if (parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password
+            or parsed.query or parsed.fragment or parsed.path != "/v1/reports"
+            or not re.fullmatch(r"[a-f0-9]{64}", diagnostics_key)
+            or not re.fullmatch(r"[a-f0-9]{40}", revision)):
+        raise SystemExit("Diagnostics require an HTTPS /v1/reports endpoint, 64-hex upload key and 40-hex GITHUB_SHA")
 if backend_key:
     try:
         decoded_key = base64.b64decode(backend_key, validate=True)
@@ -50,6 +62,11 @@ for path in sorted(root.rglob("Info.plist")):
             updated_plist["WhitegramBackendApplicationKey"] = backend_key
         else:
             updated_plist.pop("WhitegramBackendApplicationKey", None)
+        for name, value in (("WhitegramDiagnosticsURL", diagnostics_url), ("WhitegramDiagnosticsUploadKey", diagnostics_key), ("WhitegramSourceRevision", revision)):
+            if value:
+                updated_plist[name] = value
+            else:
+                updated_plist.pop(name, None)
 
     url_types = updated_plist.get("CFBundleURLTypes")
     if isinstance(url_types, list):

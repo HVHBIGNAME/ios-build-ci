@@ -210,6 +210,10 @@ private final class WhitegramURLSessionRequest: NSObject, URLSessionDataDelegate
             self.finish(.failure(.responseTooLarge))
             return
         }
+        if response.statusCode >= 400 {
+            NotificationCenter.default.post(name: Notification.Name("WhitegramDiagnostics.runtimeError"), object: nil,
+                userInfo: ["kind": "http", "component": "services", "code": response.statusCode])
+        }
         self.lock.lock()
         let active = self.completion != nil && self.terminalResult == nil
         if active { self.response = response }
@@ -236,6 +240,10 @@ private final class WhitegramURLSessionRequest: NSObject, URLSessionDataDelegate
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         if let error = error as NSError? {
+            if error.code != NSURLErrorCancelled {
+                NotificationCenter.default.post(name: Notification.Name("WhitegramDiagnostics.runtimeError"), object: nil,
+                    userInfo: ["kind": "network", "component": "services", "code": error.code])
+            }
             let serviceError: WhitegramServiceError
             if error.domain == NSURLErrorDomain && error.code == NSURLErrorCancelled {
                 serviceError = .cancelled
