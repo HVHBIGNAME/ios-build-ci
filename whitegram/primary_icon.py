@@ -27,6 +27,11 @@ def install_primary_icon(source: Path) -> None:
             raise ValueError("Both primary icon sets exist; refusing an ambiguous build")
         previous.rename(destination)
     destination.mkdir(parents=True, exist_ok=True)
+    # actool treats old, unassigned PNGs inside an appiconset as build errors.
+    declared = {entry["file"] for entry in manifest["images"]}
+    for path in destination.glob("*.png"):
+        if path.name not in declared:
+            path.unlink()
     for entry in manifest["images"]:
         shutil.copyfile(RESOURCES / entry["file"], destination / entry["file"])
     contents = {"images": images, "info": {"author": "xcode", "version": 1}}

@@ -52,11 +52,13 @@ class SideloadConfigurationTests(unittest.TestCase):
         previous = catalog / "AppIconLLC.appiconset"
         previous.mkdir(parents=True)
         (previous / "Contents.json").write_text('{"images": []}')
+        (previous / "BlueIcon@2x-1.png").write_bytes(b"unassigned legacy icon")
         self.configure()
         destination = catalog / "WGPrimary.appiconset"
         self.assertFalse(previous.exists())
         contents = json.loads((destination / "Contents.json").read_text())
         self.assertEqual(len(contents["images"]), 3)
+        self.assertEqual({path.name for path in destination.glob("*.png")}, {entry["filename"] for entry in contents["images"]})
         self.assertEqual([entry.get("appearances", []) for entry in contents["images"]], [[], [{"appearance": "luminosity", "value": "dark"}], [{"appearance": "luminosity", "value": "tinted"}]])
         manifest = json.loads((ROOT / "resources/primary-icon/manifest.json").read_text())
         for entry in manifest["images"]:
