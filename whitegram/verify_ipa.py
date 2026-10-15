@@ -5,9 +5,11 @@ import hashlib
 import json
 from pathlib import Path, PurePosixPath
 import plistlib
+import re
 import struct
 import subprocess
 import zipfile
+from urllib.parse import urlsplit
 
 
 SDK_FILES = (
@@ -18,7 +20,25 @@ ICONS = {"Aqua", "Aura", "Azure", "Chrome", "Crystal", "Depth", "Frost", "Glow",
 EXTENSION_SUFFIXES = {"Share", "NotificationService", "NotificationContent", "SiriIntents", "Widget", "BroadcastUpload"}
 
 
-def verify(ipa: Path, repository: Path, revision: str, version: str, build: str) -> dict:
+def verify_diagnostics(info: dict, revision: str, required: bool = False) -> bool:
+    url = info.get("WhitegramDiagnosticsURL")
+    key = info.get("WhitegramDiagnosticsUploadKey")
+    if url is None and key is None:
+        if required:
+            raise ValueError("Automatic diagnostic delivery is missing from this IPA")
+        return False
+    if not isinstance(url, str) or not isinstance(key, str) or not re.fullmatch(r"[a-f0-9]{64}", key):
+        raise ValueError("Invalid diagnostic delivery configuration")
+    parsed = urlsplit(url)
+    if (parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password
+            or parsed.path != "/v1/reports" or parsed.query or parsed.fragment):
+        raise ValueError("Invalid diagnostic endpoint")
+    if info.get("WhitegramSourceRevision") != revision:
+        raise ValueError("Packaged diagnostic source revision does not match the requested revision")
+    return True
+
+
+def verify(ipa: Path, repository: Path, revision: str, version: str, build: str, require_diagnostics: bool = False, require_original_icon: bool = False) -> dict:
     app = "Payload/Telegram.app/"
     bundle_id = "whitegram.telegra.Telegraph"
     with zipfile.ZipFile(ipa) as archive:
@@ -33,6 +53,12 @@ def verify(ipa: Path, repository: Path, revision: str, version: str, build: str)
             if path.is_absolute() or ".." in path.parts:
                 raise ValueError(f"Unexpected archive path: {name}")
         info = plistlib.loads(archive.read(app + "Info.plist"))
+        diagnostics = verify_diagnostics(info, revision, required=require_diagnostics)
+        primary_icons = {key: info.get(key, {}).get("CFBundlePrimaryIcon", {}).get("CFBundleIconName") for key in ("CFBundleIcons", "CFBundleIcons~ipad")}
+        if require_original_icon and any(name != "WGPrimary" for name in primary_icons.values()):
+            raise ValueError("Original WGPrimary icon is missing from the iPhone/iPad declarations")
+        if require_original_icon and not any(name.startswith(app + "WGPrimary") and name.endswith(".png") for name in names):
+            raise ValueError("Compiled original primary-icon PNGs are missing")
         for key, expected in (("CFBundleIdentifier", bundle_id), ("CFBundleShortVersionString", version), ("CFBundleVersion", build)):
             if str(info.get(key)) != expected:
                 raise ValueError(f"Unexpected {key}: {info.get(key)!r}")
@@ -47,6 +73,8 @@ def verify(ipa: Path, repository: Path, revision: str, version: str, build: str)
                 continue
             product = PurePosixPath(name).parent.stem
             extension = plistlib.loads(archive.read(name))
+            if "WhitegramDiagnosticsUploadKey" in extension or "WhitegramDiagnosticsURL" in extension:
+                raise ValueError("Diagnostic delivery credentials must be confined to the main app")
             identifier = extension.get("CFBundleIdentifier")
             # Bazel product names differ from IDs: WidgetExtension.appex uses .Widget.
             if identifier not in expected_extensions or identifier in extensions.values():
@@ -79,6 +107,8 @@ def verify(ipa: Path, repository: Path, revision: str, version: str, build: str)
         "architecture": "arm64", "cpu_subtype": subtype, "extensions": extensions,
         "alternate_icons": sorted(icons), "plugin_sdk_sha256": sdk_hashes,
         "zip_crc": "passed", "device_validation": "not performed",
+        "automatic_diagnostics_configured": diagnostics,
+        "primary_icons": primary_icons,
     }
 
 
@@ -90,8 +120,10 @@ def main() -> None:
     parser.add_argument("--version", default="12.9.4")
     parser.add_argument("--build", default="34639")
     parser.add_argument("--report", type=Path, required=True)
+    parser.add_argument("--require-diagnostics", action="store_true")
+    parser.add_argument("--require-original-icon", action="store_true")
     args = parser.parse_args()
-    report = verify(args.ipa, args.repository, args.revision, args.version, args.build)
+    report = verify(args.ipa, args.repository, args.revision, args.version, args.build, args.require_diagnostics, args.require_original_icon)
     output = json.dumps(report, indent=2, ensure_ascii=False) + "\n"
     args.report.write_text(output, encoding="utf-8")
     print(output, end="")

@@ -21,7 +21,7 @@ jobs:
         include:
           - source_version: release-12.9.2
             app_version: "12.9.4"
-            app_build: "34640"
+            app_build: "34641"
 
     steps:
       - name: Checkout build repository
@@ -137,6 +137,7 @@ jobs:
           python3 "$GITHUB_WORKSPACE/whitegram/configure.py" /Users/Shared/telegram-ios
           test "$(python3 -c 'import json; print(json.load(open("/Users/Shared/telegram-ios/versions.json"))["app"])')" = "${{ matrix.app_version }}"
           test "$(python3 -c 'import json; print(json.load(open("/Users/Shared/telegram-ios/build-system/appstore-configuration.json"))["bundle_id"])')" = "ph.telegra.Telegraph"
+          test "$(python3 -c 'import json; print(json.load(open("/Users/Shared/telegram-ios/build-system/appstore-configuration.json"))["enable_icloud"])')" = "False"
 
       - name: Restore Bazel disk cache
         id: bazel_cache
@@ -217,6 +218,7 @@ jobs:
           python3 "$GITHUB_WORKSPACE/whitegram/verify_ipa.py" build/artifacts/WhiteGram.ipa \
             --repository "$GITHUB_WORKSPACE" --revision "$GITHUB_SHA" \
             --version "${{ matrix.app_version }}" --build "$build_number" \
+            --require-original-icon \
             --report build/artifacts/WhiteGram-verification.json
           rm -rf "$staging_dir"
 

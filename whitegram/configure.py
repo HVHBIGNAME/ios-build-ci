@@ -3,6 +3,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from primary_icon import install_primary_icon
 
 root = Path(sys.argv[1]).resolve()
 build_bundle_id = "ph.telegra.Telegraph"
@@ -13,6 +14,9 @@ config_path = root / "build-system" / "appstore-configuration.json"
 config = json.loads(config_path.read_text())
 config["bundle_id"] = build_bundle_id
 config["app_specific_url_scheme"] = url_scheme
+# The unsigned distribution has no provisioned Telegram iCloud container.
+# CKContainer.default() throws an Objective-C exception after sideloading.
+config["enable_icloud"] = False
 config_path.write_text(json.dumps(config, indent="\t") + "\n")
 
 for relative in (
@@ -48,5 +52,7 @@ versions_path = root / "versions.json"
 versions = json.loads(versions_path.read_text())
 versions["app"] = "12.9.4"
 versions_path.write_text(json.dumps(versions, indent=4) + "\n")
+
+install_primary_icon(root)
 
 print(f"Configured {app_name} build identity {build_bundle_id} on Telegram 12.9.4")

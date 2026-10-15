@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from diagnostics.receiver import Inbox, handler, validate_report, fingerprint
 from diagnostics_patches import APP, DIAGNOSTICS_RUNTIME_FILES, apply_diagnostics_patches
+from verify_ipa import verify_diagnostics
 from test_history_patches import MemoryRoot, PIN, parse_sources
 
 
@@ -85,6 +86,17 @@ class ReceiverTests(unittest.TestCase):
 
 
 class DiagnosticSourceTests(unittest.TestCase):
+    def test_ipa_diagnostics_require_complete_configuration_and_exact_revision(self):
+        values = {"WhitegramDiagnosticsURL": "https://example.invalid:8443/v1/reports", "WhitegramDiagnosticsUploadKey": "b" * 64, "WhitegramSourceRevision": "a" * 40}
+        self.assertTrue(verify_diagnostics(values, "a" * 40, required=True))
+        self.assertFalse(verify_diagnostics({}, "a" * 40))
+        with self.assertRaises(ValueError):
+            verify_diagnostics({}, "a" * 40, required=True)
+        for field, value in (("WhitegramDiagnosticsURL", "http://example.invalid/v1/reports"), ("WhitegramDiagnosticsUploadKey", "bad-secret"), ("WhitegramSourceRevision", "c" * 40)):
+            with self.subTest(field=field), self.assertRaises(ValueError) as failure:
+                verify_diagnostics(dict(values, **{field: value}), "a" * 40)
+            self.assertNotIn("bad-secret", str(failure.exception))
+
     def test_production_and_native_sources_parse(self):
         paths = [ROOT / "cleanroom" / name for name in DIAGNOSTICS_RUNTIME_FILES]
         paths.append(ROOT / "tests/diagnostics/DiagnosticsTests.swift")

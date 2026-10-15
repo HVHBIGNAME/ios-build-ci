@@ -1,0 +1,41 @@
+{
+  "source_ipa_sha256": "ecc05aeff70eb2cc692ffcc07d0ee9c35a23b39b82b91d0803de1b54a10d0d6d",
+  "source_catalog_sha256": "2f41721408f6d7606c36bfb8cf18ed718fa3464ddd1173864f978c74843c5ba9",
+  "source_catalog": "Payload/Telegram.app/Assets.car",
+  "asset_name": "WGPrimary",
+  "images": [
+    {
+      "file": "WGPrimaryLight.png",
+      "appearance": "light",
+      "width": 1024,
+      "height": 1024,
+      "rendition_offset": 12481280,
+      "payload_offset": 12481568,
+      "payload_bytes": 256140,
+      "rgba_sha256": "9529b92cb3b7f61df1d200789941c7e039180a53337e536d8bc95b010ed6c7b9",
+      "sha256": "087ff22df9a2f00258861221fee29343e6e97231f48a3cd2bf0a72fd5cf293b7"
+    },
+    {
+      "file": "WGPrimaryDark.png",
+      "appearance": "dark",
+      "width": 1024,
+      "height": 1024,
+      "rendition_offset": 32748112,
+      "payload_offset": 32748400,
+      "payload_bytes": 410659,
+      "rgba_sha256": "27c77cf343789217805e51eefc449e9e38ccf1008fc6a36c69490f05c3c577c3",
+      "sha256": "fd445ee515c935dd93251f85d9e51c3a992e6cc2803a525d238d3f3d5d55a359"
+    },
+    {
+      "file": "WGPrimaryTinted.png",
+      "appearance": "tinted",
+      "width": 1024,
+      "height": 1024,
+      "rendition_offset": 53652944,
+      "payload_offset": 53653232,
+      "payload_bytes": 344355,
+      "rgba_sha256": "65924414400bc569f19686c7c635b371a48ece6d99c5072eb03f6e776bb68c30",
+      "sha256": "8d9d362ce9273f6e466b15d27b47f058dc9a101a6c67fb8100bcd741cff14c9a"
+    }
+  ]
+}
