@@ -61,6 +61,35 @@ rendering and icon-cache refresh after re-signing remain to be checked.
 
 ## Build checkpoint
 
-Build 34641 is the first candidate with both fixes. Successful compilation and
-archive checks must not be described as a verified launch on a physical device.
+Build **34641**, revision `64ce8ab784bb21210133584cc52f8f8ec51c096a`, passed
+[CI run 38742973871](https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/38742973871)
+on 2026-10-15. The initial icon compilation rejected unassigned legacy PNGs;
+the follow-up commit removes those images and its regression test covers this.
+
+The downloaded IPA passed local verification with both `--require-diagnostics`
+and `--require-original-icon`: ZIP CRC, arm64 executable, all six extension IDs,
+exact committed plugin SDK, diagnostics configuration/revision, and WGPrimary
+primary-icon declarations for both iPhone and iPad.
+
+- Artifact: `11979430165` (`WhiteGram-12.9.4-34641-unsigned`).
+- Matching symbols: `11979930050`.
+- IPA bytes: `75,541,066`.
+- IPA SHA-256: `a7023bd975999b90f11ba54794860e24702b2bf02e76cf01447eb03622664153`.
+- Local IPA: `C:\coding\telegram\whitegram\build-64ce8ab\WhiteGram.ipa`.
+
+The existing diagnostic receiver was resumed with its original configuration;
+public HTTPS health returned success. Successful compilation and archive checks
+are not a verified launch on a physical device; user confirmation is pending.
 The raw IPS and its device identifiers are not committed.
+
+## Follow-up build 34642
+
+The 2026-10-15 17:03:18 IPS was rechecked: it reports build 34639 and an
+uncaught CloudKit exception. It does not establish a crash in build 34641.
+The new build retains the disabled iCloud configuration and the recovered
+WGPrimary appearance rasters. Source tests recheck configuration propagation
+and the installed icon pixel hashes.
+
+The build-34642 workflow now requires both original-icon and diagnostics checks.
+Its IPA filename includes the version/build number to distinguish it from older
+downloads. Native-build and device results must be recorded after completion.

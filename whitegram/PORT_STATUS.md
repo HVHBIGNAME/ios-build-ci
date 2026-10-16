@@ -1,21 +1,29 @@
 # Integrated Whitegram source port
 
-Latest completed native build: revision `0c46c25c8827943dfb904f75140af545fc9eece0`, [run 38567581472](https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/38567581472) on 2026-10-14, version **12.9.4 / 34640**. Source integration, native Swift suites, release compilation, packaged-IPA verification, IPA upload and matching debug-symbol upload passed. The earlier [service-proxy checkpoint](parity/NATIVE_BUILD_CHECKPOINT.md) and [parent checkpoint](parity/PARENT_CHECKPOINT.md) retain their revision-specific evidence.
+Latest completed native build: revision `64ce8ab784bb21210133584cc52f8f8ec51c096a`, [run 38742973871](https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/38742973871) on 2026-10-15, version **12.9.4 / 34641**. Source integration, native Swift suites, release compilation, packaged-IPA verification, IPA upload and matching debug-symbol upload passed. See the [launch-fix checkpoint](LAUNCH_FIX_34641.md). The earlier [service-proxy checkpoint](parity/NATIVE_BUILD_CHECKPOINT.md) and [parent checkpoint](parity/PARENT_CHECKPOINT.md) retain their revision-specific evidence.
 
-The successful build includes the composer, sender-avatar, [Wallet/Crypto Bot visibility](BOT_VISIBILITY_PORT.md), [neutral media accent](MEDIA_ACCENT_PORT.md), [automatic private reports](DIAGNOSTICS_PORT.md) and [profile appearance](PROFILE_APPEARANCE_PORT.md) increments. Their device checks remain pending. The combined source suite at this revision passes 299 tests. The starting-revision feature-coverage counts below are historical, not current completion percentages.
+The successful build includes the composer, sender-avatar, [Wallet/Crypto Bot visibility](BOT_VISIBILITY_PORT.md), [neutral media accent](MEDIA_ACCENT_PORT.md), [automatic private reports](DIAGNOSTICS_PORT.md) and [profile appearance](PROFILE_APPEARANCE_PORT.md) increments. Their device checks remain pending. The combined source suite passes 303 tests. The starting-revision feature-coverage counts below are historical, not current completion percentages.
 
 The current outstanding catalog inventory is [CURRENT_BACKLOG.md](CURRENT_BACKLOG.md).
-Downloaded IPA: `C:\coding\telegram\whitegram\build-0c46c25\WhiteGram.ipa`,
-74,803,142 bytes, SHA-256 `5ae5ac268377e2830a8fa4016db040985bd9e135028db38c0ebb68040b70095c`.
+
+Local source increment (2026-10-16): [contact online history](ONLINE_HISTORY_PORT.md)
+adds accepted-presence capture, account-scoped storage and a paginated/filterable
+screen. The root Python suite now passes 309 tests. Seven new native XCTest
+cases are wired into the existing history runner, but Swift is unavailable on
+this Windows host; their execution and native compilation remain pending.
+These changes are not included in build 34641 and are not certified as full parity.
+
+Downloaded IPA: `C:\coding\telegram\whitegram\build-64ce8ab\WhiteGram.ipa`,
+75,541,066 bytes, SHA-256 `a7023bd975999b90f11ba54794860e24702b2bf02e76cf01447eb03622664153`.
 Local packaged checks passed for ZIP integrity, arm64, all six extensions and
 the exact committed plugin SDK. The receiver smoke test delivered one synthetic
 issue through public HTTPS, with a repeated submission correctly deduplicated.
 Actual iPhone reports and crash symbolication remain to be exercised.
 
-Build **34641** is the pending [launch-crash and original-icon fix](LAUNCH_FIX_34641.md).
+Build **34641** contains the [launch-crash and original-icon fix](LAUNCH_FIX_34641.md).
 It disables unprovisioned CloudKit initialization and installs the original
-WGPrimary light/dark/tinted rasters. Its local source suite passes 303 tests;
-native packaging and physical-device launch confirmation are pending.
+WGPrimary light/dark/tinted rasters. Native packaging and local archive checks
+passed; physical-device launch and icon-rendering confirmation are pending.
 
 ## Inputs
 

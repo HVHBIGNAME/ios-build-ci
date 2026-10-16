@@ -17,6 +17,7 @@ from player_patches import PLAYER_RUNTIME_FILES, apply_player_patches
 from plugin_resources import install_plugin_resources
 from interface_patches import apply_interface_patches
 from history_patches import HISTORY_RUNTIME_FILES, apply_history_patches
+from online_history_patches import ONLINE_HISTORY_RUNTIME_FILES, apply_online_history_patches
 from plugin_hook_patches import PLUGIN_HOOK_RUNTIME_FILES, apply_plugin_hook_patches
 from translation_patches import TRANSLATION_RUNTIME_FILES, apply_translation_patches
 from service_patches import SERVICES_RUNTIME_FILES, apply_service_patches
@@ -179,7 +180,7 @@ cleanroom_files.update({"cleanroom/" + name: destination for name, destination i
 cleanroom_files.update({"cleanroom/" + name: destination for name, destination in MEDIA_RUNTIME_FILES.items()})
 for manifest in (
     APPEARANCE_RUNTIME_FILES, APPEARANCE_PARITY_RUNTIME_FILES, APPEARANCE_ICON_PACK_RUNTIME_FILES,
-    APPEARANCE_GLASS_RUNTIME_FILES, HISTORY_RUNTIME_FILES, ACCOUNTS_RUNTIME_FILES,
+    APPEARANCE_GLASS_RUNTIME_FILES, HISTORY_RUNTIME_FILES, ONLINE_HISTORY_RUNTIME_FILES, ACCOUNTS_RUNTIME_FILES,
     PRIVACY_RUNTIME_FILES, TRANSFER_RUNTIME_FILES, PLAYER_RUNTIME_FILES, BACKEND_RUNTIME_FILES, TRAFFIC_RUNTIME_FILES,
     SYSTEM_RUNTIME_FILES, STICKER_RUNTIME_FILES, ONLINE_INDICATOR_RUNTIME_FILES, TEXT_PROCESSING_RUNTIME_FILES, FORMATTING_TOOLBAR_RUNTIME_FILES, MEDIA_ACCENT_RUNTIME_FILES, DIAGNOSTICS_RUNTIME_FILES,
     PROFILE_APPEARANCE_RUNTIME_FILES,
@@ -262,7 +263,7 @@ def patch_file(relative_path, anchor, replacement):
 patched_sources = set(cleanroom_files.values()) | set(changed)
 for patcher in (
     apply_runtime_patches, apply_build_patches, apply_public_api_adaptations,
-    apply_appearance_patches, apply_interface_patches, apply_history_patches,
+    apply_appearance_patches, apply_interface_patches, apply_history_patches, apply_online_history_patches,
     apply_account_patches, apply_plugin_hook_patches, apply_appearance_extensions,
     apply_appearance_parity_patches, apply_appearance_icon_pack_patches, apply_appearance_glass_patches,
     apply_translation_patches, apply_service_patches, apply_media_camera_patches,

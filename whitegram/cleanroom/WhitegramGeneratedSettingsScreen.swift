@@ -101,6 +101,7 @@ private final class WhitegramSettingsCoordinator {
         case "history":
             guard let action = WhitegramHistoryAction(rawValue: id) else { return }
             target = whitegramHistoryActionController(context: self.context, action: action)
+        case "onlineHistory": target = whitegramOnlineHistoryController(context: self.context, clearOnOpen: id == "onlineHistoryClear")
         case "chats": target = whiteGramChatSettingsController(context: self.context)
         case "tabs": target = whiteGramTabsSettingsController(context: self.context)
         case "fonts": target = whitegramFontsController(context: self.context)

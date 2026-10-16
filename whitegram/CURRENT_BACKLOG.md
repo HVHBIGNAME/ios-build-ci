@@ -1,8 +1,8 @@
 # Remaining Whitegram implementation work
 
-Updated 2026-10-14 after the bot-visibility, neutral-media and profile-appearance
-increments. **The client is not feature-complete.** The recovered catalog still
-has **55 rows without UI routes**, including previews and informational text.
+Updated 2026-10-16 after the local online-history source increment.
+**The client is not feature-complete.** The recovered catalog still
+has **52 rows without UI routes**, including previews and informational text.
 This is a routing count, not a percentage of implemented behavior. Reachable
 screens also require behavioral/parity validation; the original 333-row audit in
 `FEATURE_COVERAGE.md` is historical and cannot be used as current completion data.
@@ -43,10 +43,7 @@ screens also require behavioral/parity validation; the original 333-row audit in
 - [ ] `fakeDeviceName`
 - [ ] `highlightMentions` — recovered behavior fades incoming direct replies; it is not keyword highlighting
 
-### Presence/read history (5)
-- [ ] `onlineHistoryEnabled`
-- [ ] `onlineHistoryView`
-- [ ] `onlineHistoryClear`
+### Presence/read history (2)
 - [ ] `trackLastOnline`
 - [ ] `saveReadDates`
 
@@ -81,6 +78,12 @@ screens also require behavioral/parity validation; the original 333-row audit in
 - [ ] `showRegistrationDateCard`
 
 ## Gates for marking a feature complete
+
+`onlineHistoryEnabled`, `onlineHistoryView` and `onlineHistoryClear` now have
+source consumers and UI routes. They are **not marked parity-complete**:
+native compilation/runtime tests, device checks, capture-policy comparison and
+original archive migration remain pending. See [ONLINE_HISTORY_PORT.md](ONLINE_HISTORY_PORT.md).
+The change is not yet included in an IPA.
 
 For each operational row, establish its recovered behavior and stored types,
 connect its control to an installed consumer, verify persistence and refresh,
