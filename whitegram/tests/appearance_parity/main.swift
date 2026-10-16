@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 
 // Compile with the production AppearancePolicy and LocalStars sources on macOS.
 enum WhitegramPreferences {

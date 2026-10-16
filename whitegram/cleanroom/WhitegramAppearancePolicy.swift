@@ -1,5 +1,6 @@
 import Foundation
 import CoreFoundation
+import CoreGraphics
 
 /// Values used by appearance consumers, independently of the public-fork settings.
 public struct WhitegramAppearancePolicy: Equatable {

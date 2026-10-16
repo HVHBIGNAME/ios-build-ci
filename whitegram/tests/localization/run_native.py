@@ -28,7 +28,7 @@ let package = Package(name: "WhitegramLocalizationChecks", platforms: [.macOS(.v
     .testTarget(name: "LocalizationTests", dependencies: ["TelegramCore", "SettingsUI"])
 ])
 ''', encoding="utf-8")
-        for name in ("WhitegramPreferences.swift", "WhitegramLocalizationPack.swift", "WhitegramLocalizationStore.swift", "WhitegramLocalization.swift", "WhitegramTextSettings.swift", "WhitegramComposerStrings.swift"):
+        for name in ("WhitegramPreferences.swift", "WhitegramAppearancePolicy.swift", "WhitegramLocalizationPack.swift", "WhitegramLocalizationStore.swift", "WhitegramLocalization.swift", "WhitegramTextSettings.swift", "WhitegramComposerStrings.swift"):
             shutil.copyfile(overlay / "cleanroom" / name, core / name)
         for name in ("WhitegramSettingsState.swift", "WhitegramLocalizationStrings.swift"):
             shutil.copyfile(overlay / "generated" / name, core / name)
