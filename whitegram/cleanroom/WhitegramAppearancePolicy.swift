@@ -20,7 +20,7 @@ public struct WhitegramAppearancePolicy: Equatable {
         "liquidGlassProfile", "liquidGlassGifts", "liquidGlassInlineButtons", "glassTinting",
         "fakeLiquidGlass", "colorInsteadOfGlass", "lightChatUI",
         "hideChatListTitle", "hideChatListPremiumBadge", "hideChatListPremiumStatus",
-        "hideGifts", "visualUsernameEnabled"
+        "hideGifts", "visualUsernameEnabled", "highlightMentions", "roundProfileActionButtons"
     ]
 
     private let flags: [String: Bool]
@@ -36,7 +36,9 @@ public struct WhitegramAppearancePolicy: Equatable {
         func value(_ key: String) -> Any? {
             return values[key] ?? legacyDefaults?.object(forKey: "wg_" + key)
         }
-        self.flags = Dictionary(uniqueKeysWithValues: Self.visibilityKeys.map { ($0, Self.boolean(value($0))) })
+        var flags = Dictionary(uniqueKeysWithValues: Self.visibilityKeys.map { ($0, Self.boolean(value($0))) })
+        flags["roundProfileActionButtons"] = Self.boolean(value("roundProfileActionButtons") ?? value("roundProfileButtons"))
+        self.flags = flags
         let scale = Self.number(value("stickerSizeScale"), default: 1.0)
         // The original getter treats zero as unset, not as a request to hide stickers.
         self.stickerScale = scale == 0.0 ? 1.0 : min(2.0, max(0.1, scale))
@@ -58,6 +60,29 @@ public struct WhitegramAppearancePolicy: Equatable {
 
     public func isEnabled(_ key: String) -> Bool {
         return self.flags[key] ?? false
+    }
+
+    public func personalMessageOpacity(incoming: Bool, personalMention: Bool) -> Double {
+        return self.isEnabled("highlightMentions") && incoming && personalMention ? 0.55 : 1.0
+    }
+
+    public static func profileActionButtonWidth(width: CGFloat, inset: CGFloat, spacing: CGFloat, count: Int) -> CGFloat {
+        guard count > 0, width.isFinite, inset.isFinite, spacing.isFinite else { return 0.0 }
+        return max(0.0, (width - inset * 2.0 + spacing) / CGFloat(count) - spacing)
+    }
+
+    public static func profileActionButtonGeometry(size: CGSize, fraction: CGFloat, rounded: Bool) -> (backgroundFrame: CGRect, cornerRadius: CGFloat, iconY: CGFloat, labelBottomInset: CGFloat) {
+        guard size.width.isFinite, size.height.isFinite, size.width >= 0, size.height >= 0 else { return (.zero, 0, 0, 0) }
+        let fraction = fraction.isFinite ? min(1.0, max(0.0, fraction)) : 0.0
+        let y = size.height * (1.0 - fraction)
+        if rounded {
+            let diameter = min(48.0, min(size.width, size.height))
+            let visibleDiameter = diameter * fraction
+            return (CGRect(x: (size.width - visibleDiameter) * 0.5, y: y, width: visibleDiameter, height: visibleDiameter),
+                    visibleDiameter * 0.5, max(0.0, (diameter - 40.0) * 0.5), 2.0)
+        }
+        let frame = CGRect(x: 0.0, y: y, width: size.width, height: max(0.0, size.height - y))
+        return (frame, min(16.0, frame.height * 0.5), 1.0, 9.0)
     }
 
     /// Filters the contacts list by bot username, never by a person's display name.

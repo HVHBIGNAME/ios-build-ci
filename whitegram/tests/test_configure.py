@@ -83,6 +83,18 @@ class SideloadConfigurationTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("telegram_enable_icloud = False\n", output.read_text())
 
+    def test_settings_preview_uses_recovered_light_and_dark_artwork(self):
+        self.configure()
+        preview = self.source / "submodules/TelegramUI/Images.xcassets/WhitegramPrimaryPreview.imageset"
+        contents = json.loads((preview / "Contents.json").read_text())
+        self.assertEqual({item["filename"] for item in contents["images"]}, {"WGPrimaryLight.png", "WGPrimaryDark.png"})
+        self.assertEqual([item.get("appearances", []) for item in contents["images"]], [[], [{"appearance": "luminosity", "value": "dark"}]])
+        for item in contents["images"]:
+            self.assertEqual((preview / item["filename"]).read_bytes(), (ROOT / "resources/primary-icon" / item["filename"]).read_bytes())
+        before = (preview / "Contents.json").read_bytes()
+        self.configure()
+        self.assertEqual((preview / "Contents.json").read_bytes(), before)
+
 
 if __name__ == "__main__":
     unittest.main()

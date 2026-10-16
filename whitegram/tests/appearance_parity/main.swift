@@ -16,6 +16,32 @@ func check(_ condition: @autoclosure () -> Bool, _ message: String) {
 }
 
 let defaults = WhitegramAppearancePolicy(values: [:])
+let emphasis = WhitegramAppearancePolicy(values: ["highlightMentions": true])
+check(emphasis.personalMessageOpacity(incoming: true, personalMention: true) == 0.55, "Recovered personal-mention opacity")
+check(emphasis.personalMessageOpacity(incoming: false, personalMention: true) == 1.0, "Own messages are not faded")
+check(emphasis.personalMessageOpacity(incoming: true, personalMention: false) == 1.0, "Other incoming messages remain opaque")
+check(defaults.personalMessageOpacity(incoming: true, personalMention: true) == 1.0, "Disabled emphasis restores opacity")
+check(emphasis != defaults, "Emphasis invalidates live appearance snapshots")
+let roundButtons = WhitegramAppearancePolicy(values: ["roundProfileButtons": true])
+check(roundButtons.isEnabled("roundProfileActionButtons"), "Unset action-button style inherits the original account-button setting")
+check(!WhitegramAppearancePolicy(values: ["roundProfileButtons": true, "roundProfileActionButtons": false]).isEnabled("roundProfileActionButtons"), "Explicit false overrides inherited round style")
+check(!WhitegramAppearancePolicy(values: ["roundProfileActionButtons": 1]).isEnabled("roundProfileActionButtons"), "Numeric values do not enable round layout")
+check(roundButtons != defaults, "Inherited geometry changes invalidate profile layout")
+for count in 1...6 {
+    let width = WhitegramAppearancePolicy.profileActionButtonWidth(width: 390, inset: 16, spacing: 8, count: count)
+    check(abs((width + 8) * CGFloat(count) - 8 + 32 - 390) < 0.001, "Button widths preserve the available row width")
+}
+check(WhitegramAppearancePolicy.profileActionButtonWidth(width: 390, inset: 16, spacing: 8, count: 0) == 0, "Empty profiles never divide by zero")
+check(WhitegramAppearancePolicy.profileActionButtonWidth(width: 10, inset: 16, spacing: 8, count: 4) == 0, "Narrow rows cannot produce negative widths")
+let roundGeometry = WhitegramAppearancePolicy.profileActionButtonGeometry(size: CGSize(width: 72, height: 72), fraction: 1, rounded: true)
+check(roundGeometry.backgroundFrame == CGRect(x: 12, y: 0, width: 48, height: 48) && roundGeometry.cornerRadius == 24, "Each action has a separate circular background")
+let normalGeometry = WhitegramAppearancePolicy.profileActionButtonGeometry(size: CGSize(width: 72, height: 58), fraction: 1, rounded: false)
+check(normalGeometry.backgroundFrame == CGRect(x: 0, y: 0, width: 72, height: 58) && normalGeometry.cornerRadius == 16, "Disabling round buttons restores the native background")
+for fraction in [CGFloat(0), 0.2, 0.5, 1, -1, 2, .nan] {
+    let geometry = WhitegramAppearancePolicy.profileActionButtonGeometry(size: CGSize(width: 72, height: 72), fraction: fraction, rounded: true)
+    check(geometry.backgroundFrame.width.isFinite && geometry.backgroundFrame.height.isFinite && geometry.cornerRadius.isFinite, "Collapse animation geometry stays finite")
+    check(geometry.backgroundFrame.width == geometry.backgroundFrame.height, "Round masks remain circles while collapsing")
+}
 check(WhitegramVisualUsername.normalized(" @Example_123 ") == "Example_123", "A visual username accepts one optional prefix")
 check(WhitegramVisualUsername.normalized("") == "", "Empty visual username clears the override")
 for invalid in ["@@name", "1name", "a b", "name\nmessage", "name/path", "имя", String(repeating: "a", count: 33)] {
@@ -115,6 +141,10 @@ legacy.set(true, forKey: "wg_unlimitedRecentStickers")
 check(WhitegramStickerSettings(values: [:], legacyDefaults: legacy).recentLimit == 999, "Original sticker preference is read")
 check(WhitegramStickerSettings(values: ["unlimitedRecentStickers": false], legacyDefaults: legacy).recentLimit == 20, "Explicit false overrides the legacy sticker preference")
 legacy.set(true, forKey: "wg_hideReactions")
+legacy.set(true, forKey: "wg_roundProfileButtons")
+check(WhitegramAppearancePolicy(values: [:], legacyDefaults: legacy).isEnabled("roundProfileActionButtons"), "Original inherited button preference is read")
+legacy.set(false, forKey: "wg_roundProfileActionButtons")
+check(!WhitegramAppearancePolicy(values: [:], legacyDefaults: legacy).isEnabled("roundProfileActionButtons"), "Explicit legacy action style overrides the legacy parent")
 legacy.set(150.0, forKey: "wg_tabBarWidthScale")
 legacy.set(true, forKey: "wg_liquidGlassProfile")
 check(WhitegramGlassSettings(values: [:], defaults: legacy).material(for: .profile) == .glass, "Original primitive glass settings migrate")

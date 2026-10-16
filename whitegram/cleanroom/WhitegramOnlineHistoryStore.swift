@@ -21,6 +21,7 @@ public struct WhitegramOnlineHistoryEntry: Codable, Equatable {
 
     var isValid: Bool {
         return peerId > 0 && isContact && timestamp.isFinite && timestamp >= 0
+            && timestamp <= Date.distantFuture.timeIntervalSince1970
             && peerName.count <= 256 && (peerUsername?.count ?? 0) <= 64
             && peerName.utf8.count <= 2048 && (peerUsername?.utf8.count ?? 0) <= 256
     }

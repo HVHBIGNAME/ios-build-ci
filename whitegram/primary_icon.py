@@ -6,6 +6,7 @@ import shutil
 
 RESOURCES = Path(__file__).resolve().parent / "resources/primary-icon"
 CATALOG = Path("Telegram/Telegram-iOS/DefaultAppIcon.xcassets")
+PREVIEW = Path("submodules/TelegramUI/Images.xcassets/WhitegramPrimaryPreview.imageset")
 
 
 def install_primary_icon(source: Path) -> None:
@@ -36,3 +37,15 @@ def install_primary_icon(source: Path) -> None:
         shutil.copyfile(RESOURCES / entry["file"], destination / entry["file"])
     contents = {"images": images, "info": {"author": "xcode", "version": 1}}
     (destination / "Contents.json").write_text(json.dumps(contents, indent=2) + "\n", encoding="utf-8")
+    preview = source / PREVIEW
+    preview.mkdir(parents=True, exist_ok=True)
+    preview_images = []
+    for entry in manifest["images"]:
+        if entry["appearance"] == "tinted":
+            continue
+        shutil.copyfile(RESOURCES / entry["file"], preview / entry["file"])
+        image = {"filename": entry["file"], "idiom": "universal", "scale": "1x"}
+        if entry["appearance"] == "dark":
+            image["appearances"] = [{"appearance": "luminosity", "value": "dark"}]
+        preview_images.append(image)
+    (preview / "Contents.json").write_text(json.dumps({"images": preview_images, "info": {"author": "xcode", "version": 1}}, indent=2) + "\n", encoding="utf-8")

@@ -1,8 +1,8 @@
 # Remaining Whitegram implementation work
 
-Updated 2026-10-16 after the local online-history source increment.
+Updated 2026-10-16 after the local profile-actions/emphasis source increment.
 **The client is not feature-complete.** The recovered catalog still
-has **52 rows without UI routes**, including previews and informational text.
+has **50 rows without UI routes**, including previews and informational text.
 This is a routing count, not a percentage of implemented behavior. Reachable
 screens also require behavioral/parity validation; the original 333-row audit in
 `FEATURE_COVERAGE.md` is historical and cannot be used as current completion data.
@@ -35,21 +35,19 @@ screens also require behavioral/parity validation; the original 333-row audit in
 - [ ] `localPremium`
 - [ ] `unlimitedPinnedChats` — needs a real local ordering model, not a raised server limit
 
-### Chat, identity and anti-scam behavior (6)
+### Chat, identity and anti-scam behavior (5)
 - [ ] `hideChannelAdsInfo`
 - [ ] `chatScrollAnimation` — recovered description requires bubble inertia/depth
 - [ ] `scammerProtection` — signed database exists; a verified live UI consumer is missing
 - [ ] `deferredMessages`
 - [ ] `fakeDeviceName`
-- [ ] `highlightMentions` — recovered behavior fades incoming direct replies; it is not keyword highlighting
 
 ### Presence/read history (2)
 - [ ] `trackLastOnline`
 - [ ] `saveReadDates`
 
-### Profile and media effects (10)
+### Profile and media effects (9)
 - [ ] `roundProfileButtons`
-- [ ] `roundProfileActionButtons`
 - [ ] `wgBubbleFisheyeEffect`
 - [ ] `profileColorEffect`
 - [ ] `avatarBlurEffect`
@@ -79,11 +77,18 @@ screens also require behavioral/parity validation; the original 333-row audit in
 
 ## Gates for marking a feature complete
 
+`highlightMentions` and `roundProfileActionButtons` now have runtime consumers
+and routes in the build-34643 source increment. Native/device verification and
+exact profile-layout comparison are pending; see
+[APPEARANCE_DETAILS_PORT.md](APPEARANCE_DETAILS_PORT.md). These rows are not
+counted as unconnected, but are not certified as full parity.
+
 `onlineHistoryEnabled`, `onlineHistoryView` and `onlineHistoryClear` now have
 source consumers and UI routes. They are **not marked parity-complete**:
-native compilation/runtime tests, device checks, capture-policy comparison and
+device checks, capture-policy comparison and
 original archive migration remain pending. See [ONLINE_HISTORY_PORT.md](ONLINE_HISTORY_PORT.md).
-The change is not yet included in an IPA.
+The change is included in [build 34642](BUILD_34642.md), whose native CI suites
+and release compilation passed.
 
 For each operational row, establish its recovered behavior and stored types,
 connect its control to an installed consumer, verify persistence and refresh,

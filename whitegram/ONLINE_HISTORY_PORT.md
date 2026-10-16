@@ -1,7 +1,7 @@
 # Contact online history
 
-Local source increment, 2026-10-16. Not included in build 34641. Native
-compilation, runtime tests and physical-device comparison are still pending.
+Source increment, 2026-10-16, included in [build 34642](BUILD_34642.md).
+Native CI and release compilation passed; physical-device comparison remains pending.
 
 ## Recovered observations
 
@@ -72,7 +72,8 @@ is limited to the updates Telegram actually supplies later.
   rejection and invalid observations. The existing history native CI runner
   now includes these actual production store/query sources.
 - Native invocation on this Windows host returned **2: Swift unavailable**.
-  XCTest execution and TelegramCore/SettingsUI type checking are pending.
+  Subsequently GitHub run `38892851238` passed its native Swift suites (including
+  the history runner) and full TelegramCore/SettingsUI release compilation on macOS.
 - Catalog routing count: 52 unconnected rows, down from 55. This is not a
   runtime parity or completion percentage.
 

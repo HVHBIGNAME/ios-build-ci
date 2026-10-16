@@ -60,6 +60,7 @@ enum WhitegramPortCapabilities {
         "formattingToolbar": "formattingToolbarEnabled",
         "neutralMediaAccent": "neutralMediaAccent",
         "hideGifts": "hideGifts", "visualUsernameEnabled": "visualUsernameEnabled",
+        "highlightMentions": "highlightMentions", "roundProfileActionButtons": "roundProfileActionButtons",
         "hideChatListTitle": "hideChatListTitle", "hideChatListPremiumBadge": "hideChatListPremiumBadge",
         "hideSponsoredProxyChannel": "hideSponsoredProxyChannel",
         "unlimitedRecentStickers": "unlimitedRecentStickers", "unlimitedFavoriteStickers": "unlimitedFavoriteStickers",
@@ -205,6 +206,7 @@ enum WhitegramPortCapabilities {
 
     static func booleanValue(_ id: String) -> Bool? {
         guard let key = booleans[id] else { return nil }
+        if key == "roundProfileActionButtons" { return WhitegramAppearancePolicy.current.isEnabled(key) }
         var fallback = defaults.boolValue(for: id) ?? booleanDefaults[key] ?? false
         if let legacy = UserDefaults.standard.object(forKey: "wg_" + key) as? NSNumber,
            CFGetTypeID(legacy) == CFBooleanGetTypeID() {

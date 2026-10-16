@@ -108,8 +108,17 @@ final class WhitegramOnlineHistoryTests: XCTestCase {
 
     func testInvalidObservationsDoNotPoisonTheArchive() async throws {
         let store = self.store()
-        store.append([entry(-1), entry(time: .nan), entry(time: .infinity), entry(time: -10), entry()])
+        store.append([entry(-1), entry(time: .nan), entry(time: .infinity), entry(time: .greatestFiniteMagnitude), entry(time: -10), entry()])
         let valid = try await snapshot(store)
         XCTAssertEqual(valid.count, 1)
+    }
+
+    func testOutOfCalendarRangeArchiveIsRejectedBeforePresentation() async throws {
+        let store = self.store()
+        let entries = try JSONSerialization.jsonObject(with: JSONEncoder().encode([entry(time: 1e300)]))
+        let data = try JSONSerialization.data(withJSONObject: ["version": 1, "accountId": 101, "entries": entries])
+        defaults.set(data, forKey: store.storageKey)
+        do { _ = try await snapshot(store); XCTFail("Unsupported date reached the UI snapshot") } catch {}
+        XCTAssertEqual(defaults.data(forKey: store.storageKey), data)
     }
 }

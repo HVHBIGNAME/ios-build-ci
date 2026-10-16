@@ -136,8 +136,20 @@ public enum WhitegramHistoryRuntime {
     }
 
     public static func displayOpacity(_ message: Message, accountPeerId: PeerId) -> Double {
-        guard message.whitegramHistoryAttribute?.isDeleted == true, self.shouldDisplay(message, accountPeerId: accountPeerId) else { return 1.0 }
-        return self.policy.deletedOpacity
+        if message.whitegramHistoryAttribute?.isDeleted == true, self.shouldDisplay(message, accountPeerId: accountPeerId) {
+            return self.policy.deletedOpacity
+        }
+        let appearance = WhitegramAppearancePolicy.current
+        guard appearance.isEnabled("highlightMentions"), message.flags.contains(.Incoming) else { return 1.0 }
+        let personalMention = message.attributes.contains { attribute in
+            if attribute is ConsumablePersonalMentionMessageAttribute { return true }
+            guard let entities = attribute as? TextEntitiesMessageAttribute else { return false }
+            return entities.entities.contains { entity in
+                if case let .TextMention(peerId) = entity.type { return peerId == accountPeerId }
+                return false
+            }
+        }
+        return appearance.personalMessageOpacity(incoming: true, personalMention: personalMention)
     }
 
     public static func originalForDisplay(_ message: Message, accountPeerId: PeerId) -> WhitegramHistoryEdit? {
@@ -149,11 +161,13 @@ public enum WhitegramHistoryRuntime {
     }
 
     public static func displayMessage(_ message: Message) -> Message {
-        guard message.whitegramHistoryAttribute != nil else { return message }
         // Only the rendered revision changes. Server identity, timestamp, order and
         // persisted stableVersion are untouched. This invalidates list-item layouts
         // when the opacity/visibility/original-text preferences change.
-        return message.withUpdatedStableVersion(stableVersion: message.stableVersion &+ UInt32(truncatingIfNeeded: self.policy.hashValue))
+        var version = message.stableVersion
+        if message.whitegramHistoryAttribute != nil { version = version &+ UInt32(truncatingIfNeeded: self.policy.hashValue) }
+        if message.flags.contains(.Incoming), WhitegramAppearancePolicy.current.isEnabled("highlightMentions") { version ^= 0x80000000 }
+        return version == message.stableVersion ? message : message.withUpdatedStableVersion(stableVersion: version)
     }
 
     public static func setShortened(postbox: Postbox, id: MessageId, shortened: Bool) -> Signal<Bool, NoError> {

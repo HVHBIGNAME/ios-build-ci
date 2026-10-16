@@ -11,6 +11,7 @@ from appearance_parity_patches import APPEARANCE_PARITY_RUNTIME_FILES, apply_app
 from appearance_icon_pack_patches import APPEARANCE_ICON_PACK_RUNTIME_FILES, apply_appearance_icon_pack_patches
 from appearance_glass_patches import APPEARANCE_GLASS_RUNTIME_FILES, apply_appearance_glass_patches
 from appearance_extension_patches import apply_appearance_extensions
+from appearance_details_patches import apply_appearance_details_patches
 from public_api_adaptations import apply_public_api_adaptations
 from voice_patches import VOICE_RUNTIME_FILES, VOICE_REQUIRED_DEPENDENCIES, apply_voice_patches
 from player_patches import PLAYER_RUNTIME_FILES, apply_player_patches
@@ -272,7 +273,7 @@ for patcher in (
     apply_backend_patches, apply_traffic_patches, apply_system_patches, apply_sticker_patches, apply_shortening_patches,
     apply_chat_list_visibility_patches, apply_online_indicator_patches, apply_text_processing_patches, apply_formatting_toolbar_patches,
     apply_return_key_patches, apply_contact_visibility_patches, apply_media_accent_patches, apply_diagnostics_patches,
-    apply_profile_appearance_patches,
+    apply_profile_appearance_patches, apply_appearance_details_patches,
 ):
     report = patcher(source_root)
     if isinstance(report, dict):

@@ -15,6 +15,7 @@ import appearance_extension_patches as extensions
 import appearance_parity_patches as parity
 import appearance_glass_patches as glass
 import appearance_icon_pack_patches as icons
+import appearance_details_patches as details
 from test_appearance_extensions import MemoryRoot, syntax_errors, TARGETS as EXTENSION_TARGETS
 from test_appearance_parity import TARGETS as PARITY_TARGETS
 from test_appearance_glass import TARGETS as GLASS_TARGETS
@@ -27,6 +28,7 @@ PASSES = (
     parity.apply_appearance_parity_patches,
     icons.apply_appearance_icon_pack_patches,
     glass.apply_appearance_glass_patches,
+    details.apply_appearance_details_patches,
 )
 MAPS = (
     fonts.APPEARANCE_RUNTIME_FILES,
@@ -91,7 +93,7 @@ class AppearanceCompositionSourceTests(unittest.TestCase):
 @unittest.skipUnless(SOURCE, "Set WHITEGRAM_APPEARANCE_SOURCE to the ready assembled 12.9.2 reference")
 class AppearanceCompositionTests(unittest.TestCase):
     def test_complete_sequence_is_idempotent_and_all_patched_swift_parses(self):
-        paths = {fonts.FONT_PATH, *EXTENSION_TARGETS, *PARITY_TARGETS, *GLASS_TARGETS, *ICON_TARGETS}
+        paths = {fonts.FONT_PATH, *EXTENSION_TARGETS, *PARITY_TARGETS, *GLASS_TARGETS, *ICON_TARGETS, details.APP, details.HEADER, details.BUTTON}
         files = {name: (Path(SOURCE) / name).read_text(encoding="utf-8") for name in paths}
         root = MemoryRoot({**files, "unrelated.swift": "// Another role's work\r\n"})
         reports = [apply(root) for apply in PASSES]
