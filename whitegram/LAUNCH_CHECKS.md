@@ -7,7 +7,10 @@ physical-device crash report has been received for 34643.
 
 The build workflow now also builds the same assembled source with
 `release_sim_arm64`, applies WhiteGram's bundle postprocessing and runs
-`simulator_smoke.py` on an available iPhone simulator. The first simulator build
+`simulator_smoke.py` on an available iPhone simulator matching Xcode's SDK version.
+It opens that Xcode's Simulator app and requires a display screenshot before
+installing WhiteGram, so a broken simulator display is identified separately.
+The first simulator build
 adds compilation time; subsequent runs can reuse the Bazel disk cache.
 
 The check creates its own simulator and performs a fresh-install launch and a
@@ -29,4 +32,14 @@ screens, arbitrary user actions, background termination, or a specific iPhone/iO
 version. Physical-device launch confirmation is still required.
 
 Local automation regressions: `python -B -m unittest discover -s whitegram/tests -p test_simulator_smoke.py`.
-The actual simulator check requires macOS/Xcode and is pending its first CI run.
+The actual simulator check requires macOS/Xcode; the first fully successful run
+is still pending.
+
+The initial run `39093037257` compiled both device and simulator configurations.
+The app process survived the first 30-second observation, but screenshot capture
+timed out on an iOS 26.5 runtime selected with Xcode 26.2. The overall check failed;
+no successful UI or relaunch result is claimed. The runner now records its phase
+and process observation separately, selects a matching runtime and attempts an
+app process sample when observation or screenshot capture fails.
+The follow-up device/simulator build is numbered 34645 to distinguish revisions
+in delayed device diagnostics.

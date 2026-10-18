@@ -24,22 +24,25 @@ class SimulatorSmokeTests(unittest.TestCase):
                                   {"deviceTypeIdentifier": "com.apple.CoreSimulator.SimDeviceType.iPad-Pro", "isAvailable": True}]},
         }
 
-    def test_selects_available_iphone_on_newest_supported_runtime(self):
-        chosen = smoke.select_device(self.inventory(), "18.0.0")
+    def test_selects_available_iphone_matching_xcode_sdk(self):
+        chosen = smoke.select_device(self.inventory(), "18.0.0", "26.2")
         self.assertEqual(chosen["device_type"], "com.apple.CoreSimulator.SimDeviceType.iPhone-17")
         self.assertEqual(chosen["os_version"], "26.2.0")
+        self.assertEqual(smoke.select_device(self.inventory(), "13", "18.0")["os_version"], "18.0.0")
 
     def test_no_compatible_runtime_is_failure(self):
         with self.assertRaisesRegex(RuntimeError, "No available iPhone"):
-            smoke.select_device(self.inventory(), "27.0")
+            smoke.select_device(self.inventory(), "27.0", "26.2")
+        with self.assertRaisesRegex(RuntimeError, "matches the selected Xcode SDK"):
+            smoke.select_device(self.inventory(), "13.0", "26.3")
         inventory = self.inventory()
         inventory["runtimes"][1]["isAvailable"] = False
-        self.assertEqual(smoke.select_device(inventory, "13")["os_version"], "18.0.0")
+        self.assertEqual(smoke.select_device(inventory, "13", "18.0")["os_version"], "18.0.0")
         for devices in inventory["devices"].values():
             for device in devices:
                 device["isAvailable"] = False
         with self.assertRaises(RuntimeError):
-            smoke.select_device(inventory, "13")
+            smoke.select_device(inventory, "13", "18.0")
 
     def test_device_ipa_and_mixed_platform_binaries_are_rejected(self):
         self.assertTrue(smoke.simulator_platform("Load command 1\n  platform IOSSIMULATOR\n"))
@@ -84,7 +87,7 @@ class SimulatorSmokeTests(unittest.TestCase):
             self.assertEqual(json.loads((output / "launch-report.json").read_text()), report)
             run.assert_not_called()
 
-    def simulated_run(self, directory, *, failure=None, log_failure=False, cleanup_failure=False):
+    def simulated_run(self, directory, *, failure=None, log_failure=False, cleanup_failure=False, display_failure=False):
         app = Path(directory) / "Telegram.app"
         app.mkdir()
         (app / "Info.plist").write_bytes(plistlib.dumps({
@@ -94,6 +97,12 @@ class SimulatorSmokeTests(unittest.TestCase):
         owned_device = "a5f8dd15-d6c9-4d22-beb7-18cc802b38ef"
 
         def command(*args, **kwargs):
+            if args[0] == "xcode-select":
+                return "/Applications/Xcode.app/Contents/Developer"
+            if args[0] in ("open", "sample"):
+                return ""
+            if args[1] == "--sdk":
+                return "26.2"
             if args[1] == "vtool":
                 return "  platform IOSSIMULATOR\n"
             action = args[2]
@@ -104,6 +113,8 @@ class SimulatorSmokeTests(unittest.TestCase):
             if action == "launch":
                 return "whitegram.telegra.Telegraph: 4123"
             if action == "io":
+                if display_failure:
+                    raise RuntimeError("simulator display failed")
                 Path(args[-1]).write_bytes(b"\x89PNG\r\n\x1a\n")
             if action == "spawn" and log_failure:
                 raise RuntimeError("log capture failed")
@@ -112,10 +123,13 @@ class SimulatorSmokeTests(unittest.TestCase):
             return ""
 
         with patch.object(smoke.sys, "platform", "darwin"), patch.object(smoke, "run", side_effect=command) as calls, \
-             patch.object(smoke, "observe_process", side_effect=failure):
+             patch.object(smoke, "observe_process", side_effect=failure, return_value="original"), \
+             patch.object(smoke, "process_identity", return_value="original"):
             report = smoke.smoke(app, Path(directory) / "result", "a" * 40, "34644", 5)
-        cleanup = [call.args for call in calls.call_args_list if call.args[2] in ("shutdown", "delete")]
+        cleanup = [call.args for call in calls.call_args_list if call.args[:2] == ("xcrun", "simctl") and call.args[2] in ("shutdown", "delete")]
         self.assertEqual(cleanup, [("xcrun", "simctl", "shutdown", owned_device), ("xcrun", "simctl", "delete", owned_device)])
+        if display_failure:
+            self.assertFalse(any(call.args[:3] == ("xcrun", "simctl", "install") for call in calls.call_args_list))
         return report
 
     def test_success_requires_both_launches_and_screenshots(self):
@@ -134,7 +148,7 @@ class SimulatorSmokeTests(unittest.TestCase):
 
     def test_second_launch_failure_does_not_inherit_first_success(self):
         with tempfile.TemporaryDirectory() as directory:
-            report = self.simulated_run(directory, failure=[None, RuntimeError("second launch exited")])
+            report = self.simulated_run(directory, failure=["original", RuntimeError("second launch exited")])
         self.assertEqual(report["status"], "failed")
         self.assertEqual([item["status"] for item in report["launches"]], ["passed", "failed"])
 
@@ -143,6 +157,13 @@ class SimulatorSmokeTests(unittest.TestCase):
             report = self.simulated_run(directory, cleanup_failure=True)
         self.assertEqual(report["status"], "failed")
         self.assertEqual(report["cleanup_errors"], ["shutdown failed"])
+
+    def test_display_failure_is_detected_before_app_install_or_launch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = self.simulated_run(directory, display_failure=True)
+        self.assertEqual(report["status"], "failed")
+        self.assertEqual(report["phase"], "simulator-display")
+        self.assertEqual(report["launches"], [])
 
 
 if __name__ == "__main__":

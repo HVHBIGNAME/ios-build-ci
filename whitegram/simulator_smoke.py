@@ -25,21 +25,21 @@ def version(value):
     return parts + (0,) * (3 - len(parts))
 
 
-def select_device(inventory, minimum_os):
+def select_device(inventory, minimum_os, sdk_version):
     candidates = []
     for runtime in inventory["runtimes"]:
         identifier = runtime["identifier"]
         if not runtime.get("isAvailable") or not identifier.startswith("com.apple.CoreSimulator.SimRuntime.iOS-"):
             continue
         os_version = version(runtime["version"])
-        if os_version < version(minimum_os):
+        if os_version < version(minimum_os) or os_version[:2] != version(sdk_version)[:2]:
             continue
         for device in inventory["devices"].get(identifier, []):
             device_type = device.get("deviceTypeIdentifier", "")
             if device.get("isAvailable") and device_type.startswith("com.apple.CoreSimulator.SimDeviceType.iPhone-"):
                 candidates.append((os_version, device_type, identifier))
     if not candidates:
-        raise RuntimeError("No available iPhone simulator runtime meets the app's minimum OS version")
+        raise RuntimeError("No available iPhone simulator runtime matches the selected Xcode SDK and app's minimum OS version")
     os_version, device_type, runtime = sorted(candidates, key=lambda item: (item[0], item[1]))[-1]
     return {"runtime": runtime, "device_type": device_type, "os_version": ".".join(map(str, os_version))}
 
@@ -76,13 +76,20 @@ def observe_process(pid, seconds):
             raise RuntimeError(f"App process {pid} exited or was replaced during startup observation")
         remaining = deadline - time.monotonic()
         if remaining <= 0:
-            return
+            return identity
         time.sleep(min(1.0, remaining))
+
+
+def screenshot(device, destination):
+    run("xcrun", "simctl", "io", device, "screenshot", str(destination), timeout=180)
+    with destination.open("rb") as image:
+        if image.read(8) != b"\x89PNG\r\n\x1a\n":
+            raise RuntimeError("Simulator screenshot is missing or invalid")
 
 
 def smoke(app, output, revision, build, seconds):
     output.mkdir(parents=True, exist_ok=False)
-    report = {"status": "failed", "source_revision": revision, "configuration": "release_sim_arm64",
+    report = {"status": "failed", "phase": "prepare", "source_revision": revision, "configuration": "release_sim_arm64",
               "observation_seconds_per_launch": seconds, "launches": [], "cleanup_errors": [],
               "limitations": ["Fresh simulator with no signed-in account; user interaction and UI responsiveness are not verified.",
                               "This is a simulator binary, not an installation of the device IPA. Physical-device signing and crashes remain untested."]}
@@ -100,16 +107,26 @@ def smoke(app, output, revision, build, seconds):
         if not simulator_platform(run("xcrun", "vtool", "-show-build", str(app / executable))):
             raise RuntimeError("The supplied app is not an iOS Simulator binary")
         inventory = json.loads(run("xcrun", "simctl", "list", "--json"))
-        selected = select_device(inventory, info.get("MinimumOSVersion", "13.0"))
+        (output / "simulators.json").write_text(json.dumps(inventory, indent=2) + "\n", encoding="utf-8")
+        sdk_version = run("xcrun", "--sdk", "iphonesimulator", "--show-sdk-version")
+        report["sdk_version"] = sdk_version
+        selected = select_device(inventory, info.get("MinimumOSVersion", "13.0"), sdk_version)
         report.update(selected)
         report.update({"bundle_id": bundle, "app_version": info["CFBundleShortVersionString"], "app_build": build})
         device = str(uuid.UUID(run("xcrun", "simctl", "create", "WhiteGram-Smoke-" + uuid.uuid4().hex[:8],
                                   selected["device_type"], selected["runtime"])))
         report["simulator_udid"] = device
+        report["phase"] = "boot"
         run("xcrun", "simctl", "boot", device)
         run("xcrun", "simctl", "bootstatus", device, "-b", timeout=240)
+        report["phase"] = "simulator-display"
+        developer = Path(run("xcode-select", "-p"))
+        run("open", "-a", str(developer / "Applications/Simulator.app"), "--args", "-CurrentDeviceUDID", device)
+        screenshot(device, output / "simulator-ready.png")
+        report["phase"] = "install"
         run("xcrun", "simctl", "install", device, str(app), timeout=180)
         for name in ("fresh-install", "relaunch"):
+            report["phase"] = name
             launch = {"name": name, "status": "failed"}
             report["launches"].append(launch)
             pid = launch_pid(run("xcrun", "simctl", "launch", "--terminate-running-process",
@@ -117,14 +134,20 @@ def smoke(app, output, revision, build, seconds):
                                  f"--stderr={output / (name + '-stderr.log')}", device, bundle), bundle)
             launch["pid"] = pid
             try:
-                observe_process(pid, seconds)
-                screenshot = output / (name + ".png")
-                run("xcrun", "simctl", "io", device, "screenshot", str(screenshot))
-                with screenshot.open("rb") as image:
-                    if image.read(8) != b"\x89PNG\r\n\x1a\n":
-                        raise RuntimeError("Simulator screenshot is missing or invalid")
-                launch["screenshot"] = screenshot.name
+                identity = observe_process(pid, seconds)
+                launch["process_observation"] = "passed"
+                image = output / (name + ".png")
+                screenshot(device, image)
+                if process_identity(pid) != identity:
+                    raise RuntimeError(f"App process {pid} exited or was replaced during screenshot capture")
+                launch["screenshot"] = image.name
                 run("xcrun", "simctl", "terminate", device, bundle)
+            except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
+                try:
+                    run("sample", str(pid), "3", "-file", str(output / (name + "-sample.txt")), timeout=20)
+                except (OSError, RuntimeError, subprocess.SubprocessError) as error:
+                    launch["sample_error"] = str(error)
+                raise
             finally:
                 try:
                     logs = run("xcrun", "simctl", "spawn", device, "log", "show", "--style", "compact", "--last", "2m",
@@ -135,6 +158,7 @@ def smoke(app, output, revision, build, seconds):
             if "log_error" in launch:
                 raise RuntimeError(launch["log_error"])
             launch["status"] = "passed"
+        report["phase"] = "complete"
         report["status"] = "passed"
     except (OSError, ValueError, KeyError, RuntimeError, subprocess.SubprocessError) as error:
         report["error"] = str(error)

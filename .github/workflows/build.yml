@@ -21,7 +21,7 @@ jobs:
         include:
           - source_version: release-12.9.2
             app_version: "12.9.4"
-            app_build: "34644"
+            app_build: "34645"
 
     steps:
       - name: Checkout build repository
