@@ -111,6 +111,8 @@ jobs:
           "$python" -B whitegram/validate_port.py /Users/Shared/telegram-ios --report "$RUNNER_TEMP/whitegram-source-validation.json"
 
       - name: Run native Swift suites
+        id: native_checks
+        continue-on-error: ${{ inputs.simulator_only == true }}
         run: |
           set -euo pipefail
           failed=0
@@ -296,3 +298,7 @@ jobs:
         with:
           path: /Users/Shared/whitegram-bazel-cache
           key: ${{ steps.bazel_cache.outputs.cache-primary-key }}
+
+      - name: Preserve native regression failure after simulator diagnostics
+        if: always() && steps.native_checks.outcome == 'failure'
+        run: exit 1

@@ -55,3 +55,9 @@ same pinned Telegram 13.0 revision and compatibility overlay.
 Local source/patch checks and syntax comparison are recorded separately from
 the pending native simulator execution. The iOS login result must be taken from
 the corresponding Actions run, not inferred from a green source test.
+
+Run 39143097920 passed source validation (399 tests, four original-archive-only
+skips), voice/player integration and syntax checks. Two native backend tests
+failed on cancellation callback ordering under the new SDK. A diagnostic-only
+simulator run continues to collect login evidence after such a failure, then a
+final gate restores the failed job result. Full device builds still stop there.
