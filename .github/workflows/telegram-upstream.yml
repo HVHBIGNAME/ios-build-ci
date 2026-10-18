@@ -1,0 +1,37 @@
+name: Check official Telegram releases
+
+on:
+  schedule:
+    - cron: '23 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: telegram-upstream-monitor
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: whitegram-source-12.9.4
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check all official stable tags
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python -B whitegram/check_upstream.py --notify --report "$RUNNER_TEMP/telegram-upstream.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: telegram-upstream-check
+          path: ${{ runner.temp }}/telegram-upstream.json
+          if-no-files-found: error
+          retention-days: 30
