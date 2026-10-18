@@ -67,6 +67,12 @@ def adapt_chat_list_content(patches: SourcePatches) -> None:
         "if compactChatLayout, case let .chat(itemPeer, _, _, _, _, _, _, _) = contentData {",
         "if compactChatLayout, case let .chat(itemPeer, _, _, _, _, _, _, _, _) = contentData {",
     )
+    if "override public func tabBarActivateSearchFromCompactMenu()" in patches.read(CHAT_LIST_CONTROLLER):
+        patches.replace(
+            "compact-menu-search-signature", CHAT_LIST_CONTROLLER,
+            "    override public func tabBarActivateSearchFromCompactMenu() {\n        self.activateSearchInternal(isFromTabBar: false, filter: .chats, query: nil)\n    }",
+            "    override public func tabBarActivateSearchFromCompactMenu() {\n        self.activateSearch(filter: .chats, query: nil)\n    }",
+        )
 
 
 def adapt_community_selection(patches: SourcePatches) -> None:

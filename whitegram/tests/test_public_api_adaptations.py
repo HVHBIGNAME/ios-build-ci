@@ -194,6 +194,16 @@ class PublicApiAdaptationsTests(unittest.TestCase):
         self.assertNotIn("account: item.context.account", first_line)
         self.assertTrue(first_line.endswith("disableComments: true, isTranslate: true)"))
 
+    def test_compact_search_uses_the_current_native_entry_point(self):
+        files = fixture_files()
+        files[CHAT_LIST_CONTROLLER] += "\n    override public func tabBarActivateSearchFromCompactMenu() {\n        self.activateSearchInternal(isFromTabBar: false, filter: .chats, query: nil)\n    }\n"
+        result, _, _ = run_in_memory(files)
+        self.assertNotIn("activateSearchInternal", result[CHAT_LIST_CONTROLLER])
+        self.assertIn("self.activateSearch(filter: .chats, query: nil)", result[CHAT_LIST_CONTROLLER])
+        repeated, writes, _ = run_in_memory(result)
+        self.assertEqual(result, repeated)
+        self.assertFalse(writes)
+
     def test_message_update_closure_gets_third_argument_without_changing_method_defaults(self):
         patches = pending_patches(fixture_files())
         adapt_translation_button(patches)
