@@ -122,8 +122,8 @@ METHODS = '''    private func whitegramUpdateFormattingToolbar(width: CGFloat, l
             return
         }
         if action == .speak {
-            if node.usesNativeRichTextEngine, let context = self.context {
-                if let holder = speakText(context: context, text: node.selectedRichText()) {
+            if node.usesNativeRichTextEngine {
+                if let holder = speakText(text: node.selectedRichText()) {
                     holder.completion = { [weak self, weak holder] in
                         if self?.currentSpeechHolder === holder { self?.currentSpeechHolder = nil }
                     }
@@ -209,6 +209,9 @@ def apply_formatting_toolbar_patches(root):
     append("    public func chatInputTextNodeDidChangeSelection(dueToEditing: Bool) {\n",
            "        if self.whitegramFormattingToolbar?.isHidden == false { self.requestLayout() }\n")
     anchor = "    @objc private func slowModeButtonPressed() {\n"
+    previous = METHODS.replace("if node.usesNativeRichTextEngine {\n                if let holder = speakText(text:", "if node.usesNativeRichTextEngine, let context = self.context {\n                if let holder = speakText(context: context, text:")
+    if previous in patches.read(PANEL):
+        patches.replace("formattingToolbarEnabled", PANEL, previous, METHODS)
     patches.replace("formattingToolbarEnabled", PANEL, anchor, METHODS + anchor)
     append("    override public func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {\n",
            "        if let toolbar = self.whitegramFormattingToolbar, !toolbar.isHidden, let result = toolbar.hitTest(self.view.convert(point, to: toolbar), with: event) {\n"

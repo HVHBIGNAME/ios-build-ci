@@ -1,6 +1,7 @@
 """Recovered outgoing formatting and display-only Unicode filtering."""
 
 from source_patches import SourcePatches
+from message_text_patches import ensure_unsupported_media_flag
 
 TEXT_PROCESSING_RUNTIME_FILES = {
     "WhitegramTextSettings.swift": "submodules/TelegramCore/Sources/WhitegramTextSettings.swift",
@@ -47,6 +48,7 @@ def apply_text_processing_patches(root):
             method = method.replace(before, after)
     patches.replace("zalgoFilterEnabled", TITLES, original[original.index(start):original.index(end)], method)
 
+    ensure_unsupported_media_flag(patches, TEXT, "zalgoFilterEnabled")
     anchor = "                var formattedDateUpdatePeriod: Int32?\n"
     addition = '''                if invoice == nil && story == nil && !isUnsupportedMedia && item.attributes.updatingMedia == nil {
                     let whitegramDisplayText = WhitegramTextEntities.display(text: rawText, entities: messageEntities)

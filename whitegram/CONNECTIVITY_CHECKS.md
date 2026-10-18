@@ -61,3 +61,9 @@ skips), voice/player integration and syntax checks. Two native backend tests
 failed on cancellation callback ordering under the new SDK. A diagnostic-only
 simulator run continues to collect login evidence after such a failure, then a
 final gate restores the failed job result. Full device builds still stop there.
+
+Run 39144601290 passed the native suites on retry. Its first simulator compile
+reported moved media eligibility state and changed Speak/ManagedAnimationNode
+signatures. The follow-up retains unsupported-media guards, makes the history
+render buffer mutable, updates speech calls, and supplies an explicit renderer
+for the restored context-free playback icon. Login has not yet executed.

@@ -437,6 +437,7 @@ class PublicHelperProvenanceTests(unittest.TestCase):
         # The target sheet also imports SwiftUI, whose Environment shadows the
         # ComponentFlow type used by the restored playback component.
         expected = expected.replace("environment: Environment<Empty>", "environment: ComponentFlow.Environment<Empty>")
+        expected = expected.replace("super.init(size: CGSize(width: 40.0, height: 40.0))", "super.init(size: CGSize(width: 40.0, height: 40.0), lottieSettings: .noAccountFallback)")
         # Ignore formatting, but compare string literals independently so a UI
         # label or animation resource cannot change under whitespace normalization.
         strings = r'"(?:\\.|[^"\\])*"'

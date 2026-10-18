@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from source_patches import SourcePatches
+from message_text_patches import ensure_unsupported_media_flag
 
 
 STATE = "submodules/TelegramCore/Sources/State/AccountStateManagementUtils.swift"
@@ -173,6 +174,11 @@ def _native_retention_patches(patches: SourcePatches):
 
 
 def _chat_presentation_patches(patches: SourcePatches):
+    ensure_unsupported_media_flag(patches, TEXT, "showEditedOriginalText")
+    declaration = "                let attributedText: NSAttributedString\n"
+    if declaration in patches.read(TEXT):
+        patches.replace("showEditedOriginalText", TEXT, declaration,
+                        "                var attributedText: NSAttributedString\n")
     message = "entry.message"
     if "withAppliedEphemeralReplacementMessage()" in patches.read(ENTRIES):
         message += ".withAppliedEphemeralReplacementMessage()"

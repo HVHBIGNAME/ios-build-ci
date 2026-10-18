@@ -1,6 +1,7 @@
 """Connect the recovered local shorten/expand action without changing message text."""
 
 from source_patches import SourcePatches
+from message_text_patches import ensure_unsupported_media_flag
 
 MENU = "submodules/TelegramUI/Sources/ChatInterfaceStateContextMenus.swift"
 TEXT = "submodules/TelegramUI/Components/Chat/ChatMessageTextBubbleContentNode/Sources/ChatMessageTextBubbleContentNode.swift"
@@ -38,6 +39,7 @@ RENDER = '''                var whitegramCanShorten = !item.presentationData.isP
 
 def apply_shortening_patches(root):
     patches = SourcePatches(root)
+    ensure_unsupported_media_flag(patches, TEXT, "messageShortenEnabled")
     anchor = "        var downloadableMediaResourceInfos: [String] = []\n"
     patches.replace("messageShortenEnabled", MENU, anchor, ACTION + anchor)
     anchor = "                var formattedDateUpdatePeriod: Int32?\n"

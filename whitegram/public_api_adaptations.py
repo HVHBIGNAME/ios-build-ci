@@ -311,7 +311,7 @@ private final class PlayPauseIconNode: ManagedAnimationNode {
     private var iconState: PlayPauseIconNodeState = .play
 
     init() {
-        super.init(size: CGSize(width: 40.0, height: 40.0))
+        super.init(size: CGSize(width: 40.0, height: 40.0), lottieSettings: .noAccountFallback)
 
         self.trackTo(item: ManagedAnimationItem(source: .local("anim_playpause"), frames: .range(startFrame: 0, endFrame: 0), duration: 0.01))
     }
@@ -442,15 +442,22 @@ def adapt_translation_sheet(patches: SourcePatches) -> None:
         "import TelegramUIPreferences\nimport ItemListUI\nimport ManagedAnimationNode\nimport Markdown\n",
     )
     anchor = "private let translateToTag = GenericComponentViewTag()"
-    previous_helpers = TRANSLATION_HELPERS.replace("ComponentFlow.Environment<Empty>", "Environment<Empty>")
-    if previous_helpers in patches.read(TRANSLATE_SCREEN):
-        patches.replace("translation-sheet-restored-helpers", TRANSLATE_SCREEN, previous_helpers, TRANSLATION_HELPERS)
+    for previous_helpers in (
+        TRANSLATION_HELPERS.replace("ComponentFlow.Environment<Empty>", "Environment<Empty>"),
+        TRANSLATION_HELPERS.replace(", lottieSettings: .noAccountFallback", ""),
+        TRANSLATION_HELPERS.replace("ComponentFlow.Environment<Empty>", "Environment<Empty>").replace(", lottieSettings: .noAccountFallback", ""),
+    ):
+        if previous_helpers in patches.read(TRANSLATE_SCREEN):
+            patches.replace("translation-sheet-restored-helpers", TRANSLATE_SCREEN, previous_helpers, TRANSLATION_HELPERS)
     patches.replace(
         "translation-sheet-restored-helpers",
         TRANSLATE_SCREEN,
         "import ViewControllerComponent\n\n" + anchor,
         "import ViewControllerComponent\n\n" + TRANSLATION_HELPERS + anchor,
     )
+    if "speakText(" in patches.read(TRANSLATE_SCREEN):
+        patches.replace("translation-speech-signature", TRANSLATE_SCREEN,
+                        "speakText(context: self.context, text:", "speakText(text:", count=2)
     # Reopening after language selection must keep the caller's whole-chat action.
     patches.replace(
         "translation-sheet-language-callback",
