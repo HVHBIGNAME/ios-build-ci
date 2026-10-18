@@ -21,7 +21,7 @@ jobs:
         include:
           - source_version: release-12.9.2
             app_version: "12.9.4"
-            app_build: "34643"
+            app_build: "34644"
 
     steps:
       - name: Checkout build repository
@@ -224,13 +224,6 @@ jobs:
             --report build/artifacts/WhiteGram-verification.json
           rm -rf "$staging_dir"
 
-      - name: Save Bazel disk cache
-        if: always() && steps.bazel_cache.outcome == 'success' && steps.bazel_cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: /Users/Shared/whitegram-bazel-cache
-          key: ${{ steps.bazel_cache.outputs.cache-primary-key }}
-
       - name: Загрузить IPA
         uses: actions/upload-artifact@v4
         with:
@@ -248,3 +241,43 @@ jobs:
           path: /Users/Shared/telegram-ios/build/artifacts/Telegram.DSYMs.zip
           if-no-files-found: error
           retention-days: 30
+
+      - name: Build and smoke-test simulator launches
+        timeout-minutes: 150
+        run: |
+          set -euo pipefail
+          cd /Users/Shared/telegram-ios
+          python3 -u build-system/Make/Make.py \
+            --bazelUserRoot=/private/var/tmp/_bazel_containerhost \
+            --cacheDir=/Users/Shared/whitegram-bazel-cache \
+            build \
+            --continueOnError \
+            --configurationPath=build-system/appstore-configuration.json \
+            --codesigningInformationPath=build-system/fake-codesigning \
+            --configuration=release_sim_arm64 \
+            --buildNumber="${{ matrix.app_build }}"
+          test -s bazel-bin/Telegram/Telegram.ipa
+          staging_dir=$(mktemp -d "$RUNNER_TEMP/whitegram-simulator.XXXXXX")
+          trap 'rm -rf "$staging_dir"' EXIT
+          unzip -q bazel-bin/Telegram/Telegram.ipa -d "$staging_dir"
+          python3 "$GITHUB_WORKSPACE/whitegram/postprocess.py" "$staging_dir"
+          python3 -B "$GITHUB_WORKSPACE/whitegram/simulator_smoke.py" \
+            --app "$staging_dir/Payload/Telegram.app" \
+            --output "$RUNNER_TEMP/whitegram-simulator-launch" \
+            --revision "$GITHUB_SHA" --build "${{ matrix.app_build }}" --seconds 30
+
+      - name: Upload simulator launch evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: WhiteGram-simulator-launch-${{ github.sha }}
+          path: ${{ runner.temp }}/whitegram-simulator-launch/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Save Bazel disk cache
+        if: always() && steps.bazel_cache.outcome == 'success' && steps.bazel_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /Users/Shared/whitegram-bazel-cache
+          key: ${{ steps.bazel_cache.outputs.cache-primary-key }}
