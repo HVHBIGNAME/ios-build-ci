@@ -1,15 +1,15 @@
 # Integrated Whitegram source port
 
-Latest completed native build: revision `31765d8a523042fddd70bcc4f156e705351a54d1`, [run 38892851238](https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/38892851238) on 2026-10-16, version **12.9.4 / 34642**. Source integration, native Swift suites, release compilation, packaged-IPA verification, IPA upload and matching debug-symbol upload passed. See the [build-34642 checkpoint](BUILD_34642.md) and [launch-fix diagnosis](LAUNCH_FIX_34641.md). The earlier [service-proxy checkpoint](parity/NATIVE_BUILD_CHECKPOINT.md) and [parent checkpoint](parity/PARENT_CHECKPOINT.md) retain their revision-specific evidence.
+Latest completed native build: revision `b1cc2ff89ec7f52aa424ea165f5cfa9d6b754394`, [run 39097395028](https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/39097395028), version **12.9.4 / 34645**. Native Swift suites, release compilation, packaged-IPA verification, IPA and matching symbols uploads passed. Clean installation and relaunch each stayed alive for 30 seconds on iPhone Air / iOS 26.2 simulator, with screenshots. See [LAUNCH_CHECKS.md](LAUNCH_CHECKS.md) and the [launch-fix diagnosis](LAUNCH_FIX_34641.md). Physical-device and authenticated feature behavior remain separate checks.
 
-The successful build includes the composer, sender-avatar, [Wallet/Crypto Bot visibility](BOT_VISIBILITY_PORT.md), [neutral media accent](MEDIA_ACCENT_PORT.md), [automatic private reports](DIAGNOSTICS_PORT.md), [profile appearance](PROFILE_APPEARANCE_PORT.md) and [online history](ONLINE_HISTORY_PORT.md) increments. Their device checks remain pending. The combined source suite passes 309 tests. The starting-revision feature-coverage counts below are historical, not current completion percentages.
+The successful build includes the composer, sender-avatar, [Wallet/Crypto Bot visibility](BOT_VISIBILITY_PORT.md), [neutral media accent](MEDIA_ACCENT_PORT.md), [automatic private reports](DIAGNOSTICS_PORT.md), [profile appearance](PROFILE_APPEARANCE_PORT.md), [online history](ONLINE_HISTORY_PORT.md) and [profile action styles](APPEARANCE_DETAILS_PORT.md). Their device checks remain pending. The starting-revision feature-coverage counts below are historical, not current completion percentages.
 
 The current outstanding catalog inventory is [CURRENT_BACKLOG.md](CURRENT_BACKLOG.md).
 
-Pending build 34643: [profile action buttons, personal-message emphasis and
-the primary-icon preview](APPEARANCE_DETAILS_PORT.md). This local increment
-passes 316 Python source checks and adds native regressions; native/device
-verification has not yet completed.
+Pending build 34646: [profile metadata, normal-send feedback and original icons](BUILD_34646.md).
+The integrated source/resource suite passes 379 Python tests without skips,
+including full patch composition and the pinned alternate-icon plist tool.
+Native compilation and simulator verification of this increment are pending.
 
 Build-34642 increment (2026-10-16): [contact online history](ONLINE_HISTORY_PORT.md)
 adds accepted-presence capture, account-scoped storage and a paginated/filterable
@@ -33,7 +33,7 @@ passed; physical-device launch and icon-rendering confirmation are pending.
 
 - Telegram source: `release-12.9.2`, commit `6ad963e5b62d354da79040f388ae2b9132fb17b8`.
 - Public WhiteGram delta: `db18308774f863074278feedc4df4507b0fb174e` against `release-12.6.2`.
-- Application metadata: version `12.9.4`, build `34639`. The source baseline remains Telegram **12.9.2**.
+- Application metadata: version `12.9.4`; the workflow selects the build number (currently `34646`). The source baseline remains Telegram **12.9.2**.
 
 The build pipeline is `apply-public-overlay.sh` → `compat-12.9.4.py` → validation → `configure.py` → the Telegram Bazel/Xcode build → `postprocess.py`.
 

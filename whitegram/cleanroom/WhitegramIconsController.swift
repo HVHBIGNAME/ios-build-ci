@@ -40,8 +40,9 @@ private func whitegramBundledIcons(context: AccountContext) -> [WhitegramIconCho
         assetName: primary["CFBundleIconName"] as? String,
         files: (primary["CFBundleIconFiles"] as? [String]) ?? []
     )]
-    // Bindings supply previews, but only the built device-specific plist authorizes a name.
-    for name in alternates.keys.sorted() {
+    // The bindings apply the Whitegram visibility preference; the plist authorizes selection.
+    for binding in bindings where !binding.isDefault {
+        let name = binding.name
         guard let metadata = alternates[name] else {
             continue
         }
@@ -50,7 +51,7 @@ private func whitegramBundledIcons(context: AccountContext) -> [WhitegramIconCho
         guard !files.isEmpty || assetName != nil else {
             continue
         }
-        choices.append(WhitegramIconChoice(alternateName: name, title: name, previewName: bindings.first(where: { $0.name == name && !$0.isDefault })?.imageName, assetName: assetName, files: files))
+        choices.append(WhitegramIconChoice(alternateName: name, title: name, previewName: binding.imageName, assetName: assetName, files: files))
     }
     return choices
 }
@@ -140,7 +141,7 @@ private func whitegramIconEntries(_ state: WhitegramIconsState) -> [WhitegramIco
         information = "This build has no alternate icons in its device-specific Info.plist."
     }
     if let currentName = state.currentName, !state.choices.contains(where: { $0.alternateName == currentName }) {
-        information += "\nCurrent icon: \(currentName). Its entry is not available in this build; choose Default to reset it."
+        information += "\nCurrent icon: \(currentName). Its entry is not currently listed; choose Default to reset it."
     }
     if let status = state.status {
         information += "\n\n" + status
@@ -152,20 +153,22 @@ private func whitegramIconEntries(_ state: WhitegramIconsState) -> [WhitegramIco
 private final class WhitegramIconsCoordinator {
     let context: AccountContext
     let state = ValuePromise(WhitegramIconsState(), ignoreRepeated: true)
-    private var observer: NSObjectProtocol?
+    private var observers: [NSObjectProtocol] = []
     private var busy = false
     private var status: String?
 
     init(context: AccountContext) {
         self.context = context
-        self.observer = NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main, using: { [weak self] _ in
-            self?.refresh()
-        })
+        self.observers = [UIApplication.didBecomeActiveNotification, WhitegramPreferences.updatedNotification].map { name in
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main, using: { [weak self] _ in
+                self?.refresh()
+            })
+        }
         self.refresh()
     }
 
     deinit {
-        if let observer = self.observer {
+        for observer in self.observers {
             NotificationCenter.default.removeObserver(observer)
         }
     }

@@ -21,7 +21,7 @@ jobs:
         include:
           - source_version: release-12.9.2
             app_version: "12.9.4"
-            app_build: "34645"
+            app_build: "34646"
 
     steps:
       - name: Checkout build repository
@@ -86,11 +86,15 @@ jobs:
           WHITEGRAM_VOICE_SOURCE: /Users/Shared/telegram-ios
           WHITEGRAM_VOICE_PUBLIC_SOURCE: /Users/Shared/whitegram-public
           WHITEGRAM_PLAYER_SOURCE: /Users/Shared/telegram-ios
+          WHITEGRAM_ALTICON_TOOL: ${{ runner.temp }}/whitegram-alticonstool.py
         run: |
           set -euo pipefail
           python3 -m venv "$RUNNER_TEMP/whitegram-check-env"
           python="$RUNNER_TEMP/whitegram-check-env/bin/python"
           "$python" -m pip install -r whitegram/requirements-checks.txt
+          curl --fail --silent --show-error --location \
+            https://raw.githubusercontent.com/bazelbuild/rules_apple/1791d916de4083388f22e20248d8b010d23f0d6b/tools/alticonstool/alticonstool.py \
+            --output "$WHITEGRAM_ALTICON_TOOL"
           "$python" -B -m unittest discover -s whitegram/tests -p 'test_*.py' -v
           "$python" -B -m unittest discover -s whitegram/tests/voice -p 'test_*.py' -v
           "$python" -B -m unittest discover -s whitegram/tests/player -p 'test_*.py' -v
@@ -116,6 +120,7 @@ jobs:
           python3 -B whitegram/tests/backend/run_native.py || failed=1
           python3 -B whitegram/tests/system/run_native.py || failed=1
           python3 -B whitegram/tests/appearance_parity/run_native.py || failed=1
+          python3 -B whitegram/tests/profile_metadata/run_native.py || failed=1
           python3 -B whitegram/tests/diagnostics/run_native.py || failed=1
           python3 -B whitegram/tests/media/run_native.py || failed=1
           python3 -B whitegram/tests/voice/run_native.py --require-swift || failed=1
@@ -221,6 +226,7 @@ jobs:
             --version "${{ matrix.app_version }}" --build "$build_number" \
             --require-diagnostics \
             --require-original-icon \
+            --require-restored-icons \
             --report build/artifacts/WhiteGram-verification.json
           rm -rf "$staging_dir"
 

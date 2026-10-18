@@ -153,7 +153,7 @@ check(WhitegramGlassSettings(values: ["liquidGlassProfile": false], defaults: le
 check(WhitegramAppearancePolicy(values: [:], legacyDefaults: legacy).isEnabled("hideReactions"), "Original primitive is read")
 check(!WhitegramAppearancePolicy(values: ["hideReactions": false], legacyDefaults: legacy).isEnabled("hideReactions"), "Explicit saved false wins")
 check(WhitegramAppearancePolicy(values: [:], legacyDefaults: legacy).tabWidthPercent == 150.0, "Original percent mirror is read")
-for key in ["hideWallet", "hideCryptoBot", "neutralMediaAccent"] {
+for key in ["hideWallet", "hideCryptoBot", "neutralMediaAccent", "customSettingsIcons", "showOriginalTelegramIcons"] {
     check(!defaults.isEnabled(key), "Appearance overrides default to off")
     check(!WhitegramAppearancePolicy(values: [key: 1]).isEnabled(key), "Numeric values cannot enable appearance overrides")
     legacy.set(true, forKey: "wg_" + key)

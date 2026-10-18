@@ -8,6 +8,7 @@ import plistlib
 import re
 import struct
 import subprocess
+import tempfile
 import zipfile
 from urllib.parse import urlsplit
 
@@ -38,7 +39,22 @@ def verify_diagnostics(info: dict, revision: str, required: bool = False) -> boo
     return True
 
 
-def verify(ipa: Path, repository: Path, revision: str, version: str, build: str, require_diagnostics: bool = False, require_original_icon: bool = False) -> dict:
+def verify_restored_icon_archive(archive: zipfile.ZipFile) -> dict:
+    from launcher_icon_patches import verify_launcher_icon_bundle
+    from settings_icon_patches import verify_settings_icon_bundle
+
+    with tempfile.TemporaryDirectory(prefix="whitegram-icon-verification-") as directory:
+        app = Path(directory) / "Telegram.app"
+        app.mkdir()
+        for name in archive.namelist():
+            path = PurePosixPath(name)
+            if path.parts[:2] == ("Payload", "Telegram.app") and len(path.parts) == 3:
+                if path.name == "Info.plist" or path.suffix == ".png":
+                    (app / path.name).write_bytes(archive.read(name))
+        return {"launcher": verify_launcher_icon_bundle(app), "settings": verify_settings_icon_bundle(app)}
+
+
+def verify(ipa: Path, repository: Path, revision: str, version: str, build: str, require_diagnostics: bool = False, require_original_icon: bool = False, require_restored_icons: bool = False) -> dict:
     app = "Payload/Telegram.app/"
     bundle_id = "whitegram.telegra.Telegraph"
     with zipfile.ZipFile(ipa) as archive:
@@ -97,6 +113,7 @@ def verify(ipa: Path, repository: Path, revision: str, version: str, build: str,
         icons = set(info.get("CFBundleIcons", {}).get("CFBundleAlternateIcons", {}))
         if not ICONS.issubset(icons):
             raise ValueError(f"Missing alternate icons: {sorted(ICONS - icons)}")
+        restored_icons = verify_restored_icon_archive(archive) if require_restored_icons else None
     digest = hashlib.sha256()
     with ipa.open("rb") as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
@@ -109,6 +126,7 @@ def verify(ipa: Path, repository: Path, revision: str, version: str, build: str,
         "zip_crc": "passed", "device_validation": "not performed",
         "automatic_diagnostics_configured": diagnostics,
         "primary_icons": primary_icons,
+        "restored_icons": restored_icons,
     }
 
 
@@ -122,8 +140,9 @@ def main() -> None:
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--require-diagnostics", action="store_true")
     parser.add_argument("--require-original-icon", action="store_true")
+    parser.add_argument("--require-restored-icons", action="store_true")
     args = parser.parse_args()
-    report = verify(args.ipa, args.repository, args.revision, args.version, args.build, args.require_diagnostics, args.require_original_icon)
+    report = verify(args.ipa, args.repository, args.revision, args.version, args.build, args.require_diagnostics, args.require_original_icon, args.require_restored_icons)
     output = json.dumps(report, indent=2, ensure_ascii=False) + "\n"
     args.report.write_text(output, encoding="utf-8")
     print(output, end="")

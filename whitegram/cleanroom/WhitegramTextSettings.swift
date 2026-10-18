@@ -12,6 +12,7 @@ public struct WhitegramTextSettings {
     public let zalgoFilter: Bool
     public let formattingToolbar: Bool
     public let sendOnReturnKey: Bool
+    public let inAppVibrationEnabled: Bool
 
     public init(values: [String: Any], legacyDefaults: UserDefaults? = nil) {
         func value(_ key: String) -> Any? {
@@ -32,6 +33,7 @@ public struct WhitegramTextSettings {
         self.zalgoFilter = flag("zalgoFilterEnabled")
         self.formattingToolbar = flag("formattingToolbarEnabled")
         self.sendOnReturnKey = flag("sendOnReturnKey")
+        self.inAppVibrationEnabled = flag("inAppVibrationEnabled")
     }
 
     public static var current: Self {

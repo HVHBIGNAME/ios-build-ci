@@ -25,6 +25,8 @@ enum WhitegramPortCapabilities {
         "saveViewOnceMedia": "saveViewOnceMedia", "ghostModeRecordOnce": "ghostModeRecordOnce",
         "hideAllChatsTab": "hideAllChatsTab", "hideAccountRating": "hideAccountRating",
         "showPeerIDAndDC": "showPeerIDAndDC", "showChatCreationDate": "showChatCreationDate",
+        "showMutualContactsCard": "showMutualContactsCard", "showRegistrationDateCard": "showRegistrationDateCard",
+        "showOriginalTelegramIcons": "showOriginalTelegramIcons", "customSettingsIcons": "customSettingsIcons",
         "foldersAtBottom": "foldersAtBottom", "saveToFavoritesInMenu": "saveToFavoritesInMenu",
         "showDeletedMessages": "showDeletedMessages", "showEditedOriginalText": "showEditedOriginalText",
         "saveChatHistory": "saveChatHistory", "saveDeletedToBackup": "saveDeletedMessagesToBackup",
@@ -58,6 +60,7 @@ enum WhitegramPortCapabilities {
         "messageShortenEnabled": "messageShortenEnabled",
         "zalgoFilter": "zalgoFilterEnabled",
         "formattingToolbar": "formattingToolbarEnabled",
+        "inAppVibration": "inAppVibrationEnabled",
         "neutralMediaAccent": "neutralMediaAccent",
         "hideGifts": "hideGifts", "visualUsernameEnabled": "visualUsernameEnabled",
         "highlightMentions": "highlightMentions", "roundProfileActionButtons": "roundProfileActionButtons",
@@ -99,6 +102,7 @@ enum WhitegramPortCapabilities {
         "fakeLocationEnabled": "s.fakeLocation", "fakeLocationPicker": "s.fakeLocationPicker",
         "messageShortenEnabled": "s.shortenMenu",
         "showOnlineDotInChats": "s.showOnlineDotInChats",
+        "showOriginalTelegramIcons": "s.telegramIcons",
         "onlineHistoryEnabled": "s.onlineHistory", "onlineHistoryView": "m.onlineHistory",
         "autoFormatStyleButton": "s.autoFormat",
         "visualUsernameEnabled": "s.visualUsername", "visualUsernameButton": "s.visualUsernameLbl",
@@ -207,6 +211,15 @@ enum WhitegramPortCapabilities {
     static func booleanValue(_ id: String) -> Bool? {
         guard let key = booleans[id] else { return nil }
         if key == "roundProfileActionButtons" { return WhitegramAppearancePolicy.current.isEnabled(key) }
+        if key == "inAppVibrationEnabled" { return WhitegramTextSettings.current.inAppVibrationEnabled }
+        if key == "showOriginalTelegramIcons" || key == "customSettingsIcons" {
+            let settings = WhitegramIconSettings.current
+            return key == "showOriginalTelegramIcons" ? settings.showOriginalTelegramIcons : settings.customSettingsIcons
+        }
+        if key == "showMutualContactsCard" || key == "showRegistrationDateCard" {
+            let settings = WhitegramPeerMetadataSettings(values: WhitegramPreferences.values(), legacyDefaults: .standard)
+            return key == "showMutualContactsCard" ? settings.showMutualContactsCard : settings.showRegistrationDateCard
+        }
         var fallback = defaults.boolValue(for: id) ?? booleanDefaults[key] ?? false
         if let legacy = UserDefaults.standard.object(forKey: "wg_" + key) as? NSNumber,
            CFGetTypeID(legacy) == CFBooleanGetTypeID() {

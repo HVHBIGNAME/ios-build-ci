@@ -28,7 +28,7 @@ let package = Package(name: "WhitegramLocalizationChecks", platforms: [.macOS(.v
     .testTarget(name: "LocalizationTests", dependencies: ["TelegramCore", "SettingsUI"])
 ])
 ''', encoding="utf-8")
-        for name in ("WhitegramPreferences.swift", "WhitegramAppearancePolicy.swift", "WhitegramLocalizationPack.swift", "WhitegramLocalizationStore.swift", "WhitegramLocalization.swift", "WhitegramTextSettings.swift", "WhitegramComposerStrings.swift"):
+        for name in ("WhitegramPreferences.swift", "WhitegramAppearancePolicy.swift", "WhitegramPeerMetadataPolicy.swift", "WhitegramIconSettings.swift", "WhitegramLocalizationPack.swift", "WhitegramLocalizationStore.swift", "WhitegramLocalization.swift", "WhitegramTextSettings.swift", "WhitegramComposerStrings.swift"):
             shutil.copyfile(overlay / "cleanroom" / name, core / name)
         for name in ("WhitegramSettingsState.swift", "WhitegramLocalizationStrings.swift"):
             shutil.copyfile(overlay / "generated" / name, core / name)
@@ -38,6 +38,7 @@ let package = Package(name: "WhitegramLocalizationChecks", platforms: [.macOS(.v
         shutil.copyfile(here / "WhitegramSettingsListTests.swift", tests / "WhitegramSettingsListTests.swift")
         shutil.copyfile(here / "WhitegramLocalizationTests.swift", tests / "WhitegramLocalizationTests.swift")
         shutil.copyfile(here / "WhitegramTextSettingsTests.swift", tests / "WhitegramTextSettingsTests.swift")
+        shutil.copyfile(here / "WhitegramIconSettingsTests.swift", tests / "WhitegramIconSettingsTests.swift")
         return subprocess.run([swift, "test", "--package-path", str(root)], check=False).returncode
 
 

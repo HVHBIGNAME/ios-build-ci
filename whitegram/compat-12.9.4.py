@@ -37,10 +37,14 @@ from contact_visibility_patches import apply_contact_visibility_patches
 from media_accent_patches import MEDIA_ACCENT_RUNTIME_FILES, apply_media_accent_patches
 from diagnostics_patches import DIAGNOSTICS_RUNTIME_FILES, apply_diagnostics_patches
 from profile_appearance_patches import PROFILE_APPEARANCE_RUNTIME_FILES, apply_profile_appearance_patches
+from profile_metadata_patches import PROFILE_METADATA_RUNTIME_FILES, apply_profile_metadata_patches
 from online_indicator_patches import ONLINE_INDICATOR_RUNTIME_FILES, apply_online_indicator_patches
 from text_processing_patches import TEXT_PROCESSING_RUNTIME_FILES, apply_text_processing_patches
 from formatting_toolbar_patches import FORMATTING_TOOLBAR_RUNTIME_FILES, apply_formatting_toolbar_patches
 from return_key_patches import apply_return_key_patches
+from feedback_patches import apply_feedback_patches
+from settings_icon_patches import SETTINGS_ICON_RUNTIME_FILES, apply_settings_icon_patches, install_settings_icon_resources
+from launcher_icon_patches import apply_launcher_icon_patches, install_launcher_icon_resources
 from swift_syntax_patches import apply_swift_syntax_patches
 from build_patches import add_dep, apply_build_patches
 
@@ -165,6 +169,7 @@ cleanroom_files = {
     "cleanroom/WhitegramFontRegistry.swift": "submodules/Display/Source/WhitegramFontRegistry.swift",
     "cleanroom/WhitegramFontsController.swift": "submodules/SettingsUI/Sources/WhitegramFontsController.swift",
     "cleanroom/WhitegramIconsController.swift": "submodules/SettingsUI/Sources/WhitegramIconsController.swift",
+    "cleanroom/WhitegramIconSettings.swift": "submodules/TelegramCore/Sources/WhitegramIconSettings.swift",
     "cleanroom/WhitegramHistoryStore.swift": "submodules/TelegramCore/Sources/WhitegramHistoryStore.swift",
     "cleanroom/WhitegramHistoryModels.swift": "submodules/TelegramCore/Sources/WhitegramHistoryModels.swift",
     "cleanroom/WhitegramHistoryCapture.swift": "submodules/TelegramCore/Sources/WhitegramHistoryCapture.swift",
@@ -184,7 +189,7 @@ for manifest in (
     APPEARANCE_GLASS_RUNTIME_FILES, HISTORY_RUNTIME_FILES, ONLINE_HISTORY_RUNTIME_FILES, ACCOUNTS_RUNTIME_FILES,
     PRIVACY_RUNTIME_FILES, TRANSFER_RUNTIME_FILES, PLAYER_RUNTIME_FILES, BACKEND_RUNTIME_FILES, TRAFFIC_RUNTIME_FILES,
     SYSTEM_RUNTIME_FILES, STICKER_RUNTIME_FILES, ONLINE_INDICATOR_RUNTIME_FILES, TEXT_PROCESSING_RUNTIME_FILES, FORMATTING_TOOLBAR_RUNTIME_FILES, MEDIA_ACCENT_RUNTIME_FILES, DIAGNOSTICS_RUNTIME_FILES,
-    PROFILE_APPEARANCE_RUNTIME_FILES,
+    PROFILE_APPEARANCE_RUNTIME_FILES, PROFILE_METADATA_RUNTIME_FILES, SETTINGS_ICON_RUNTIME_FILES,
 ):
     cleanroom_files.update({"cleanroom/" + name: destination for name, destination in manifest.items()})
 for name in (
@@ -273,7 +278,8 @@ for patcher in (
     apply_backend_patches, apply_traffic_patches, apply_system_patches, apply_sticker_patches, apply_shortening_patches,
     apply_chat_list_visibility_patches, apply_online_indicator_patches, apply_text_processing_patches, apply_formatting_toolbar_patches,
     apply_return_key_patches, apply_contact_visibility_patches, apply_media_accent_patches, apply_diagnostics_patches,
-    apply_profile_appearance_patches, apply_appearance_details_patches,
+    apply_profile_appearance_patches, apply_appearance_details_patches, apply_profile_metadata_patches, apply_feedback_patches,
+    apply_settings_icon_patches, apply_launcher_icon_patches,
 ):
     report = patcher(source_root)
     if isinstance(report, dict):
@@ -301,6 +307,8 @@ for module, dependencies in VOICE_REQUIRED_DEPENDENCIES.items():
         if add_dep(source_root / "submodules" / module / "BUILD", label):
             build_count += 1
 install_plugin_resources(source_root, source_base)
+install_settings_icon_resources(source_root)
+install_launcher_icon_resources(source_root)
 patch_file(
     "submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/PeerInfoScreenSettingsActions.swift",
     "whiteGramSettingsController(context:",

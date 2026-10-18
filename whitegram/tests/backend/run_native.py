@@ -17,6 +17,7 @@ SOURCES = (
     "WhitegramBackendAccess.swift", "WhitegramBackendTransport.swift", "WhitegramBackendMessageEvent.swift",
     "WhitegramProfileModels.swift", "WhitegramProfileService.swift", "WhitegramProfilePhotos.swift", "WhitegramProfilePhotoWallStore.swift",
     "WhitegramProfileRegistration.swift", "WhitegramProfileStreakService.swift", "WhitegramProfileStreakSession.swift",
+    "WhitegramPeerMetadataPolicy.swift", "WhitegramPeerMetadataCardAdapter.swift",
     "WhitegramProfilePresenceService.swift", "WhitegramRadioModels.swift", "WhitegramAPIStatusService.swift",
     "WhitegramScammerDatabase.swift", "WhitegramTrafficPolicy.swift",
     "WhitegramServiceCore.swift", "WhitegramServiceHTTP.swift", "WhitegramServiceProxy.swift",

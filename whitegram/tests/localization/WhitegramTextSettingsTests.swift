@@ -116,6 +116,69 @@ final class WhitegramTextSettingsTests: XCTestCase {
         }
     }
 
+    func testInAppVibrationDefaultsOffAndRequiresCanonicalBoolean() {
+        XCTAssertFalse(WhitegramTextSettings(values: [:]).inAppVibrationEnabled)
+        XCTAssertTrue(WhitegramTextSettings(values: ["inAppVibrationEnabled": true]).inAppVibrationEnabled)
+        XCTAssertFalse(WhitegramTextSettings(values: ["inAppVibrationEnabled": false]).inAppVibrationEnabled)
+        XCTAssertFalse(WhitegramTextSettings(values: ["inAppVibration": true]).inAppVibrationEnabled)
+        let invalid: [Any] = [0, 1, -1, 1.0, "true", "1", NSNull(), [true], ["enabled": true]]
+        for value in invalid {
+            XCTAssertFalse(WhitegramTextSettings(values: ["inAppVibrationEnabled": value]).inAppVibrationEnabled, "Accepted \(value)")
+        }
+    }
+
+    func testInAppVibrationLegacyFallbackIsStrictAndCanonicalValuesTakePrecedence() throws {
+        let suite = "WhitegramVibrationTests." + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        XCTAssertFalse(WhitegramTextSettings(values: [:], legacyDefaults: defaults).inAppVibrationEnabled)
+        defaults.set(true, forKey: "wg_inAppVibrationEnabled")
+        XCTAssertTrue(WhitegramTextSettings(values: [:], legacyDefaults: defaults).inAppVibrationEnabled)
+        let disabled: [Any] = [false, 0, 1, 1.0, "true", NSNull(), [true], ["enabled": true]]
+        for value in disabled {
+            XCTAssertFalse(WhitegramTextSettings(values: ["inAppVibrationEnabled": value], legacyDefaults: defaults).inAppVibrationEnabled, "Accepted \(value)")
+        }
+        let invalidLegacy: [Any] = [0, 1, 1.0, "true", "1", [true], ["enabled": true]]
+        for value in invalidLegacy {
+            defaults.set(value, forKey: "wg_inAppVibrationEnabled")
+            XCTAssertFalse(WhitegramTextSettings(values: [:], legacyDefaults: defaults).inAppVibrationEnabled, "Accepted legacy \(value)")
+        }
+        defaults.set(false, forKey: "wg_inAppVibrationEnabled")
+        XCTAssertFalse(WhitegramTextSettings(values: [:], legacyDefaults: defaults).inAppVibrationEnabled)
+        XCTAssertTrue(WhitegramTextSettings(values: ["inAppVibrationEnabled": true], legacyDefaults: defaults).inAppVibrationEnabled)
+    }
+
+    func testInAppVibrationDecodesJSONBooleansWithoutCoercingNumbers() throws {
+        for (literal, expected) in [("true", true), ("false", false), ("1", false), ("0", false), ("1.0", false), ("\"true\"", false), ("null", false)] {
+            let data = Data("{\"inAppVibrationEnabled\":\(literal)}".utf8)
+            let values = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            XCTAssertEqual(WhitegramTextSettings(values: values).inAppVibrationEnabled, expected, literal)
+        }
+    }
+
+    func testInAppVibrationCurrentReloadsLegacyAndPersistsCanonicalAndMirror() {
+        struct SiblingSettings: Codable { let fixtureSibling: Bool }
+        self.withClearedPreferences {
+            XCTAssertFalse(WhitegramTextSettings.current.inAppVibrationEnabled)
+            UserDefaults.standard.set(true, forKey: "wg_inAppVibrationEnabled")
+            XCTAssertTrue(WhitegramTextSettings.current.inAppVibrationEnabled)
+            UserDefaults.standard.set(false, forKey: "wg_inAppVibrationEnabled")
+            XCTAssertFalse(WhitegramTextSettings.current.inAppVibrationEnabled)
+            XCTAssertTrue(WhitegramPreferences.set(true, for: "inAppVibrationEnabled"))
+            XCTAssertTrue(WhitegramTextSettings.current.inAppVibrationEnabled)
+            XCTAssertEqual(UserDefaults.standard.object(forKey: "wg_inAppVibrationEnabled") as? Bool, true)
+            UserDefaults.standard.set(false, forKey: "wg_inAppVibrationEnabled")
+            XCTAssertTrue(WhitegramTextSettings.current.inAppVibrationEnabled)
+            XCTAssertTrue(WhitegramPreferences.save(SiblingSettings(fixtureSibling: true)))
+            XCTAssertTrue(WhitegramTextSettings.current.inAppVibrationEnabled)
+            XCTAssertTrue(WhitegramPreferences.set(false, for: "inAppVibrationEnabled"))
+            XCTAssertFalse(WhitegramTextSettings.current.inAppVibrationEnabled)
+            XCTAssertEqual(UserDefaults.standard.object(forKey: "wg_inAppVibrationEnabled") as? Bool, false)
+            UserDefaults.standard.set(true, forKey: "wg_inAppVibrationEnabled")
+            XCTAssertFalse(WhitegramTextSettings.current.inAppVibrationEnabled)
+        }
+    }
+
     func testFormattingComplementsMergeOverlapsAndExpandGraphemeExclusions() {
         XCTAssertEqual(WhitegramTextSettings.formattingRanges(in: "0123456789", excluding: [6..<8, 2..<5, 4..<7]), [0..<2, 8..<10])
         XCTAssertEqual(WhitegramTextSettings.formattingRanges(in: "A😀Bе\u{301}C", excluding: [2..<3, 5..<6]), [0..<1, 3..<4, 6..<7])
@@ -172,7 +235,7 @@ final class WhitegramTextSettingsTests: XCTestCase {
 
     private func withClearedPreferences(_ body: () throws -> Void) rethrows {
         let defaults = UserDefaults.standard
-        let keys = [WhitegramPreferences.storageKey, "WhitegramPrivacySettings.v1", "wg_sendOnReturnKey", "wg_menuLanguageCode", "wg_fixtureSibling"]
+        let keys = [WhitegramPreferences.storageKey, "WhitegramPrivacySettings.v1", "wg_sendOnReturnKey", "wg_inAppVibrationEnabled", "wg_menuLanguageCode", "wg_fixtureSibling"]
         var saved: [String: Any] = [:]
         for key in keys {
             saved[key] = defaults.object(forKey: key)

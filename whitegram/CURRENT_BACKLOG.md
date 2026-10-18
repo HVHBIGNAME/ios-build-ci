@@ -1,8 +1,8 @@
 # Remaining Whitegram implementation work
 
-Updated 2026-10-16 after the local profile-actions/emphasis source increment.
+Updated 2026-10-18 after the profile-metadata, feedback and original-icons source increment.
 **The client is not feature-complete.** The recovered catalog still
-has **50 rows without UI routes**, including previews and informational text.
+has **45 rows without UI routes**, including previews and informational text.
 This is a routing count, not a percentage of implemented behavior. Reachable
 screens also require behavioral/parity validation; the original 333-row audit in
 `FEATURE_COVERAGE.md` is historical and cannot be used as current completion data.
@@ -13,9 +13,7 @@ screens also require behavioral/parity validation; the original 333-row audit in
 - [ ] `chatListPreview`
 - [ ] `tabBarPreview`
 
-### Appearance/layout (12)
-- [ ] `showOriginalTelegramIcons`
-- [ ] `customSettingsIcons`
+### Appearance/layout (10)
 - [ ] `profileCoverPhoto`
 - [ ] `resetProfileCoverPhoto`
 - [ ] `videoChatBackground`
@@ -57,28 +55,34 @@ screens also require behavioral/parity validation; the original 333-row audit in
 - [ ] `avatarGlow`
 - [ ] `albumArtBlur`
 
-### Other effects and feedback (6)
+### Other effects and feedback (5)
 - [ ] `appBadgeColorIsBlack`
-- [ ] `inAppVibration`
 - [ ] `particleEffectPicker`
 - [ ] `particleModePicker`
 - [ ] `particleSpeedSlider`
 - [ ] `particleDensitySlider`
 
-### Remote profile surfaces and remaining text (8)
+### Remote profile surfaces and remaining text (6)
 - [ ] `hideWhitegramUserBadge`
 - [ ] `hideWhitegramUserBadgeInfo`
 - [ ] `hideOthersCustomMessageStyle`
 - [ ] `hideOthersCustomMessageStyleInfo`
 - [ ] `iconPackSitePreview`
 - [ ] `iconsInfo`
-- [ ] `showMutualContactsCard`
-- [ ] `showRegistrationDateCard`
 
 ## Gates for marking a feature complete
 
+Build-34646 sources connect `showOriginalTelegramIcons`, `customSettingsIcons`,
+`inAppVibration`, `showMutualContactsCard` and `showRegistrationDateCard`.
+The 379-test Python suite passes without skips; native build and device checks
+are pending. Registration's original persistent caches and known-user prefilter
+remain unimplemented. The feedback increment covers the recovered normal-send
+hook, not every action mentioned in the original help text. See
+[BUILD_34646.md](BUILD_34646.md) for evidence and verification boundaries.
+
 `highlightMentions` and `roundProfileActionButtons` now have runtime consumers
-and routes in the build-34643 source increment. Native/device verification and
+and routes in the build-34643 source increment. Native compilation and clean
+simulator launches passed in build 34645; device verification and
 exact profile-layout comparison are pending; see
 [APPEARANCE_DETAILS_PORT.md](APPEARANCE_DETAILS_PORT.md). These rows are not
 counted as unconnected, but are not certified as full parity.

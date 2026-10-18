@@ -1,0 +1,524 @@
+{
+  "schema": 1,
+  "feature": "customSettingsIcons",
+  "source_ipa_sha256": "bd6d3a13046d5857c1389e2d794c4c2ca44cee89bb22880004bd77f84fe29837",
+  "audit_manifest_sha256": "e49ffd504c96d567ba4dec9253fea71b5bdf634a1ed3a372253bb3fc2068a823",
+  "audit_database_sha256": "f606fc9bf2594bf08879d48b1f7ce38467ada06d4b7c374ea1370910da0592da",
+  "recovery": "python -B whitegram/recover_settings_icons.py <audit-full-3.1.1> <output-directory>",
+  "conversion": "none; original CgBI PNG bytes preserved",
+  "evidence": {
+    "core_image": 46,
+    "getter": "0x203018",
+    "setter": "0x20307c",
+    "storage_key": "wg_customSettingsIcons",
+    "default": false,
+    "ui_image": 55,
+    "helper": "0x8f0d64",
+    "image_loader": "0x78429c",
+    "selector": "imageNamed:"
+  },
+  "mapping": [
+    {
+      "stock_member": "myProfile",
+      "asset_name": "whitegramprofile",
+      "ui_call_site": "0x8eca5c"
+    },
+    {
+      "stock_member": "proxy",
+      "asset_name": "whitegramproxy",
+      "ui_call_site": "0x8ecbfc"
+    },
+    {
+      "stock_member": "savedMessages",
+      "asset_name": "whitegramfavorite",
+      "ui_call_site": "0x8ed164"
+    },
+    {
+      "stock_member": "recentCalls",
+      "asset_name": "whitegramcalls",
+      "ui_call_site": "0x8ed21c"
+    },
+    {
+      "stock_member": "devices",
+      "asset_name": "whitegramgadgets",
+      "ui_call_site": "0x8ed3a0"
+    },
+    {
+      "stock_member": "chatFolders",
+      "asset_name": "whitegramfolders",
+      "ui_call_site": "0x8ed468"
+    },
+    {
+      "stock_member": "notifications",
+      "asset_name": "whitegrammessage",
+      "ui_call_site": "0x8ed5a0"
+    },
+    {
+      "stock_member": "security",
+      "asset_name": "whitegramprivacy",
+      "ui_call_site": "0x8ed688"
+    },
+    {
+      "stock_member": "dataAndStorage",
+      "asset_name": "whitegrammemory",
+      "ui_call_site": "0x8ed74c"
+    },
+    {
+      "stock_member": "appearance",
+      "asset_name": "whitegramui",
+      "ui_call_site": "0x8ed800"
+    },
+    {
+      "stock_member": "powerSaving",
+      "asset_name": "whitegrambattery",
+      "ui_call_site": "0x8ed914"
+    },
+    {
+      "stock_member": "language",
+      "asset_name": "whitegramlanguage",
+      "ui_call_site": "0x8eda84"
+    },
+    {
+      "stock_member": "premium",
+      "asset_name": "whitegrampremium",
+      "ui_call_site": "0x8edbe8"
+    },
+    {
+      "stock_member": "stars",
+      "asset_name": "whitegramstars",
+      "ui_call_site": "0x8ede4c"
+    },
+    {
+      "stock_member": "ton",
+      "asset_name": "whitegramwallet",
+      "ui_call_site": "0x8ee08c"
+    },
+    {
+      "stock_member": "business",
+      "asset_name": "whitegrambusiness",
+      "ui_call_site": "0x8ee1ec"
+    },
+    {
+      "stock_member": "premiumGift",
+      "asset_name": "whitegramgifts",
+      "ui_call_site": "0x8ee33c"
+    },
+    {
+      "stock_member": "support",
+      "asset_name": "whitegramhelp",
+      "ui_call_site": "0x8ee5e0"
+    },
+    {
+      "stock_member": "faq",
+      "asset_name": "whitegramfaq",
+      "ui_call_site": "0x8ee6a0"
+    },
+    {
+      "stock_member": "tips",
+      "asset_name": "whitegramhow",
+      "ui_call_site": "0x8ee75c"
+    }
+  ],
+  "images": [
+    {
+      "file": "whitegrambattery@2x.png",
+      "source_member": "Payload/Telegram.app/whitegrambattery@2x.png",
+      "bundle_path": "whitegrambattery@2x.png",
+      "bytes": 1790,
+      "sha256": "901a33138e8196338ff723625c8198d2f53d5a48ad2f560fc4b9457add371518",
+      "width": 58,
+      "height": 58,
+      "cgbi": true
+    },
+    {
+      "file": "whitegrambattery@3x.png",
+      "source_member": "Payload/Telegram.app/whitegrambattery@3x.png",
+      "bundle_path": "whitegrambattery@3x.png",
+      "bytes": 2901,
+      "sha256": "582fa91b3c5e76a8772b248956dfabadbd6719d47094040ada22f56e0161ba55",
+      "width": 87,
+      "height": 87,
+      "cgbi": true
+    },
+    {
+      "file": "whitegrambusiness@2x.png",
+      "source_member": "Payload/Telegram.app/whitegrambusiness@2x.png",
+      "bundle_path": "whitegrambusiness@2x.png",
+      "bytes": 2212,
+      "sha256": "dd363225dc919d81021824da5036078e12d4b1a22ef7b43e284142c78e8b5682",
+      "width": 58,
+      "height": 58,
+      "cgbi": true
+    },
+    {
+      "file": "whitegrambusiness@3x.png",
+      "source_member": "Payload/Telegram.app/whitegrambusiness@3x.png",
+      "bundle_path": "whitegrambusiness@3x.png",
+      "bytes": 3607,
+      "sha256": "d9de18771e2e225318d0fb9859dd496e5bcdfb7e80d3ac1d10ec8db237977af0",
+      "width": 87,
+      "height": 87,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramcalls@2x.png",
+      "source_member": "Payload/Telegram.app/whitegramcalls@2x.png",
+      "bundle_path": "whitegramcalls@2x.png",
+      "bytes": 2369,
+      "sha256": "e6f00fe26deff7890c2b7f457c45cba23fdf7deae856291e800a2c1d50294b1f",
+      "width": 58,
+      "height": 58,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramcalls@3x.png",
+      "source_member": "Payload/Telegram.app/whitegramcalls@3x.png",
+      "bundle_path": "whitegramcalls@3x.png",
+      "bytes": 3947,
+      "sha256": "a008ea83b711025f01d44f25c0bdcd8131f18e026b06ff5fd9decec937c92d37",
+      "width": 87,
+      "height": 87,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramfaq@2x.png",
+      "source_member": "Payload/Telegram.app/whitegramfaq@2x.png",
+      "bundle_path": "whitegramfaq@2x.png",
+      "bytes": 2238,
+      "sha256": "244eec5fdfb813b268e161911cb40b2cdf621106aa24a264ad62533d108217a5",
+      "width": 58,
+      "height": 58,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramfaq@3x.png",
+      "source_member": "Payload/Telegram.app/whitegramfaq@3x.png",
+      "bundle_path": "whitegramfaq@3x.png",
+      "bytes": 3919,
+      "sha256": "1b19294c17ae474e19fc883351b7a8042eb0a832f4a840dab9744f06aafc2211",
+      "width": 87,
+      "height": 87,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramfavorite@2x.png",
+      "source_member": "Payload/Telegram.app/whitegramfavorite@2x.png",
+      "bundle_path": "whitegramfavorite@2x.png",
+      "bytes": 1139,
+      "sha256": "389e15a05588c024909de635dd5df183735ecae219828fe6c03b2da298e9d1e5",
+      "width": 58,
+      "height": 58,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramfavorite@3x.png",
+      "source_member": "Payload/Telegram.app/whitegramfavorite@3x.png",
+      "bundle_path": "whitegramfavorite@3x.png",
+      "bytes": 1941,
+      "sha256": "deba6f37b67124d03294a4f4e7d9845c75919fdb85a62c076768edab79546a20",
+      "width": 87,
+      "height": 87,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramfolders@2x.png",
+      "source_member": "Payload/Telegram.app/whitegramfolders@2x.png",
+      "bundle_path": "whitegramfolders@2x.png",
+      "bytes": 1075,
+      "sha256": "b4cf291389dfe58f380968eb4d01e085744d6d1d5e1e4f67fa48237a8d5a4de5",
+      "width": 58,
+      "height": 58,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramfolders@3x.png",
+      "source_member": "Payload/Telegram.app/whitegramfolders@3x.png",
+      "bundle_path": "whitegramfolders@3x.png",
+      "bytes": 1883,
+      "sha256": "11e222be1fd2419991d4d9cfcb3d3914085464c428d44531fa05ba10128d9ffd",
+      "width": 87,
+      "height": 87,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramgadgets@2x.png",
+      "source_member": "Payload/Telegram.app/whitegramgadgets@2x.png",
+      "bundle_path": "whitegramgadgets@2x.png",
+      "bytes": 1115,
+      "sha256": "4015c038d2f3842d8dba48fe6520bdaa74387bdc077b885887c6766a8be02736",
+      "width": 58,
+      "height": 58,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramgadgets@3x.png",
+      "source_member": "Payload/Telegram.app/whitegramgadgets@3x.png",
+      "bundle_path": "whitegramgadgets@3x.png",
+      "bytes": 1880,
+      "sha256": "1bd68ff0d753c80ed684a813f1d5276ba31b983631b38a6702e79313b48c1af6",
+      "width": 87,
+      "height": 87,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramgifts@2x.png",
+      "source_member": "Payload/Telegram.app/whitegramgifts@2x.png",
+      "bundle_path": "whitegramgifts@2x.png",
+      "bytes": 2320,
+      "sha256": "82556ae611cc46f9d30d9686155d2e12b8f3ce0f0cc06688d2df54876b4062a4",
+      "width": 58,
+      "height": 58,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramgifts@3x.png",
+      "source_member": "Payload/Telegram.app/whitegramgifts@3x.png",
+      "bundle_path": "whitegramgifts@3x.png",
+      "bytes": 3693,
+      "sha256": "ba5cfc5c52579a4d09e14d1930482425acb9d250b3f15b5ef18bb2ba6a6ebe55",
+      "width": 87,
+      "height": 87,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramhelp@2x.png",
+      "source_member": "Payload/Telegram.app/whitegramhelp@2x.png",
+      "bundle_path": "whitegramhelp@2x.png",
+      "bytes": 1624,
+      "sha256": "9147d3815a31ba2d04c7ffffb513787d2a5a0caee02a5a5071d49591e55b483f",
+      "width": 58,
+      "height": 58,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramhelp@3x.png",
+      "source_member": "Payload/Telegram.app/whitegramhelp@3x.png",
+      "bundle_path": "whitegramhelp@3x.png",
+      "bytes": 2668,
+      "sha256": "e5369b1ac4937251e1f5e083e3073de81cc96af9a940ff33964555b62f2dc18e",
+      "width": 87,
+      "height": 87,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramhow@2x.png",
+      "source_member": "Payload/Telegram.app/whitegramhow@2x.png",
+      "bundle_path": "whitegramhow@2x.png",
+      "bytes": 1417,
+      "sha256": "96b04908c6430e2a74720b8da1bc0a9cc73428eb2d4d442ae9fe9454029c4ca9",
+      "width": 58,
+      "height": 58,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramhow@3x.png",
+      "source_member": "Payload/Telegram.app/whitegramhow@3x.png",
+      "bundle_path": "whitegramhow@3x.png",
+      "bytes": 3014,
+      "sha256": "531bade1848e25f77ff074423b7149f49ca48007f501f5c135e0f22756892da9",
+      "width": 87,
+      "height": 87,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramlanguage@2x.png",
+      "source_member": "Payload/Telegram.app/whitegramlanguage@2x.png",
+      "bundle_path": "whitegramlanguage@2x.png",
+      "bytes": 2528,
+      "sha256": "7fe9e8fb93faba687e80294f74aba7cce371e350c9051f14d98b93b1abca9355",
+      "width": 58,
+      "height": 58,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramlanguage@3x.png",
+      "source_member": "Payload/Telegram.app/whitegramlanguage@3x.png",
+      "bundle_path": "whitegramlanguage@3x.png",
+      "bytes": 4137,
+      "sha256": "46155b235330bfa88ac6bdacd7684d58cd5d128b97062f530e4b7e9fd9818d58",
+      "width": 87,
+      "height": 87,
+      "cgbi": true
+    },
+    {
+      "file": "whitegrammemory@2x.png",
+      "source_member": "Payload/Telegram.app/whitegrammemory@2x.png",
+      "bundle_path": "whitegrammemory@2x.png",
+      "bytes": 2584,
+      "sha256": "35f3759a2e212823dd585af6afb5f31fce0e9c83738a8c6cfff9d84363bea45e",
+      "width": 58,
+      "height": 58,
+      "cgbi": true
+    },
+    {
+      "file": "whitegrammemory@3x.png",
+      "source_member": "Payload/Telegram.app/whitegrammemory@3x.png",
+      "bundle_path": "whitegrammemory@3x.png",
+      "bytes": 4599,
+      "sha256": "211d99450537e37828311a134d1e1db202e66256a3fad93d4606ea9e4ef92e5f",
+      "width": 87,
+      "height": 87,
+      "cgbi": true
+    },
+    {
+      "file": "whitegrammessage@2x.png",
+      "source_member": "Payload/Telegram.app/whitegrammessage@2x.png",
+      "bundle_path": "whitegrammessage@2x.png",
+      "bytes": 1945,
+      "sha256": "4a8758231c701586a673bdc30988f004be3dd4708d5573e2a2fd0a293adf2797",
+      "width": 58,
+      "height": 58,
+      "cgbi": true
+    },
+    {
+      "file": "whitegrammessage@3x.png",
+      "source_member": "Payload/Telegram.app/whitegrammessage@3x.png",
+      "bundle_path": "whitegrammessage@3x.png",
+      "bytes": 3363,
+      "sha256": "9946545c8ce8abb3c0164c97a866428e381c08d3f655359342f26e09b241d917",
+      "width": 87,
+      "height": 87,
+      "cgbi": true
+    },
+    {
+      "file": "whitegrampremium@2x.png",
+      "source_member": "Payload/Telegram.app/whitegrampremium@2x.png",
+      "bundle_path": "whitegrampremium@2x.png",
+      "bytes": 1301,
+      "sha256": "9d44a619e05ce1e47d3beb2430cbd9d1f29ffc08f39bb088c48c39da65b12144",
+      "width": 58,
+      "height": 58,
+      "cgbi": true
+    },
+    {
+      "file": "whitegrampremium@3x.png",
+      "source_member": "Payload/Telegram.app/whitegrampremium@3x.png",
+      "bundle_path": "whitegrampremium@3x.png",
+      "bytes": 1989,
+      "sha256": "58dcd2e39e0f69a05bbde4614b17f8189f2efc31c4925e4910f6fef5c5f64532",
+      "width": 87,
+      "height": 87,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramprivacy@2x.png",
+      "source_member": "Payload/Telegram.app/whitegramprivacy@2x.png",
+      "bundle_path": "whitegramprivacy@2x.png",
+      "bytes": 1458,
+      "sha256": "e3bd82c3e4501b1f5127c13ab84eff8a0afb2e7517a41c83d04a1e71a4e8f82c",
+      "width": 58,
+      "height": 58,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramprivacy@3x.png",
+      "source_member": "Payload/Telegram.app/whitegramprivacy@3x.png",
+      "bundle_path": "whitegramprivacy@3x.png",
+      "bytes": 2481,
+      "sha256": "c8dbf0e47f82c2675e575568fa2e98770ac36d26fc731f7f6fd0c7500a82a870",
+      "width": 87,
+      "height": 87,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramprofile@2x.png",
+      "source_member": "Payload/Telegram.app/whitegramprofile@2x.png",
+      "bundle_path": "whitegramprofile@2x.png",
+      "bytes": 1946,
+      "sha256": "a5ce83629eb7ab5f8363a74fb6a9ac731a24765a6e0bb11a035d011fed70b9ef",
+      "width": 58,
+      "height": 58,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramprofile@3x.png",
+      "source_member": "Payload/Telegram.app/whitegramprofile@3x.png",
+      "bundle_path": "whitegramprofile@3x.png",
+      "bytes": 3317,
+      "sha256": "029008d3f7cc4f0082826bc0457eba132322dee21d63d53bcae731cfe021ea99",
+      "width": 87,
+      "height": 87,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramproxy@2x.png",
+      "source_member": "Payload/Telegram.app/whitegramproxy@2x.png",
+      "bundle_path": "whitegramproxy@2x.png",
+      "bytes": 1461,
+      "sha256": "2412cff7be4e278cae0b4e150869a41ed697b9f717c9f5c63eb0d4dfe3dcebe4",
+      "width": 58,
+      "height": 58,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramproxy@3x.png",
+      "source_member": "Payload/Telegram.app/whitegramproxy@3x.png",
+      "bundle_path": "whitegramproxy@3x.png",
+      "bytes": 2491,
+      "sha256": "0530340dd67578e7218422b9a5629bb505353247cb7aa5d1098436986b218ba0",
+      "width": 87,
+      "height": 87,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramstars@2x.png",
+      "source_member": "Payload/Telegram.app/whitegramstars@2x.png",
+      "bundle_path": "whitegramstars@2x.png",
+      "bytes": 1695,
+      "sha256": "8917193c0df2f93d54911199e9b7f207858c895c5a9e0fdfa482afea69e343c2",
+      "width": 58,
+      "height": 58,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramstars@3x.png",
+      "source_member": "Payload/Telegram.app/whitegramstars@3x.png",
+      "bundle_path": "whitegramstars@3x.png",
+      "bytes": 2868,
+      "sha256": "b482d0f02ff04df6a98737dbeccc06aee794ffceafe41e8f38c56b2d64a02277",
+      "width": 87,
+      "height": 87,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramui@2x.png",
+      "source_member": "Payload/Telegram.app/whitegramui@2x.png",
+      "bundle_path": "whitegramui@2x.png",
+      "bytes": 2478,
+      "sha256": "51a45dd712dadea0cba48e71970520055cf19b6ebbbaab2e84d1164b5c431a5c",
+      "width": 58,
+      "height": 58,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramui@3x.png",
+      "source_member": "Payload/Telegram.app/whitegramui@3x.png",
+      "bundle_path": "whitegramui@3x.png",
+      "bytes": 3990,
+      "sha256": "3c714036515f163ce8429596b286f25444572520f17e38d870e534e0a48f9f88",
+      "width": 87,
+      "height": 87,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramwallet@2x.png",
+      "source_member": "Payload/Telegram.app/whitegramwallet@2x.png",
+      "bundle_path": "whitegramwallet@2x.png",
+      "bytes": 1724,
+      "sha256": "1882aafbb9f8a4355da90952dea1fbb90005974b41d108c16b5d244d4df261a4",
+      "width": 58,
+      "height": 58,
+      "cgbi": true
+    },
+    {
+      "file": "whitegramwallet@3x.png",
+      "source_member": "Payload/Telegram.app/whitegramwallet@3x.png",
+      "bundle_path": "whitegramwallet@3x.png",
+      "bytes": 2966,
+      "sha256": "d29643bc5f920667aef652cae5ed7485a699d120735fabef439d43de52a55f52",
+      "width": 87,
+      "height": 87,
+      "cgbi": true
+    }
+  ]
+}

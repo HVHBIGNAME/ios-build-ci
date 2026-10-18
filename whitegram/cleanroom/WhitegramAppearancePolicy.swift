@@ -21,7 +21,8 @@ public struct WhitegramAppearancePolicy: Equatable {
         "liquidGlassProfile", "liquidGlassGifts", "liquidGlassInlineButtons", "glassTinting",
         "fakeLiquidGlass", "colorInsteadOfGlass", "lightChatUI",
         "hideChatListTitle", "hideChatListPremiumBadge", "hideChatListPremiumStatus",
-        "hideGifts", "visualUsernameEnabled", "highlightMentions", "roundProfileActionButtons"
+        "hideGifts", "visualUsernameEnabled", "highlightMentions", "roundProfileActionButtons",
+        "customSettingsIcons", "showOriginalTelegramIcons"
     ]
 
     private let flags: [String: Bool]

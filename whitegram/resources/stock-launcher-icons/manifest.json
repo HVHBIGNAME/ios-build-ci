@@ -1,0 +1,1233 @@
+{
+  "schema": 1,
+  "feature": "showOriginalTelegramIcons",
+  "source_ipa_sha256": "bd6d3a13046d5857c1389e2d794c4c2ca44cee89bb22880004bd77f84fe29837",
+  "source_plist": {
+    "source_member": "Payload/Telegram.app/Info.plist",
+    "sha256": "74d3a5e3d05c6ac1a0c6a0e592777b900f7cea0d284a74da2d9a0ca9fc775c97",
+    "bytes": 20619
+  },
+  "audit_database_sha256": "f606fc9bf2594bf08879d48b1f7ce38467ada06d4b7c374ea1370910da0592da",
+  "audit_manifest_sha256": "e49ffd504c96d567ba4dec9253fea71b5bdf634a1ed3a372253bb3fc2068a823",
+  "recovery": "python -B whitegram/recover_launcher_icons.py <audit-full-3.1.1> <output-directory>",
+  "conversion": "none; original CgBI PNG bytes and loose filenames preserved",
+  "evidence": {
+    "ui_getter_consumer": "0x3ee70",
+    "default": false,
+    "isDefault": false,
+    "isPremium": false
+  },
+  "stock_icons": [
+    [
+      "Blue",
+      "BlueIcon"
+    ],
+    [
+      "New2",
+      "New2"
+    ],
+    [
+      "New1",
+      "New1"
+    ],
+    [
+      "Black",
+      "BlackIcon"
+    ],
+    [
+      "BlueClassic",
+      "BlueClassicIcon"
+    ],
+    [
+      "BlackClassic",
+      "BlackClassicIcon"
+    ],
+    [
+      "BlueFilled",
+      "BlueFilledIcon"
+    ],
+    [
+      "BlackFilled",
+      "BlackFilledIcon"
+    ]
+  ],
+  "original_alternatives": {
+    "CFBundleIcons": {
+      "Blue": {
+        "CFBundleIconFiles": [
+          "BlueIcon",
+          "BlueNotificationIcon"
+        ],
+        "UIPrerenderedIcon": true
+      },
+      "New2": {
+        "CFBundleIconFiles": [
+          "New2_20x20",
+          "New2_29x29",
+          "New2_40x40",
+          "New2_58x58",
+          "New2_60x60",
+          "New2_76x76",
+          "New2_80x80",
+          "New2_87x87",
+          "New2_120x120",
+          "New2_152x152",
+          "New2_167x167",
+          "New2_180x180"
+        ],
+        "UIPrerenderedIcon": true
+      },
+      "New1": {
+        "CFBundleIconFiles": [
+          "New1_20x20",
+          "New1_29x29",
+          "New1_40x40",
+          "New1_58x58",
+          "New1_60x60",
+          "New1_76x76",
+          "New1_80x80",
+          "New1_87x87",
+          "New1_120x120",
+          "New1_152x152",
+          "New1_167x167",
+          "New1_180x180"
+        ],
+        "UIPrerenderedIcon": true
+      },
+      "Black": {
+        "CFBundleIconFiles": [
+          "BlackIcon",
+          "BlackNotificationIcon"
+        ],
+        "UIPrerenderedIcon": true
+      },
+      "BlueClassic": {
+        "CFBundleIconFiles": [
+          "BlueClassicIcon",
+          "BlueClassicNotificationIcon"
+        ],
+        "UIPrerenderedIcon": true
+      },
+      "BlackClassic": {
+        "CFBundleIconFiles": [
+          "BlackClassicIcon",
+          "BlackClassicNotificationIcon"
+        ],
+        "UIPrerenderedIcon": true
+      },
+      "BlueFilled": {
+        "CFBundleIconFiles": [
+          "BlueFilledIcon"
+        ],
+        "UIPrerenderedIcon": true
+      },
+      "BlackFilled": {
+        "CFBundleIconFiles": [
+          "BlackFilledIcon"
+        ],
+        "UIPrerenderedIcon": true
+      }
+    },
+    "CFBundleIcons~ipad": {
+      "Blue": {
+        "CFBundleIconFiles": [
+          "BlueIconIpad",
+          "BlueIconLargeIpad",
+          "BlueNotificationIcon"
+        ],
+        "UIPrerenderedIcon": true
+      },
+      "New2": {
+        "CFBundleIconFiles": [
+          "New2_20x20",
+          "New2_29x29",
+          "New2_40x40",
+          "New2_58x58",
+          "New2_60x60",
+          "New2_76x76",
+          "New2_80x80",
+          "New2_87x87",
+          "New2_120x120",
+          "New2_152x152",
+          "New2_167x167",
+          "New2_180x180"
+        ],
+        "UIPrerenderedIcon": true
+      },
+      "New1": {
+        "CFBundleIconFiles": [
+          "New1_20x20",
+          "New1_29x29",
+          "New1_40x40",
+          "New1_58x58",
+          "New1_60x60",
+          "New1_76x76",
+          "New1_80x80",
+          "New1_87x87",
+          "New1_120x120",
+          "New1_152x152",
+          "New1_167x167",
+          "New1_180x180"
+        ],
+        "UIPrerenderedIcon": true
+      },
+      "Black": {
+        "CFBundleIconFiles": [
+          "BlackIconIpad",
+          "BlackIconLargeIpad",
+          "BlackNotificationIcon"
+        ],
+        "UIPrerenderedIcon": true
+      },
+      "BlueClassic": {
+        "CFBundleIconFiles": [
+          "BlueClassicIconIpad",
+          "BlueClassicIconLargeIpad",
+          "BlueClassicNotificationIcon"
+        ],
+        "UIPrerenderedIcon": true
+      },
+      "BlackClassic": {
+        "CFBundleIconFiles": [
+          "BlackClassicIconIpad",
+          "BlackClassicIconLargeIpad",
+          "BlackClassicNotificationIcon"
+        ],
+        "UIPrerenderedIcon": true
+      },
+      "BlueFilled": {
+        "CFBundleIconFiles": [
+          "BlueFilledIconIpad",
+          "BlueFilledIconLargeIpad"
+        ],
+        "UIPrerenderedIcon": true
+      },
+      "BlackFilled": {
+        "CFBundleIconFiles": [
+          "BlackFilledIconIpad",
+          "BlackFilledIconLargeIpad"
+        ],
+        "UIPrerenderedIcon": true
+      }
+    }
+  },
+  "new_icon_original_reference_to_physical_files_by_pixels": {
+    "New1": {
+      "New1_20x20": [
+        "New1_notification.png"
+      ],
+      "New1_29x29": [
+        "New1_29x29.png"
+      ],
+      "New1_40x40": [
+        "New1_notification@2x.png"
+      ],
+      "New1_58x58": [
+        "New1_58x58.png"
+      ],
+      "New1_60x60": [
+        "New1_notification@3x.png"
+      ],
+      "New1_76x76": [
+        "New1-76.png"
+      ],
+      "New1_80x80": [
+        "New1_80x80.png"
+      ],
+      "New1_87x87": [
+        "New1_87x87.png"
+      ],
+      "New1_120x120": [
+        "New1@2x.png"
+      ],
+      "New1_152x152": [
+        "New1-76@2x.png"
+      ],
+      "New1_167x167": [
+        "New1-83.5@2x.png"
+      ],
+      "New1_180x180": [
+        "New1@3x.png"
+      ]
+    },
+    "New2": {
+      "New2_20x20": [
+        "New2_notification.png"
+      ],
+      "New2_29x29": [
+        "New2-Small.png"
+      ],
+      "New2_40x40": [
+        "New2-Small-40.png"
+      ],
+      "New2_58x58": [
+        "New2-Small@2x.png"
+      ],
+      "New2_60x60": [
+        "New2_notification@3x.png"
+      ],
+      "New2_76x76": [
+        "New2-76.png"
+      ],
+      "New2_80x80": [
+        "New2-Small-40@2x.png"
+      ],
+      "New2_87x87": [
+        "New2-Small@3x.png"
+      ],
+      "New2_120x120": [
+        "New2@2x.png"
+      ],
+      "New2_152x152": [
+        "New2-76@2x.png"
+      ],
+      "New2_167x167": [
+        "New2-83.5@2x.png"
+      ],
+      "New2_180x180": [
+        "New2@3x.png"
+      ]
+    }
+  },
+  "bundle_alternatives": {
+    "Blue": {
+      "CFBundleIconFiles": [
+        "BlueIcon",
+        "BlueIconIpad",
+        "BlueIconLargeIpad",
+        "BlueNotificationIcon"
+      ]
+    },
+    "New2": {
+      "CFBundleIconFiles": [
+        "New2",
+        "New2-76",
+        "New2-83.5",
+        "New2-Small",
+        "New2-Small-40",
+        "New2_notification"
+      ]
+    },
+    "New1": {
+      "CFBundleIconFiles": [
+        "New1",
+        "New1-76",
+        "New1-83.5",
+        "New1_29x29",
+        "New1_58x58",
+        "New1_80x80",
+        "New1_87x87",
+        "New1_notification"
+      ]
+    },
+    "Black": {
+      "CFBundleIconFiles": [
+        "BlackIcon",
+        "BlackIconIpad",
+        "BlackIconLargeIpad",
+        "BlackNotificationIcon"
+      ]
+    },
+    "BlueClassic": {
+      "CFBundleIconFiles": [
+        "BlueClassicIcon",
+        "BlueClassicIconIpad",
+        "BlueClassicIconLargeIpad",
+        "BlueClassicNotificationIcon"
+      ]
+    },
+    "BlackClassic": {
+      "CFBundleIconFiles": [
+        "BlackClassicIcon",
+        "BlackClassicIconIpad",
+        "BlackClassicIconLargeIpad",
+        "BlackClassicNotificationIcon"
+      ]
+    },
+    "BlueFilled": {
+      "CFBundleIconFiles": [
+        "BlueFilledIcon",
+        "BlueFilledIconIpad",
+        "BlueFilledIconLargeIpad"
+      ]
+    },
+    "BlackFilled": {
+      "CFBundleIconFiles": [
+        "BlackFilledIcon",
+        "BlackFilledIconIpad",
+        "BlackFilledIconLargeIpad"
+      ]
+    }
+  },
+  "packaging": {
+    "rules_apple_commit": "1791d916de4083388f22e20248d8b010d23f0d6b",
+    "tool": "tools/alticonstool/alticonstool.py",
+    "rule": "apple/internal/partials/support/resources_support.bzl",
+    "families": [
+      "iphone",
+      "ipad"
+    ],
+    "references": "sorted unique filename stems with @scale removed; same union for both families",
+    "placement": "Bundle.main root; Xcode may losslessly recompress PNGs"
+  },
+  "images": [
+    {
+      "file": "BlackClassicIcon@2x.png",
+      "selection_name": "BlackClassic",
+      "bundle_path": "BlackClassicIcon@2x.png",
+      "install_path": "BlackClassic.alticon/BlackClassicIcon@2x.png",
+      "source_member": "Payload/Telegram.app/BlackClassicIcon@2x.png",
+      "sha256": "79a549d0fe4b3e8ec51a17e33650887224374d02630107ce78ae001da887c2e6",
+      "bytes": 6401,
+      "width": 120,
+      "height": 120,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "5354502437e69d555fe25d0c1d54f9cf6bb8945b01dfe1ce191f96fd3aad46ac"
+    },
+    {
+      "file": "BlackClassicIcon@3x.png",
+      "selection_name": "BlackClassic",
+      "bundle_path": "BlackClassicIcon@3x.png",
+      "install_path": "BlackClassic.alticon/BlackClassicIcon@3x.png",
+      "source_member": "Payload/Telegram.app/BlackClassicIcon@3x.png",
+      "sha256": "938f08c11a6312f6f096338225847394599153fdc492f8aa51520bb8e826ec3f",
+      "bytes": 10095,
+      "width": 180,
+      "height": 180,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "e89936a8d062e36948eb1ab9d6d23fab5d726fc04c728c036f975b6e39c3737a"
+    },
+    {
+      "file": "BlackClassicIconIpad.png",
+      "selection_name": "BlackClassic",
+      "bundle_path": "BlackClassicIconIpad.png",
+      "install_path": "BlackClassic.alticon/BlackClassicIconIpad.png",
+      "source_member": "Payload/Telegram.app/BlackClassicIconIpad.png",
+      "sha256": "5fc740a619656625925780d58dfe61e4878ad3ef41f6f992f12218e678d8fa31",
+      "bytes": 4030,
+      "width": 76,
+      "height": 76,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "cbc89ece65a9a1da4a39d3a44349b72abc0bdfce616123bedae30ff2b4fca26c"
+    },
+    {
+      "file": "BlackClassicIconIpad@2x.png",
+      "selection_name": "BlackClassic",
+      "bundle_path": "BlackClassicIconIpad@2x.png",
+      "install_path": "BlackClassic.alticon/BlackClassicIconIpad@2x.png",
+      "source_member": "Payload/Telegram.app/BlackClassicIconIpad@2x.png",
+      "sha256": "546e5ed516379a4727f8c7d3229035e3524f7bb34ce2837bae738220cb5d1b03",
+      "bytes": 8548,
+      "width": 152,
+      "height": 152,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "4961a7072983837cc5a604ba0c34e149b3b08f8b2bc2f83bfc3ab6f91065a2d2"
+    },
+    {
+      "file": "BlackClassicIconLargeIpad@2x.png",
+      "selection_name": "BlackClassic",
+      "bundle_path": "BlackClassicIconLargeIpad@2x.png",
+      "install_path": "BlackClassic.alticon/BlackClassicIconLargeIpad@2x.png",
+      "source_member": "Payload/Telegram.app/BlackClassicIconLargeIpad@2x.png",
+      "sha256": "eab1f01270b9594017ae52164cb2f1912c43258d07df48adf444ee4128bd506a",
+      "bytes": 9497,
+      "width": 167,
+      "height": 167,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "68e67095e0d6ddfdce2342b5646120231e2849fe957924af5c5e101dc32941d8"
+    },
+    {
+      "file": "BlackClassicNotificationIcon.png",
+      "selection_name": "BlackClassic",
+      "bundle_path": "BlackClassicNotificationIcon.png",
+      "install_path": "BlackClassic.alticon/BlackClassicNotificationIcon.png",
+      "source_member": "Payload/Telegram.app/BlackClassicNotificationIcon.png",
+      "sha256": "5599482031a020134876e5bf989b2c5ea6fabddc9573a2d3dbc9964a0e50a1e3",
+      "bytes": 748,
+      "width": 20,
+      "height": 20,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "f4ed385ec2ec2a2d054e29a9a2e9db6a9cc0ce0458d58a0e7abb08e4f9589480"
+    },
+    {
+      "file": "BlackClassicNotificationIcon@2x.png",
+      "selection_name": "BlackClassic",
+      "bundle_path": "BlackClassicNotificationIcon@2x.png",
+      "install_path": "BlackClassic.alticon/BlackClassicNotificationIcon@2x.png",
+      "source_member": "Payload/Telegram.app/BlackClassicNotificationIcon@2x.png",
+      "sha256": "29de2024cddd0fa4b39c92a129dd6b7c2bab6fd828714b3e4e91bf271297052e",
+      "bytes": 1754,
+      "width": 40,
+      "height": 40,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "47b984ed287533a782b69b46f025fd8d05f26815f862e68dc6af7cf43bc68ff0"
+    },
+    {
+      "file": "BlackClassicNotificationIcon@3x.png",
+      "selection_name": "BlackClassic",
+      "bundle_path": "BlackClassicNotificationIcon@3x.png",
+      "install_path": "BlackClassic.alticon/BlackClassicNotificationIcon@3x.png",
+      "source_member": "Payload/Telegram.app/BlackClassicNotificationIcon@3x.png",
+      "sha256": "3c3fa0020a28e15eab51e97cb0c2adfbd4b33ceff9a248dacbb4a88d33719c60",
+      "bytes": 2864,
+      "width": 60,
+      "height": 60,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "b019babaf16477236a952a20e0c58587833653a02fb17bd12ea995f4f6de82f3"
+    },
+    {
+      "file": "BlackFilledIcon@2x.png",
+      "selection_name": "BlackFilled",
+      "bundle_path": "BlackFilledIcon@2x.png",
+      "install_path": "BlackFilled.alticon/BlackFilledIcon@2x.png",
+      "source_member": "Payload/Telegram.app/BlackFilledIcon@2x.png",
+      "sha256": "df3386e11c03f4f85ebab0e62ac831b6503a257a925d1da7de57f7989241f54b",
+      "bytes": 5511,
+      "width": 120,
+      "height": 120,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "2dfd40d345baa713fe30adf4ccd9bf0189900df6549ac406b91aede93878ebb3"
+    },
+    {
+      "file": "BlackFilledIcon@3x.png",
+      "selection_name": "BlackFilled",
+      "bundle_path": "BlackFilledIcon@3x.png",
+      "install_path": "BlackFilled.alticon/BlackFilledIcon@3x.png",
+      "source_member": "Payload/Telegram.app/BlackFilledIcon@3x.png",
+      "sha256": "8438d2ef88e776065bffeb16c94806ec6ca1424e3621cd12800521fa98cc9def",
+      "bytes": 8044,
+      "width": 180,
+      "height": 180,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "cf604904a02ca7014b2f84c42526883bee5f45090cc6f7c268c32ce4888a175f"
+    },
+    {
+      "file": "BlackFilledIconIpad.png",
+      "selection_name": "BlackFilled",
+      "bundle_path": "BlackFilledIconIpad.png",
+      "install_path": "BlackFilled.alticon/BlackFilledIconIpad.png",
+      "source_member": "Payload/Telegram.app/BlackFilledIconIpad.png",
+      "sha256": "09c6d3d4436c32d56044b914862e8bda7e43dd685439afc8ca20badd6d5bac4f",
+      "bytes": 3469,
+      "width": 76,
+      "height": 76,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "f52c159c54e6c1048defed0fb44e1bc2b5b79f1da098f27ab4b080c523f13e9c"
+    },
+    {
+      "file": "BlackFilledIconIpad@2x.png",
+      "selection_name": "BlackFilled",
+      "bundle_path": "BlackFilledIconIpad@2x.png",
+      "install_path": "BlackFilled.alticon/BlackFilledIconIpad@2x.png",
+      "source_member": "Payload/Telegram.app/BlackFilledIconIpad@2x.png",
+      "sha256": "8bfcc13e5c4f804c525de3123225b0828d425e99d7b5ed66a6b48d741a51e695",
+      "bytes": 7007,
+      "width": 152,
+      "height": 152,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "743f216cb04fc96feeda03d179b783974f2c9ddf74220180bedc8a3101a39611"
+    },
+    {
+      "file": "BlackFilledIconLargeIpad@2x.png",
+      "selection_name": "BlackFilled",
+      "bundle_path": "BlackFilledIconLargeIpad@2x.png",
+      "install_path": "BlackFilled.alticon/BlackFilledIconLargeIpad@2x.png",
+      "source_member": "Payload/Telegram.app/BlackFilledIconLargeIpad@2x.png",
+      "sha256": "6b693c4af80d1890973cf00bbe046ba583f934403e25b1d2d06e7423bf3411d1",
+      "bytes": 7510,
+      "width": 167,
+      "height": 167,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "615486263fbc126a252e7297303143fe659f64f37ddd7eb99db7e25b152896e4"
+    },
+    {
+      "file": "BlackIcon@2x.png",
+      "selection_name": "Black",
+      "bundle_path": "BlackIcon@2x.png",
+      "install_path": "Black.alticon/BlackIcon@2x.png",
+      "source_member": "Payload/Telegram.app/BlackIcon@2x.png",
+      "sha256": "30d7851e4792cd0fdffcd732bbb8ea745b7ad35406330c42f6bb962794a6ba3d",
+      "bytes": 5949,
+      "width": 120,
+      "height": 120,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "3bf572e5f2db8d49f2b92968f9567519a8e8ff94dacbba43b2d8bfffa1888dfe"
+    },
+    {
+      "file": "BlackIcon@3x.png",
+      "selection_name": "Black",
+      "bundle_path": "BlackIcon@3x.png",
+      "install_path": "Black.alticon/BlackIcon@3x.png",
+      "source_member": "Payload/Telegram.app/BlackIcon@3x.png",
+      "sha256": "5b0a5338b9f5e8d975aa18807d9bf44aede7616a385e61447dbb4da14eb782f7",
+      "bytes": 9206,
+      "width": 180,
+      "height": 180,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "0bfaba8ba3d6aa5eb2becc805adb0218dbafe965ab231febe7ea90926b099ee0"
+    },
+    {
+      "file": "BlackIconIpad.png",
+      "selection_name": "Black",
+      "bundle_path": "BlackIconIpad.png",
+      "install_path": "Black.alticon/BlackIconIpad.png",
+      "source_member": "Payload/Telegram.app/BlackIconIpad.png",
+      "sha256": "03796eab01455db069b7fcfd612d5dcd7d4be8f4683ca641a27a9d68e9527976",
+      "bytes": 3794,
+      "width": 76,
+      "height": 76,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "194b9f9b4aecd79cafcbfd6bb952d1acd2b05c108ff62366d967839a70f992d4"
+    },
+    {
+      "file": "BlackIconIpad@2x.png",
+      "selection_name": "Black",
+      "bundle_path": "BlackIconIpad@2x.png",
+      "install_path": "Black.alticon/BlackIconIpad@2x.png",
+      "source_member": "Payload/Telegram.app/BlackIconIpad@2x.png",
+      "sha256": "459ec6b739634d6c05a2b01ba6d15582b450bc500f5b6f4297e1e3ad2e036d26",
+      "bytes": 7863,
+      "width": 152,
+      "height": 152,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "cfcc889ba92d5e82215c83357485fdc1066ddc80196ea36b3cf022637fbb74f3"
+    },
+    {
+      "file": "BlackIconLargeIpad@2x.png",
+      "selection_name": "Black",
+      "bundle_path": "BlackIconLargeIpad@2x.png",
+      "install_path": "Black.alticon/BlackIconLargeIpad@2x.png",
+      "source_member": "Payload/Telegram.app/BlackIconLargeIpad@2x.png",
+      "sha256": "b34186356c0c7acbac4390a34fc2b83664a69d8b56537ddab916c6e56938b36c",
+      "bytes": 8632,
+      "width": 167,
+      "height": 167,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "868ee47e90b7f0a175b6c71ad51d663eeac26d842aabe6df41a4f4a66d07d05a"
+    },
+    {
+      "file": "BlackNotificationIcon.png",
+      "selection_name": "Black",
+      "bundle_path": "BlackNotificationIcon.png",
+      "install_path": "Black.alticon/BlackNotificationIcon.png",
+      "source_member": "Payload/Telegram.app/BlackNotificationIcon.png",
+      "sha256": "b51a68aeeb93cb85dd734c3372c99bd38e79d3236a9adde68878565232a9dd64",
+      "bytes": 705,
+      "width": 20,
+      "height": 20,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "c2fd9eada3003869096e071c37ee28ecc14be973c53c61ea200e9df5f0c13317"
+    },
+    {
+      "file": "BlackNotificationIcon@2x.png",
+      "selection_name": "Black",
+      "bundle_path": "BlackNotificationIcon@2x.png",
+      "install_path": "Black.alticon/BlackNotificationIcon@2x.png",
+      "source_member": "Payload/Telegram.app/BlackNotificationIcon@2x.png",
+      "sha256": "329c863cf9d866fda592d3c23c238d94e36d421af3b0324d45b5ab8e6dfaba3d",
+      "bytes": 1637,
+      "width": 40,
+      "height": 40,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "4549bc5089e488b263b09a73034cf44382f138ea847c7164d8b9fa1093130753"
+    },
+    {
+      "file": "BlackNotificationIcon@3x.png",
+      "selection_name": "Black",
+      "bundle_path": "BlackNotificationIcon@3x.png",
+      "install_path": "Black.alticon/BlackNotificationIcon@3x.png",
+      "source_member": "Payload/Telegram.app/BlackNotificationIcon@3x.png",
+      "sha256": "b49986fd4bef48eb907816f75185eb7e13dfb9747cb8786cb754fa5ba36ce248",
+      "bytes": 2712,
+      "width": 60,
+      "height": 60,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "a8f56ce4ed799dc0be5e255a12eca2ba0f8d5444c52920563fc843af01d871d7"
+    },
+    {
+      "file": "BlueClassicIcon@2x.png",
+      "selection_name": "BlueClassic",
+      "bundle_path": "BlueClassicIcon@2x.png",
+      "install_path": "BlueClassic.alticon/BlueClassicIcon@2x.png",
+      "source_member": "Payload/Telegram.app/BlueClassicIcon@2x.png",
+      "sha256": "d8673bc193d9cdef90c0d0c0d177fca5ba7dc30f397ecc106e88f1588f6d5772",
+      "bytes": 5024,
+      "width": 120,
+      "height": 120,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "142b8781b17ed923a1577336241bd7de7422ca0b08e82d017e5e6725cb11c43d"
+    },
+    {
+      "file": "BlueClassicIcon@3x.png",
+      "selection_name": "BlueClassic",
+      "bundle_path": "BlueClassicIcon@3x.png",
+      "install_path": "BlueClassic.alticon/BlueClassicIcon@3x.png",
+      "source_member": "Payload/Telegram.app/BlueClassicIcon@3x.png",
+      "sha256": "4f285dbfea312c0fd6758851d22d5227c58486c897c4b60f17c97343f1838171",
+      "bytes": 7766,
+      "width": 180,
+      "height": 180,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "8d8a3e25c6d69d4c5d16596119d511d12d9bed393a0942ebb9e1a4d9c7db90b2"
+    },
+    {
+      "file": "BlueClassicIconIpad.png",
+      "selection_name": "BlueClassic",
+      "bundle_path": "BlueClassicIconIpad.png",
+      "install_path": "BlueClassic.alticon/BlueClassicIconIpad.png",
+      "source_member": "Payload/Telegram.app/BlueClassicIconIpad.png",
+      "sha256": "13138ee42f5fd06632581463123b6102eb30c84c0b6c5b4368dd442f9941bef0",
+      "bytes": 3206,
+      "width": 76,
+      "height": 76,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "3fff8d7cbd5c90c4f7db61c9f49be77bcc3860f5929bf4c3f89750d0352d905c"
+    },
+    {
+      "file": "BlueClassicIconIpad@2x.png",
+      "selection_name": "BlueClassic",
+      "bundle_path": "BlueClassicIconIpad@2x.png",
+      "install_path": "BlueClassic.alticon/BlueClassicIconIpad@2x.png",
+      "source_member": "Payload/Telegram.app/BlueClassicIconIpad@2x.png",
+      "sha256": "ea48f3675ca3e07eea86cadb64c365284ca8e815ca062096966be48605c3eb7b",
+      "bytes": 6425,
+      "width": 152,
+      "height": 152,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "f834161b0d64add6c40592666af2671be86988846f8ca4d531eae17e9b3756a4"
+    },
+    {
+      "file": "BlueClassicIconLargeIpad@2x.png",
+      "selection_name": "BlueClassic",
+      "bundle_path": "BlueClassicIconLargeIpad@2x.png",
+      "install_path": "BlueClassic.alticon/BlueClassicIconLargeIpad@2x.png",
+      "source_member": "Payload/Telegram.app/BlueClassicIconLargeIpad@2x.png",
+      "sha256": "53c339af4d42e35ce85b9527f9e85433fc77308ba32e8ab8153330d92b50e73b",
+      "bytes": 7311,
+      "width": 167,
+      "height": 167,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "215683ed182ff0c75000e1e24f58ad99ff27e65e43fe001bb18d442a3d167000"
+    },
+    {
+      "file": "BlueClassicNotificationIcon.png",
+      "selection_name": "BlueClassic",
+      "bundle_path": "BlueClassicNotificationIcon.png",
+      "install_path": "BlueClassic.alticon/BlueClassicNotificationIcon.png",
+      "source_member": "Payload/Telegram.app/BlueClassicNotificationIcon.png",
+      "sha256": "cd4c361745d0317244e806a8c71578780dcd4ce0b1e918153964467bd10132ba",
+      "bytes": 696,
+      "width": 20,
+      "height": 20,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "3f9a6d66d6b2061a502ce233304f0bb1683c51dd16fc33a24db6fe8d5a8b5e32"
+    },
+    {
+      "file": "BlueClassicNotificationIcon@2x.png",
+      "selection_name": "BlueClassic",
+      "bundle_path": "BlueClassicNotificationIcon@2x.png",
+      "install_path": "BlueClassic.alticon/BlueClassicNotificationIcon@2x.png",
+      "source_member": "Payload/Telegram.app/BlueClassicNotificationIcon@2x.png",
+      "sha256": "f59ec0958974d5c66d77fa97def817f322df07029a238277d8b287f93b9620ab",
+      "bytes": 1436,
+      "width": 40,
+      "height": 40,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "e05243bac3e8f39fd6a447e9ddea5c47dd95322cdf5b7c9c544844cae00553a1"
+    },
+    {
+      "file": "BlueClassicNotificationIcon@3x.png",
+      "selection_name": "BlueClassic",
+      "bundle_path": "BlueClassicNotificationIcon@3x.png",
+      "install_path": "BlueClassic.alticon/BlueClassicNotificationIcon@3x.png",
+      "source_member": "Payload/Telegram.app/BlueClassicNotificationIcon@3x.png",
+      "sha256": "40d932737803e5fe92a5cf0ec8924ccba939dc7f64315f04ee0a9453df945ea3",
+      "bytes": 2202,
+      "width": 60,
+      "height": 60,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "51e3761e0b75a9bc8b7673f60418bbdf46db8a369df3a6798cd36ae5f5655dc3"
+    },
+    {
+      "file": "BlueFilledIcon@2x.png",
+      "selection_name": "BlueFilled",
+      "bundle_path": "BlueFilledIcon@2x.png",
+      "install_path": "BlueFilled.alticon/BlueFilledIcon@2x.png",
+      "source_member": "Payload/Telegram.app/BlueFilledIcon@2x.png",
+      "sha256": "16413e0a126fcc361aa8941f394a1e7bc47b71f9efa4c1f83b33e81abd3dfbd7",
+      "bytes": 4534,
+      "width": 120,
+      "height": 120,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "76013ff3039960ac8ab7a8061010a1699e8526bed27774b62e7535b09dbfd3f4"
+    },
+    {
+      "file": "BlueFilledIcon@3x.png",
+      "selection_name": "BlueFilled",
+      "bundle_path": "BlueFilledIcon@3x.png",
+      "install_path": "BlueFilled.alticon/BlueFilledIcon@3x.png",
+      "source_member": "Payload/Telegram.app/BlueFilledIcon@3x.png",
+      "sha256": "9803f3d20f6b32bef8b29de0cb3bb6b20f63834e1cd52902a579ce1fd4c6d069",
+      "bytes": 6631,
+      "width": 180,
+      "height": 180,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "6dcee99d7b7f1e5a04401f52b986b7c6696a26246b482369c18eec9db29a1192"
+    },
+    {
+      "file": "BlueFilledIconIpad.png",
+      "selection_name": "BlueFilled",
+      "bundle_path": "BlueFilledIconIpad.png",
+      "install_path": "BlueFilled.alticon/BlueFilledIconIpad.png",
+      "source_member": "Payload/Telegram.app/BlueFilledIconIpad.png",
+      "sha256": "ebcb3904416bf3bcf138ee4d85d3567de68d9f97f2ec7ba031c1f3d0cdedf560",
+      "bytes": 3121,
+      "width": 76,
+      "height": 76,
+      "cgbi": false,
+      "premultiplied_rgba_sha256": "f199ee8863f9f541043691fe0c4bff2d223072e686f2a9622fff96418f4006a7"
+    },
+    {
+      "file": "BlueFilledIconIpad@2x.png",
+      "selection_name": "BlueFilled",
+      "bundle_path": "BlueFilledIconIpad@2x.png",
+      "install_path": "BlueFilled.alticon/BlueFilledIconIpad@2x.png",
+      "source_member": "Payload/Telegram.app/BlueFilledIconIpad@2x.png",
+      "sha256": "8a162ffbd1469790db41fc24f25da8b62a596aac2440632fc133d06e973c553e",
+      "bytes": 6630,
+      "width": 152,
+      "height": 152,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "4d7a400845bdc3452cbdc5e1542e39a85eb8a54dacef633957297206b2d403c1"
+    },
+    {
+      "file": "BlueFilledIconLargeIpad@2x.png",
+      "selection_name": "BlueFilled",
+      "bundle_path": "BlueFilledIconLargeIpad@2x.png",
+      "install_path": "BlueFilled.alticon/BlueFilledIconLargeIpad@2x.png",
+      "source_member": "Payload/Telegram.app/BlueFilledIconLargeIpad@2x.png",
+      "sha256": "417f366c4682104647d55e7e65a12fcc6e26356e63893afac5fb72ee4597d3cb",
+      "bytes": 7120,
+      "width": 167,
+      "height": 167,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "d2350ed950a993ef55f70f1ac013e406c6ee0318f5a7cf217d424a85ea9d1818"
+    },
+    {
+      "file": "BlueIcon@2x.png",
+      "selection_name": "Blue",
+      "bundle_path": "BlueIcon@2x.png",
+      "install_path": "Blue.alticon/BlueIcon@2x.png",
+      "source_member": "Payload/Telegram.app/BlueIcon@2x.png",
+      "sha256": "cf6d363fc2e14cc48feb81a2184cb193d442309e9aa7098fb70bf22fae0ea2ff",
+      "bytes": 4743,
+      "width": 120,
+      "height": 120,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "01d9b4433ddbff418c2c6d5fa2b37780602a1e6cd4935f51f996be755a259594"
+    },
+    {
+      "file": "BlueIcon@3x.png",
+      "selection_name": "Blue",
+      "bundle_path": "BlueIcon@3x.png",
+      "install_path": "Blue.alticon/BlueIcon@3x.png",
+      "source_member": "Payload/Telegram.app/BlueIcon@3x.png",
+      "sha256": "45b38e011cc1c8d51c231bef62381319105122f79ab7c3a2064a5189372e33e1",
+      "bytes": 7228,
+      "width": 180,
+      "height": 180,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "2794c326ddb935a9ebff09ab4550c5821f3ab0114c5d458709fa3b5528085961"
+    },
+    {
+      "file": "BlueIconIpad.png",
+      "selection_name": "Blue",
+      "bundle_path": "BlueIconIpad.png",
+      "install_path": "Blue.alticon/BlueIconIpad.png",
+      "source_member": "Payload/Telegram.app/BlueIconIpad.png",
+      "sha256": "c9c5c9bde148ab0a0bf607ef89944e522ff2e7b96f4bf3974ece3adda263d009",
+      "bytes": 3050,
+      "width": 76,
+      "height": 76,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "f1f5539e2c67c50de4fb80c7ddfba21ece2e449cd267531074c0800105610833"
+    },
+    {
+      "file": "BlueIconIpad@2x.png",
+      "selection_name": "Blue",
+      "bundle_path": "BlueIconIpad@2x.png",
+      "install_path": "Blue.alticon/BlueIconIpad@2x.png",
+      "source_member": "Payload/Telegram.app/BlueIconIpad@2x.png",
+      "sha256": "436dc4ac66f1803fd720a4f4979f82075fd25bd5af9f75daa14db609bf523421",
+      "bytes": 6007,
+      "width": 152,
+      "height": 152,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "468714439f56bd6b80b2b6bbd6ec98c2bc51b2c356b392e5949bba086d34b437"
+    },
+    {
+      "file": "BlueIconLargeIpad@2x.png",
+      "selection_name": "Blue",
+      "bundle_path": "BlueIconLargeIpad@2x.png",
+      "install_path": "Blue.alticon/BlueIconLargeIpad@2x.png",
+      "source_member": "Payload/Telegram.app/BlueIconLargeIpad@2x.png",
+      "sha256": "feab9203adaba13eab04073cbde31e6f37990fe5b666708983d7c9eaafeca030",
+      "bytes": 6778,
+      "width": 167,
+      "height": 167,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "1306e0bbd2cebc241bc53ee5ab6fe968e34ed3d4504c57c84b6754b205d16a60"
+    },
+    {
+      "file": "BlueNotificationIcon.png",
+      "selection_name": "Blue",
+      "bundle_path": "BlueNotificationIcon.png",
+      "install_path": "Blue.alticon/BlueNotificationIcon.png",
+      "source_member": "Payload/Telegram.app/BlueNotificationIcon.png",
+      "sha256": "1ee2107d90e8b4a3540a71a36000cc7384c66723005bd81cfce25b9f5d7cf911",
+      "bytes": 621,
+      "width": 20,
+      "height": 20,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "7453aadc4e82f16e19791ef68f80dcfbadcc51d464006c6bb65886e203d168cd"
+    },
+    {
+      "file": "BlueNotificationIcon@2x.png",
+      "selection_name": "Blue",
+      "bundle_path": "BlueNotificationIcon@2x.png",
+      "install_path": "Blue.alticon/BlueNotificationIcon@2x.png",
+      "source_member": "Payload/Telegram.app/BlueNotificationIcon@2x.png",
+      "sha256": "e103b2cf5db74325f8f726c4b969e41706989059c49697cbba913638d6de84aa",
+      "bytes": 1358,
+      "width": 40,
+      "height": 40,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "e1dda1acf3d5d55585fd087d5ff5634ce440b0950124e9589df3e331cc9f41cd"
+    },
+    {
+      "file": "BlueNotificationIcon@3x.png",
+      "selection_name": "Blue",
+      "bundle_path": "BlueNotificationIcon@3x.png",
+      "install_path": "Blue.alticon/BlueNotificationIcon@3x.png",
+      "source_member": "Payload/Telegram.app/BlueNotificationIcon@3x.png",
+      "sha256": "f7159337648b09c7e008cd3d225822989234f3bad2ea5a445c2f00114af2a46b",
+      "bytes": 2283,
+      "width": 60,
+      "height": 60,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "e04027f7dad947b88228770a751bd88ee5358af7b3871472769f67a3f38983bd"
+    },
+    {
+      "file": "New1-76.png",
+      "selection_name": "New1",
+      "bundle_path": "New1-76.png",
+      "install_path": "New1.alticon/New1-76.png",
+      "source_member": "Payload/Telegram.app/New1-76.png",
+      "sha256": "6b60ec3d41a2182cffc81c8e46ff4e7ee12dc30ad05061a867c3656b58e3bfec",
+      "bytes": 5624,
+      "width": 76,
+      "height": 76,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "e723a79a20e8abb6d1b23e1417fac5f2da62772d8027322c167425acbc42550f"
+    },
+    {
+      "file": "New1-76@2x.png",
+      "selection_name": "New1",
+      "bundle_path": "New1-76@2x.png",
+      "install_path": "New1.alticon/New1-76@2x.png",
+      "source_member": "Payload/Telegram.app/New1-76@2x.png",
+      "sha256": "8c605c660d7e9b19abfbf3b90889ec49e7b9ef349a4f9bf83182ed41a74f3ad2",
+      "bytes": 13419,
+      "width": 152,
+      "height": 152,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "b6002da49938c694fdb2bdc8912c51be4d1ea1751e17105a80a87dade208a9f3"
+    },
+    {
+      "file": "New1-83.5@2x.png",
+      "selection_name": "New1",
+      "bundle_path": "New1-83.5@2x.png",
+      "install_path": "New1.alticon/New1-83.5@2x.png",
+      "source_member": "Payload/Telegram.app/New1-83.5@2x.png",
+      "sha256": "808611bfcb326f8ec89387641a902306f0766f6c2f0fb748acb14caa91622479",
+      "bytes": 15024,
+      "width": 167,
+      "height": 167,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "d6c9363a3ac2efb547901691e5b726bf18ac8310c78ccf07d0a2f03569a82418"
+    },
+    {
+      "file": "New1@2x.png",
+      "selection_name": "New1",
+      "bundle_path": "New1@2x.png",
+      "install_path": "New1.alticon/New1@2x.png",
+      "source_member": "Payload/Telegram.app/New1@2x.png",
+      "sha256": "531436e8822210eddb24dcb1613017822e144eb23c2a203b6cfb47132f366b1e",
+      "bytes": 9617,
+      "width": 120,
+      "height": 120,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "f137c0b773ee0c63737841bedf5ece439246d04df6e0b72317bb6b2133ee62f4"
+    },
+    {
+      "file": "New1@3x.png",
+      "selection_name": "New1",
+      "bundle_path": "New1@3x.png",
+      "install_path": "New1.alticon/New1@3x.png",
+      "source_member": "Payload/Telegram.app/New1@3x.png",
+      "sha256": "0525077a77df4332ae1989c72e5d069fb181ec9c6d80d03015db1008084f5a53",
+      "bytes": 16391,
+      "width": 180,
+      "height": 180,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "2df8216b51aa28b90340a3bad1eefa2cd07def64aa81d31f86d4dae0338d386e"
+    },
+    {
+      "file": "New1_29x29.png",
+      "selection_name": "New1",
+      "bundle_path": "New1_29x29.png",
+      "install_path": "New1.alticon/New1_29x29.png",
+      "source_member": "Payload/Telegram.app/New1_29x29.png",
+      "sha256": "d4942d7ea7419792d4ba1fea2687d564f78f9e94df9824c6165b256642c2023e",
+      "bytes": 1536,
+      "width": 29,
+      "height": 29,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "0b7e013a0038b399e25b6b68812bca6221c45e4d915b8c163626270f05b02d03"
+    },
+    {
+      "file": "New1_58x58.png",
+      "selection_name": "New1",
+      "bundle_path": "New1_58x58.png",
+      "install_path": "New1.alticon/New1_58x58.png",
+      "source_member": "Payload/Telegram.app/New1_58x58.png",
+      "sha256": "efaacecd333f495382b421ba56f8bbb662df3b646eae887447b98bd45ee9fdf9",
+      "bytes": 3724,
+      "width": 58,
+      "height": 58,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "dbf64b779f5885d6236c40721c78007ee740cbb14c10aafb86e357887e8089a9"
+    },
+    {
+      "file": "New1_80x80.png",
+      "selection_name": "New1",
+      "bundle_path": "New1_80x80.png",
+      "install_path": "New1.alticon/New1_80x80.png",
+      "source_member": "Payload/Telegram.app/New1_80x80.png",
+      "sha256": "4878d470dbffd27074c0a9cfd04ad843001534178577a98821379ce5afbff34f",
+      "bytes": 5970,
+      "width": 80,
+      "height": 80,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "d4e01d97302868b3148348247ad84241f13f2459d19e9c09955de7cb09ef87e9"
+    },
+    {
+      "file": "New1_87x87.png",
+      "selection_name": "New1",
+      "bundle_path": "New1_87x87.png",
+      "install_path": "New1.alticon/New1_87x87.png",
+      "source_member": "Payload/Telegram.app/New1_87x87.png",
+      "sha256": "0853468fe0d462ca74131aac6fb2b8333959fb15df4572a7b85cc469e671fb3b",
+      "bytes": 6654,
+      "width": 87,
+      "height": 87,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "850a45995e8967b00cc5e796497a6edfcb67ef90bb86830d9ef922cc3966b58d"
+    },
+    {
+      "file": "New1_notification.png",
+      "selection_name": "New1",
+      "bundle_path": "New1_notification.png",
+      "install_path": "New1.alticon/New1_notification.png",
+      "source_member": "Payload/Telegram.app/New1_notification.png",
+      "sha256": "5605f69e9f3f7f940b4cfeb11e562ebe390ba34742356e48e78adcfe520f35bb",
+      "bytes": 958,
+      "width": 20,
+      "height": 20,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "b19fbde644002401713d29425792d40db13f3e3786f29da034b0446ffa35b030"
+    },
+    {
+      "file": "New1_notification@2x.png",
+      "selection_name": "New1",
+      "bundle_path": "New1_notification@2x.png",
+      "install_path": "New1.alticon/New1_notification@2x.png",
+      "source_member": "Payload/Telegram.app/New1_notification@2x.png",
+      "sha256": "c3b5b97dda6b3d9f96d726a3b1f91c9813b63ad041123f4de9dadc669232c659",
+      "bytes": 2380,
+      "width": 40,
+      "height": 40,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "12fcad4eda43c122ddaa6d67c824039cb9b75261a85595dff84a1681ec5ad9ae"
+    },
+    {
+      "file": "New1_notification@3x.png",
+      "selection_name": "New1",
+      "bundle_path": "New1_notification@3x.png",
+      "install_path": "New1.alticon/New1_notification@3x.png",
+      "source_member": "Payload/Telegram.app/New1_notification@3x.png",
+      "sha256": "3a730789ce8156f045951de9a30925d7f1503ad57165697fc4d99d7f1dafab87",
+      "bytes": 3907,
+      "width": 60,
+      "height": 60,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "d8c6e40d774624657e64ee2f59bef2e9cd69038118b2c394ed98ffb3150fcb30"
+    },
+    {
+      "file": "New2-76.png",
+      "selection_name": "New2",
+      "bundle_path": "New2-76.png",
+      "install_path": "New2.alticon/New2-76.png",
+      "source_member": "Payload/Telegram.app/New2-76.png",
+      "sha256": "47201b18db05638c7a36906eb33afc3a272e9a7d0e969ddf42d46b88a4b2adda",
+      "bytes": 6187,
+      "width": 76,
+      "height": 76,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "39678b011e1b1db4da241f2f78ae179ea9187b798f2ea4a06235e87049c3fe67"
+    },
+    {
+      "file": "New2-76@2x.png",
+      "selection_name": "New2",
+      "bundle_path": "New2-76@2x.png",
+      "install_path": "New2.alticon/New2-76@2x.png",
+      "source_member": "Payload/Telegram.app/New2-76@2x.png",
+      "sha256": "7078f84533a75eb551bc9f27ad89baf721ec2da85f18239610c1b0289341b7a7",
+      "bytes": 15006,
+      "width": 152,
+      "height": 152,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "597b6d39ab7f5417ddd7225c07ed71a3b116769a74518a271216c0894d71a6a7"
+    },
+    {
+      "file": "New2-83.5@2x.png",
+      "selection_name": "New2",
+      "bundle_path": "New2-83.5@2x.png",
+      "install_path": "New2.alticon/New2-83.5@2x.png",
+      "source_member": "Payload/Telegram.app/New2-83.5@2x.png",
+      "sha256": "b0eb944cfd7554a7e852787a142e34cb61bb8be8d0d36a288a1c922e57149b69",
+      "bytes": 17125,
+      "width": 167,
+      "height": 167,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "1b3497bc928a770e3bc6f28b90ad012312af7e31c2f4c49a2b6420d0ecd095c4"
+    },
+    {
+      "file": "New2-Small-40.png",
+      "selection_name": "New2",
+      "bundle_path": "New2-Small-40.png",
+      "install_path": "New2.alticon/New2-Small-40.png",
+      "source_member": "Payload/Telegram.app/New2-Small-40.png",
+      "sha256": "e337c1d2982cec6567e495c69e15bffdcac5618cb71de1d47011cb84eeaf3606",
+      "bytes": 2572,
+      "width": 40,
+      "height": 40,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "776807c8057062722a334c9d8912fd87f7cd392a77a522e512f8ec6236866780"
+    },
+    {
+      "file": "New2-Small-40@2x.png",
+      "selection_name": "New2",
+      "bundle_path": "New2-Small-40@2x.png",
+      "install_path": "New2.alticon/New2-Small-40@2x.png",
+      "source_member": "Payload/Telegram.app/New2-Small-40@2x.png",
+      "sha256": "a62c3eefbf146594d50982b2b2487421b0956ac1b16f4222b6e7315492ef4c67",
+      "bytes": 6553,
+      "width": 80,
+      "height": 80,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "3a44b29b2691a960b0437977a49b4d268de4292bb8d9d294c696757adae1c9ad"
+    },
+    {
+      "file": "New2-Small.png",
+      "selection_name": "New2",
+      "bundle_path": "New2-Small.png",
+      "install_path": "New2.alticon/New2-Small.png",
+      "source_member": "Payload/Telegram.app/New2-Small.png",
+      "sha256": "e6451b36daee51874331ec83dd8756dba6f2f48a1b7753637c44251df7e34de7",
+      "bytes": 1660,
+      "width": 29,
+      "height": 29,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "ec04553bc65625987c25989867e292cf7294e2f870a4b667eb31d8d771848a7b"
+    },
+    {
+      "file": "New2-Small@2x.png",
+      "selection_name": "New2",
+      "bundle_path": "New2-Small@2x.png",
+      "install_path": "New2.alticon/New2-Small@2x.png",
+      "source_member": "Payload/Telegram.app/New2-Small@2x.png",
+      "sha256": "cc0966720300ffdef8b370a47e55e8f12b63eec406438f3f1d616600c720a8dd",
+      "bytes": 4130,
+      "width": 58,
+      "height": 58,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "2ecaa8a842920744b52f854614acff8ef23026d82fcc901b0e36be54d20d829b"
+    },
+    {
+      "file": "New2-Small@3x.png",
+      "selection_name": "New2",
+      "bundle_path": "New2-Small@3x.png",
+      "install_path": "New2.alticon/New2-Small@3x.png",
+      "source_member": "Payload/Telegram.app/New2-Small@3x.png",
+      "sha256": "4029645c93f165d0329582003c048b084465dd333087bae6da9e1f09548e1964",
+      "bytes": 7433,
+      "width": 87,
+      "height": 87,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "507a38ed16dd7562582c7c360c6358bf8711ede18c5a8c2f08e6d160d165546b"
+    },
+    {
+      "file": "New2@2x.png",
+      "selection_name": "New2",
+      "bundle_path": "New2@2x.png",
+      "install_path": "New2.alticon/New2@2x.png",
+      "source_member": "Payload/Telegram.app/New2@2x.png",
+      "sha256": "88608dec4653a6ccb6299ee7de9aad026a3e821bf4c06b95fbd999c766c31a75",
+      "bytes": 10893,
+      "width": 120,
+      "height": 120,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "d5ced6b8f2e75bbf5c8ae233d3f7bc4f0adcec881a8e38223449ca57d0f8942f"
+    },
+    {
+      "file": "New2@3x.png",
+      "selection_name": "New2",
+      "bundle_path": "New2@3x.png",
+      "install_path": "New2.alticon/New2@3x.png",
+      "source_member": "Payload/Telegram.app/New2@3x.png",
+      "sha256": "c2831e70fee917b54e6400e75fb25686d1c0a6ad0cef5177b67a8cea26c63bd2",
+      "bytes": 19033,
+      "width": 180,
+      "height": 180,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "ad7b75556ed4e08c262ea2e872ab4b5131da5e417f1d40ba49308d8ddbf22cf1"
+    },
+    {
+      "file": "New2_notification.png",
+      "selection_name": "New2",
+      "bundle_path": "New2_notification.png",
+      "install_path": "New2.alticon/New2_notification.png",
+      "source_member": "Payload/Telegram.app/New2_notification.png",
+      "sha256": "a3ebfc2fa247d5893d753143f5b94ee1bc2ccf25747b17c02ffb996c80071a47",
+      "bytes": 986,
+      "width": 20,
+      "height": 20,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "b385a40d70624f8f1cb0bf3d916a7343416fc982f62cd30103d5e016a59bcde8"
+    },
+    {
+      "file": "New2_notification@3x.png",
+      "selection_name": "New2",
+      "bundle_path": "New2_notification@3x.png",
+      "install_path": "New2.alticon/New2_notification@3x.png",
+      "source_member": "Payload/Telegram.app/New2_notification@3x.png",
+      "sha256": "2e498923fd463a6b344af49b03da8157cb41a8bb421a6396b7f6745493732e14",
+      "bytes": 4317,
+      "width": 60,
+      "height": 60,
+      "cgbi": true,
+      "premultiplied_rgba_sha256": "30ca989ba3597ccdf0895adcfabe83a1cb7fbf9928b024b1f3f8a74e60a30212"
+    }
+  ]
+}
