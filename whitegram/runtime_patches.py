@@ -103,6 +103,9 @@ def _apply_activity_and_receipts(patches: SourcePatches):
         accepted_after=("WhitegramGhost.channelContentsRequest(network: network, channel: inputChannel, ids: [id.id], peerId: id.peerId)",))
     tracker = CORE + "State/AccountViewTracker.swift"
     anchor = "    public func updateSeenLiveLocationForMessageIds(messageIds: Set<MessageId>) {\n        self.queue.async {\n"
+    captured = anchor.replace("self.queue.async {\n", "self.queue.async { [self] in\n")
+    if captured in patches.read(tracker):
+        anchor = captured
     patches.replace("media-read-receipts", tracker, anchor,
         anchor + "            if WhitegramGhost.suppressReadReceipts { return }\n",
         accepted_after=(anchor + "            let messageIds = Set(messageIds.filter { !WhitegramGhost.suppressReadReceipts(for: $0.peerId) })\n"

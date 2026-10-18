@@ -95,7 +95,12 @@ class SystemCompositionTests(unittest.TestCase):
         self.assertIn("import AppLock\n", runtime)
         self.assertIn("public final class AppLockContextImpl:", owner)
         self.assertIn("public var isCurrentlyLocked: Signal<Bool, NoError>", owner)
-        self.assertIn(".single(!appInForeground || isCurrentlyLocked)", owner)
+        if "return self.lockStatus.isCurrentlyLocked" in owner:
+            status = (self.root / "submodules/AppLock/Sources/State/AppLockStatus.swift").read_text(encoding="utf-8")
+            self.assertIn("!$0.isApplicationActive || $0.isPasscodeLocked", status)
+            self.assertIn("strongSelf.lockStatus.update(isPasscodeLocked: isCurrentlyLocked", owner)
+        else:
+            self.assertIn(".single(!appInForeground || isCurrentlyLocked)", owner)
         self.assertIn("combineLatest(context.sharedContext.accountManager.accessChallengeData(), lock.isCurrentlyLocked)", runtime)
         self.assertIn("self?.isLocked = challenge.data.isLockable && value", runtime)
         self.assertIn("private var isLocked = true", runtime)

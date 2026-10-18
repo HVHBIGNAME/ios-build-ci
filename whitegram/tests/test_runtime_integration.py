@@ -2,6 +2,7 @@
 
 import collections
 import os
+import json
 from pathlib import Path
 import re
 import subprocess
@@ -213,6 +214,7 @@ class BuildIntegrationTests(unittest.TestCase):
         root = Path(SOURCE)
         upstream = subprocess.check_output(["git", "-C", str(root), "show", "HEAD:Telegram/BUILD"]).decode("utf-8")
         imports = 'load("@rules_cc//cc:objc_library.bzl", "objc_library")\nload("@rules_shell//shell:sh_binary.bzl", "sh_binary")\n'
+        imports = "".join(line for line in imports.splitlines(keepends=True) if line.strip() not in upstream)
         outputs = []
         for resource_first in (False, True):
             patches = in_memory(root, {"Telegram/BUILD": imports + upstream})
@@ -245,8 +247,12 @@ class BuildIntegrationTests(unittest.TestCase):
         original = patches.original["Telegram/BUILD"]
         upstream = subprocess.check_output(["git", "-C", str(root), "show", "HEAD:Telegram/BUILD"]).decode("utf-8")
         for repository, rule in (("rules_cc", "objc_library"), ("rules_shell", "sh_binary")):
-            self.assertNotIn(f"@{repository}//", value)
-            self.assertNotIn(f"@{repository}//", upstream)
+            if json.loads((root / "versions.json").read_text())["bazel"].startswith("9."):
+                self.assertEqual(value.count(f"@{repository}//"), 1)
+                self.assertEqual(upstream.count(f"@{repository}//"), 1)
+            else:
+                self.assertNotIn(f"@{repository}//", value)
+                self.assertNotIn(f"@{repository}//", upstream)
             self.assertGreater(upstream.count(rule + "("), 0)
             self.assertEqual(value.count(rule + "("), original.count(rule + "("))
         repeated = in_memory(root, patches.pending)

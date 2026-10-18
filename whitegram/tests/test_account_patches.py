@@ -16,11 +16,10 @@ from account_patches import (
     ACCOUNT, APPLICATION, CHAT, MANAGER, NETWORK, NOTIFICATIONS, SHARED,
     ACCOUNTS_RUNTIME_FILES, apply_account_patches,
 )
-from test_history_patches import MemoryRoot, parse_sources
+from test_history_patches import MemoryRoot, PIN, parse_sources
 
 
 SOURCE = os.environ.get("WHITEGRAM_ASSEMBLED_SOURCE")
-PIN = "6ad963e5b62d354da79040f388ae2b9132fb17b8"
 PATHS = (ACCOUNT, APPLICATION, CHAT, MANAGER, NETWORK, NOTIFICATIONS, SHARED)
 
 
@@ -64,10 +63,11 @@ class AccountPatchTests(unittest.TestCase):
         root = MemoryRoot(self.pristine)
         apply_account_patches(root)
         original = root.texts()
+        error = "failure.error" if "NetworkEngineRequest(" in original[NETWORK] else "error"
         changes = [
             (SHARED, "supplementary: true, isSupportUser: false", "supplementary: false, isSupportUser: false"),
             (APPLICATION, "whitegramHandleUnavailableAccount(account: context.account", "whitegramHandleUnavailableAccount(account: differentAccount"),
-            (NETWORK, "whitegramAuthorizationFailure?(error.errorDescription)", 'whitegramAuthorizationFailure?("unknown")'),
+            (NETWORK, f"whitegramAuthorizationFailure?({error}.errorDescription)", 'whitegramAuthorizationFailure?("unknown")'),
             (CHAT, 'AnyHashable("compose")', 'AnyHashable("wrong")'),
         ]
         for path, before, after in changes:
@@ -101,7 +101,8 @@ class AccountPatchTests(unittest.TestCase):
             self.assertEqual(root.files, first)
             self.assertEqual(root.writes, [])
             self.assertEqual(root.text(NETWORK).count("WhitegramPluginNativeInterception.response("), 2)
-            self.assertEqual(root.text(NETWORK).count("whitegramAuthorizationFailure?(error.errorDescription)"), 2)
+            error = "failure.error" if "NetworkEngineRequest(" in root.text(NETWORK) else "error"
+            self.assertEqual(root.text(NETWORK).count(f"whitegramAuthorizationFailure?({error}.errorDescription)"), 2)
             outputs.append(first)
         self.assertEqual(outputs[0], outputs[1])
 
@@ -152,7 +153,7 @@ class AccountPatchTests(unittest.TestCase):
             "submodules/TelegramCore/Sources/Account/Account.swift": ["public func accountBackupData(postbox: Postbox)", "backupData: AccountBackupData?", "shouldKeepAutoConnection: Bool = true", "public let auxiliaryMethods: AccountAuxiliaryMethods"],
             "submodules/TelegramCore/Sources/AccountManager/AccountManagerImpl.swift": ["public let getRecords:", "public let updateRecord:", "public let temporarySessionId: Int64"],
             "submodules/TelegramCore/Sources/TelegramEngine/Auth/AuthTransfer.swift": [".authorization(authorizationData)", "authorizationData.user"],
-            "submodules/TelegramApi/Sources/Api42.swift": ["static func importBotAuthorization(flags: Int32, apiId: Int32, apiHash: String, botAuthToken: String)", "static func getUsers(id: [Api.InputUser])"],
+            "submodules/TelegramApi/Sources/Api43.swift": ["static func importBotAuthorization(flags: Int32, apiId: Int32, apiHash: String, botAuthToken: String)", "static func getUsers(id: [Api.InputUser])"],
             "submodules/TelegramCore/Sources/UpdatePeers.swift": ["func updatePeers(transaction: Transaction, accountPeerId: PeerId, peers: AccumulatedPeers)"],
             "submodules/AccountContext/Sources/AccountContext.swift": ["var activeAccountsWithInfo:", "func switchToAccount(id: AccountRecordId"],
         }

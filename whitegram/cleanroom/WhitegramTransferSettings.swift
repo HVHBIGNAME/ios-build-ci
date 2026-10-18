@@ -51,6 +51,10 @@ public struct WhitegramTransferSettings: Equatable {
         }
     }
 
+    public func downloadParallelParts(default upstream: Int) -> Int {
+        return self.usesAcceleratedDownload ? self.downloadParallelParts : upstream
+    }
+
     public func uploadParallelParts(increaseParallelParts: Bool) -> Int {
         // Original MultipartUploadManager 0x199d00..0x199e00. Telegram's
         // explicit high-parallelism callers keep priority over both switches.

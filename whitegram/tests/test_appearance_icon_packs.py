@@ -94,7 +94,7 @@ class IconPackPatchTests(unittest.TestCase):
         before_names = re.findall(r"public static let (\w+) =", self.pristine[packs.SETTINGS])
         after_names = re.findall(r"public static var (\w+): UIImage\?", root.text(packs.SETTINGS))
         self.assertEqual(before_names, after_names)
-        self.assertEqual(len(after_names), 92)
+        self.assertEqual(len(after_names), 95 if "money" in before_names else 92)
         for path, before, after, count in reversed(edits):
             self.assertEqual(root.text(path).count(after), count)
             root.files[path] = root.text(path).replace(after, before).encode()

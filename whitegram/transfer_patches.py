@@ -24,7 +24,12 @@ def transfer_patches(patches: SourcePatches) -> None:
     # All four original call sites use the policy, including refreshed file
     # references and CDN reuploads. The rest of FetchV2's range, encryption,
     # hash verification, priority and flood-wait state machine stays native.
-    _replace(patches, FETCH, "maxPendingParts: 6,", "maxPendingParts: WhitegramTransferSettings.current.downloadParallelParts,", count=4)
+    if "maxPendingParts: self.masterPendingParts," in patches.read(FETCH) or "downloadParallelParts(default: self.masterPendingParts)" in patches.read(FETCH):
+        for name, count in (("masterPendingParts", 3), ("cdnPendingParts", 2)):
+            _replace(patches, FETCH, f"maxPendingParts: self.{name},",
+                     f"maxPendingParts: WhitegramTransferSettings.current.downloadParallelParts(default: self.{name}),", count=count)
+    else:
+        _replace(patches, FETCH, "maxPendingParts: 6,", "maxPendingParts: WhitegramTransferSettings.current.downloadParallelParts,", count=4)
     _replace(patches, DISPATCH,
              "    if network.useExperimentalFeatures, let _ = resource as? TelegramCloudMediaResource {\n",
              "    if network.useExperimentalFeatures || WhitegramTransferSettings.current.usesAcceleratedDownload, let _ = resource as? TelegramCloudMediaResource {\n")

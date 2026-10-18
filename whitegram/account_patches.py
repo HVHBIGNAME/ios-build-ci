@@ -88,10 +88,16 @@ def _retention(patches: SourcePatches):
 """)
     anchor = "    var didReceiveSoftAuthResetError: (() -> Void)?\n"
     patches.replace(feature, NETWORK, anchor, anchor + "    var whitegramAuthorizationFailure: ((String) -> Void)?\n")
-    anchor = "        return Signal { subscriber in\n            let request = MTRequest()\n"
-    patches.replace(feature, NETWORK, anchor, "        let whitegramAuthorizationFailure = self.whitegramAuthorizationFailure\n" + anchor, count=2)
-    anchor = "                if let error = error {\n                    subscriber.putError(error)"
-    patches.replace(feature, NETWORK, anchor, "                if let error = error {\n                    whitegramAuthorizationFailure?(error.errorDescription)\n                    subscriber.putError(error)", count=2)
+    if "let request = NetworkEngineRequest(" in patches.read(NETWORK):
+        anchor = "        return Signal { [requestService] subscriber in\n            let request = NetworkEngineRequest(\n"
+        patches.replace(feature, NETWORK, anchor, "        let whitegramAuthorizationFailure = self.whitegramAuthorizationFailure\n" + anchor, count=2)
+        anchor = "                    case let .failure(failure):\n                        subscriber.putError(failure.error)"
+        patches.replace(feature, NETWORK, anchor, "                    case let .failure(failure):\n                        whitegramAuthorizationFailure?(failure.error.errorDescription)\n                        subscriber.putError(failure.error)", count=2)
+    else:
+        anchor = "        return Signal { subscriber in\n            let request = MTRequest()\n"
+        patches.replace(feature, NETWORK, anchor, "        let whitegramAuthorizationFailure = self.whitegramAuthorizationFailure\n" + anchor, count=2)
+        anchor = "                if let error = error {\n                    subscriber.putError(error)"
+        patches.replace(feature, NETWORK, anchor, "                if let error = error {\n                    whitegramAuthorizationFailure?(error.errorDescription)\n                    subscriber.putError(error)", count=2)
     anchor = "        self.network.didReceiveSoftAuthResetError = { [weak self] in\n"
     patches.replace(feature, ACCOUNT, anchor, """        self.network.whitegramAuthorizationFailure = { [weak self] description in
             guard let self else { return }

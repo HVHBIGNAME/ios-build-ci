@@ -19,7 +19,8 @@ def apply_appearance_details_patches(root):
             "        let backgroundY: CGFloat = size.height * (1.0 - fraction)\n        let backgroundFrame = CGRect(origin: CGPoint(x: 0.0, y: backgroundY), size: CGSize(width: size.width, height: max(0.0, size.height - backgroundY)))\n",
             "        let geometry = WhitegramAppearancePolicy.profileActionButtonGeometry(size: size, fraction: fraction, rounded: WhitegramAppearancePolicy.current.isEnabled(\"roundProfileActionButtons\"))\n        let backgroundFrame = geometry.backgroundFrame\n")
     replace(patches, "roundProfileActionButtons", BUTTON,
-            "cornerRadius: min(16.0, backgroundFrame.height * 0.5)", "cornerRadius: geometry.cornerRadius")
+            "cornerRadius: min(16.0, backgroundFrame.height * 0.5)", "cornerRadius: geometry.cornerRadius",
+            count=2 if "self.referenceNode.contextMenuSourcePath =" in patches.read(BUTTON) else 1)
     replace(patches, "roundProfileActionButtons", BUTTON,
             "y: 1.0), size: iconSize)", "y: geometry.iconY), size: iconSize)", count=2)
     replace(patches, "roundProfileActionButtons", BUTTON,

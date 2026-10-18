@@ -24,6 +24,23 @@ MEDIA_PICKER = "submodules/MediaPickerUI/Sources/MediaPickerScreen.swift"
 
 def _replace(patches: SourcePatches, path: str, before: str, after: str, *, previous: str | None = None, count: int = 1) -> None:
     """Accept release source or the compiling baseline, but never mixed edits."""
+    if path in (CAMERA, DEVICE, OUTPUT) and "public enum Camera {" in patches.read(CAMERA):
+        if "public static func isDualCameraSupported" in before:
+            path = "submodules/Camera/CameraLegacy/Sources/LegacyCameraImpl.swift"
+            original = "    public static func isDualCameraSupported(forRoundVideo: Bool = false) -> Bool {\n"
+            moved = "func legacyIsDualCameraSupported(forRoundVideo: Bool) -> Bool {\n"
+            before, after = before.replace(original, moved), after.replace(original, moved)
+            if "import TelegramCore\n" not in patches.read(path):
+                patches.replace("media-camera", path, "import Camera\n", "import Camera\nimport TelegramCore\n")
+        else:
+            path = path.replace("Camera/Sources/", "Camera/CameraLegacy/Sources/")
+            if path.endswith("/Camera.swift"):
+                path = path.removesuffix("/Camera.swift") + "/LegacyCamera.swift"
+            def moved(value):
+                if value is None:
+                    return None
+                return value.replace("CameraSimplePreviewView?", "LegacyCameraSimplePreviewView?").replace("    public func setDualCameraEnabled", "    func setDualCameraEnabled")
+            before, after, previous = moved(before), moved(after), moved(previous)
     value = patches.read(path)
     variants = sorted(set([before] + ([previous] if previous is not None else [])), key=len, reverse=True)
     applied = value.count(after)
@@ -42,6 +59,9 @@ def _replace(patches: SourcePatches, path: str, before: str, after: str, *, prev
 
 
 def media_camera_patches(patches: SourcePatches) -> None:
+    if "public enum Camera {" in patches.read(CAMERA):
+        _replace(patches, ROUND_SCREEN, "            if useModernVideoMessagePipeline {\n",
+                 "            if useModernVideoMessagePipeline && WhitegramMediaSettings.current.useTelegramCameraSettings && !WhitegramMediaSettings.current.rememberLastCamera {\n")
     _replace(patches, MEDIA_PICKER,
              '        let highQualityPhoto = UserDefaults.standard.bool(forKey: "TG_photoHighQuality_v0")\n',
              '        let highQualityPhoto = UserDefaults.standard.bool(forKey: "TG_photoHighQuality_v0") || WhitegramMediaSettings.current.alwaysSendHD\n')
@@ -268,7 +288,10 @@ def media_camera_patches(patches: SourcePatches) -> None:
     _replace(patches, OUTPUT, anchor, anchor + "    private var whitegramCaptureFPS: Double = 30.0\n    private var whitegramCaptureDimensions: CMVideoDimensions?\n", previous=anchor + "    private var whitegramCaptureFPS: Double = 30.0\n")
     anchor = "    func configure(for session: CameraSession, device: CameraDevice, input: CameraInput, previewView: CameraSimplePreviewView?, audio: Bool, photo: Bool, metadata: Bool) {\n"
     _replace(patches, OUTPUT, anchor, anchor + "        self.whitegramCaptureFPS = min(60.0, max(1.0, device.fps))\n        self.whitegramCaptureDimensions = device.videoDevice.map { CMVideoFormatDescriptionGetDimensions($0.activeFormat.formatDescription) }\n", previous=anchor + "        self.whitegramCaptureFPS = min(60.0, max(1.0, device.fps))\n")
-    _replace(patches, ROUND_SCREEN, "                camera.rampZoom(1.0, rate: 8.0)\n", "                if !WhitegramMediaSettings.current.staticZoomEnabled {\n                    camera.rampZoom(1.0, rate: 8.0)\n                }\n")
+    ramp = "self.camera?" if "self.camera?.rampZoom(1.0, rate: 8.0)" in patches.read(ROUND_SCREEN) else "camera"
+    _replace(patches, ROUND_SCREEN, f"                {ramp}.rampZoom(1.0, rate: 8.0)\n",
+             f"                if !WhitegramMediaSettings.current.staticZoomEnabled {{\n                    {ramp}.rampZoom(1.0, rate: 8.0)\n                }}\n",
+             count=2 if ramp == "self.camera?" else 1)
     for method, argument, validation in [("setZoomLevel", "zoomLevel", "zoomLevel.isFinite"), ("setZoomDelta", "zoomDelta", "zoomDelta.isFinite && zoomDelta > 0.0")]:
         anchor = f"    func {method}(_ {argument}: CGFloat) {{\n"
         _replace(patches, DEVICE, anchor, anchor + f"        guard {validation} else {{ return }}\n")

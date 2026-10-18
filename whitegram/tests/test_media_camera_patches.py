@@ -13,6 +13,14 @@ from source_patches import SourcePatches
 from tree_sitter import Language, Parser
 import tree_sitter_swift
 
+CAMERA_PROTOCOL = CAMERA
+CAMERA_FACTORY = None
+if os.environ.get("WHITEGRAM_ASSEMBLED_SOURCE") and (Path(os.environ["WHITEGRAM_ASSEMBLED_SOURCE"]) / "submodules/Camera/CameraLegacy/BUILD").is_file():
+    CAMERA = "submodules/Camera/CameraLegacy/Sources/LegacyCamera.swift"
+    DEVICE = "submodules/Camera/CameraLegacy/Sources/CameraDevice.swift"
+    OUTPUT = "submodules/Camera/CameraLegacy/Sources/CameraOutput.swift"
+    CAMERA_FACTORY = "submodules/Camera/CameraLegacy/Sources/LegacyCameraImpl.swift"
+
 
 def errors(text):
     parser = Parser(Language(tree_sitter_swift.language()))
@@ -85,7 +93,10 @@ class MediaIntegrationTests(unittest.TestCase):
         once = dict(patches.pending)
         media_camera_patches(patches)
         self.assertEqual(once, patches.pending)
-        self.assertEqual(set(once), {PICKER, FETCH, CAMERA, DEVICE, OUTPUT, ROUND_SCREEN, MEDIA_PICKER})
+        expected = {PICKER, FETCH, CAMERA, DEVICE, OUTPUT, ROUND_SCREEN, MEDIA_PICKER}
+        if CAMERA_FACTORY:
+            expected.update((CAMERA_PROTOCOL, CAMERA_FACTORY))
+        self.assertEqual(set(once), expected)
         for path, text in once.items():
             with self.subTest(path=path):
                 self.assertEqual(errors(text), errors(patches.original[path]))
@@ -94,6 +105,8 @@ class MediaIntegrationTests(unittest.TestCase):
     def test_pristine_release_source_accepts_and_replays_all_media_hooks(self):
         patches = self.patches()
         paths = (PICKER, FETCH, CAMERA, DEVICE, OUTPUT, ROUND_SCREEN, MEDIA_PICKER)
+        if CAMERA_FACTORY:
+            paths += (CAMERA_PROTOCOL, CAMERA_FACTORY)
         for path in paths:
             source = subprocess.check_output(["git", "-C", str(patches.root), "show", f"HEAD:{path}"]).decode("utf-8")
             patches.original[path] = source
@@ -132,7 +145,9 @@ class MediaIntegrationTests(unittest.TestCase):
         patches = self.patches()
         media_camera_patches(patches)
         camera, device, output = (patches.pending[path] for path in (CAMERA, DEVICE, OUTPUT))
-        self.assertIn("forRoundVideo && WhitegramMediaSettings.current.requiresSingleCameraForRoundVideo", camera)
+        self.assertIn("forRoundVideo && WhitegramMediaSettings.current.requiresSingleCameraForRoundVideo", patches.pending[CAMERA_FACTORY] if CAMERA_FACTORY else camera)
+        if CAMERA_FACTORY:
+            self.assertIn("useModernVideoMessagePipeline && WhitegramMediaSettings.current.useTelegramCameraSettings && !WhitegramMediaSettings.current.rememberLastCamera", patches.pending[ROUND_SCREEN])
         self.assertIn("let enabled = enabled && self.session.supportsDualCam", camera)
         self.assertIn("self.device.resetZoom(neutral: !whitegramWideAngle", camera)
         self.assertEqual(camera.count("self.initialConfiguration.isRoundVideo && self.isDualCameraEnabled == true"), 3)
@@ -177,7 +192,7 @@ class MediaIntegrationTests(unittest.TestCase):
         self.assertIn("self.whitegramCaptureDimensions = device.videoDevice.map { CMVideoFormatDescriptionGetDimensions($0.activeFormat.formatDescription) }", output)
         configuration = patches.pending[CAMERA]
         self.assertLess(configuration.index("self.device.configureWhitegramFormat("), configuration.index("self.output.configure(for: session, device: self.device"))
-        recorder = (patches.root / "submodules/Camera/Sources/VideoRecorder.swift").read_text(encoding="utf-8")
+        recorder = (patches.root / Path(CAMERA).with_name("VideoRecorder.swift")).read_text(encoding="utf-8")
         self.assertIn("CGAffineTransform(rotationAngle: .pi / 2.0)", recorder)
         self.assertIn("CGAffineTransform(rotationAngle: -.pi / 2.0)", recorder)
         self.assertIn("videoInput.transform = self.videoTransform", recorder)
@@ -186,9 +201,9 @@ class MediaIntegrationTests(unittest.TestCase):
     def test_recorder_initialization_errors_reach_the_public_camera_signal(self):
         patches = self.patches()
         media_camera_patches(patches)
-        camera = patches.pending[CAMERA]
-        start = camera.rindex("    public func startRecording()")
-        public_recording = camera[start:camera.index("    public func stopRecording()", start)]
+        camera = patches.pending[CAMERA].replace("public func", "func")
+        start = camera.rindex("    func startRecording()")
+        public_recording = camera[start:camera.index("    func stopRecording()", start)]
         self.assertIn("context.startRecording().start(next:", public_recording)
         self.assertIn("}, error: { error in\n                        subscriber.putError(error)", public_recording)
         output = patches.pending[OUTPUT]
@@ -217,6 +232,8 @@ class MediaIntegrationTests(unittest.TestCase):
         media_camera_patches(base)
         before = "                camera.rampZoom(1.0, rate: 8.0)\n"
         after = "                if !WhitegramMediaSettings.current.staticZoomEnabled {\n                    camera.rampZoom(1.0, rate: 8.0)\n                }\n"
+        if CAMERA_FACTORY:
+            before, after = before.replace("camera.rampZoom", "self.camera?.rampZoom"), after.replace("camera.rampZoom", "self.camera?.rampZoom")
         source = base.original[ROUND_SCREEN].replace(after, before)
         for broken in (source.replace(before, ""), source + before, base.pending[ROUND_SCREEN] + before):
             patches = self.patches()

@@ -1,0 +1,32 @@
+name: WhitegramLoginChecks
+options:
+  deploymentTarget:
+    iOS: "15.0"
+settings:
+  CODE_SIGNING_ALLOWED: NO
+  SWIFT_VERSION: "5.0"
+  GENERATE_INFOPLIST_FILE: YES
+targets:
+  LoginHarness:
+    type: application
+    platform: iOS
+    sources: [Harness]
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: org.whitegram.LoginHarness
+  LoginUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: LoginHarness
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: org.whitegram.LoginUITests
+      TEST_TARGET_NAME: LoginHarness
+schemes:
+  WhitegramLogin:
+    build:
+      targets:
+        LoginHarness: all
+        LoginUITests: all
+    test:
+      targets: [LoginUITests]

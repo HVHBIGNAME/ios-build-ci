@@ -3,6 +3,14 @@ import XCTest
 @testable import TelegramCore
 
 final class WhitegramTransferTests: XCTestCase {
+    func testTelegram13AdaptiveDefaultsRemainNativeWhenOverridesAreOff() {
+        for native in [1, 6, 8, 12, 32] {
+            XCTAssertEqual(WhitegramTransferSettings(values: [:]).downloadParallelParts(default: native), native)
+            XCTAssertEqual(WhitegramTransferSettings(values: ["downloadAccelMode": 2]).downloadParallelParts(default: native), 8)
+            XCTAssertEqual(WhitegramTransferSettings(values: ["maxDownloadSpeed": true]).downloadParallelParts(default: native), 16)
+        }
+    }
+
     func testOriginalDownloadModeTableAndLegacyPrecedence() {
         for (mode, count) in [(1, 4), (2, 8), (3, 16)] {
             for legacy in [true, false] {

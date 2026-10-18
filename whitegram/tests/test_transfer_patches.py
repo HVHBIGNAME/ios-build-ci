@@ -25,6 +25,17 @@ class TransferIntegrationTests(unittest.TestCase):
     def patches(self):
         return SourcePatches(Path(os.environ["WHITEGRAM_ASSEMBLED_SOURCE"]))
 
+    def download_hooks(self, source):
+        if "masterPendingParts" in source:
+            return [(f"maxPendingParts: self.{name},", f"maxPendingParts: WhitegramTransferSettings.current.downloadParallelParts(default: self.{name}),", count)
+                    for name, count in (("masterPendingParts", 3), ("cdnPendingParts", 2))]
+        return [("maxPendingParts: 6,", "maxPendingParts: WhitegramTransferSettings.current.downloadParallelParts,", 4)]
+
+    def original_fetch(self, source):
+        for before, after, _ in self.download_hooks(source):
+            source = source.replace(after, before)
+        return source
+
     def test_all_native_transitions_replay_without_writes_or_new_parse_errors(self):
         patches = self.patches()
         transfer_patches(patches)
@@ -66,16 +77,20 @@ class TransferIntegrationTests(unittest.TestCase):
         patches = self.patches()
         transfer_patches(patches)
         fetch = patches.pending[FETCH]
-        self.assertEqual(fetch.count("maxPendingParts: WhitegramTransferSettings.current.downloadParallelParts,"), 4)
-        self.assertIn("while state.pendingParts.count < state.maxPendingParts", fetch)
+        for _, after, count in self.download_hooks(fetch):
+            self.assertEqual(fetch.count(after), count)
+        if "masterPendingParts" in fetch:
+            self.assertIn("maxPendingParts = min(maxPendingParts, state.window)", fetch)
+            self.assertIn("while state.pendingParts.count < maxPendingParts", fetch)
+        else:
+            self.assertIn("while state.pendingParts.count < state.maxPendingParts", fetch)
         self.assertIn("while state.pendingHashRanges.count < state.maxPendingParts", fetch)
         self.assertIn("network.useExperimentalFeatures || WhitegramTransferSettings.current.usesAcceleratedDownload, let _ = resource as? TelegramCloudMediaResource", patches.pending[DISPATCH])
         upload = patches.pending[UPLOAD]
         self.assertIn("self.parallelParts = WhitegramTransferSettings.current.uploadParallelParts(increaseParallelParts: increaseParallelParts)", upload)
         self.assertIn("while uploadingParts.count < self.parallelParts", upload)
         # Compare the unchanged bodies, rather than reimplementing the network.
-        native_fetch = patches.original[FETCH].replace("maxPendingParts: 6,", "maxPendingParts: WhitegramTransferSettings.current.downloadParallelParts,")
-        self.assertEqual(fetch, native_fetch)
+        self.assertEqual(self.original_fetch(fetch), self.original_fetch(patches.original[FETCH]))
         start = "    func checkState() {"
         self.assertEqual(upload[upload.index(start):], patches.original[UPLOAD][patches.original[UPLOAD].index(start):])
 
@@ -98,25 +113,24 @@ class TransferIntegrationTests(unittest.TestCase):
             patches.original[UPLOAD],
         )
         self.assertEqual(
-            patches.pending[FETCH].replace("maxPendingParts: WhitegramTransferSettings.current.downloadParallelParts,", "maxPendingParts: 6,"),
+            self.original_fetch(patches.pending[FETCH]),
             patches.original[FETCH],
         )
 
     def test_partial_duplicate_or_missing_transition_is_rejected_before_write(self):
         base = self.patches()
         transfer_patches(base)
-        before = "maxPendingParts: 6,"
-        after = "maxPendingParts: WhitegramTransferSettings.current.downloadParallelParts,"
-        original = base.original[FETCH].replace(after, before)
-        for source in (original.replace(before, "", 1), original + before, original.replace(before, after, 1), base.pending[FETCH] + before):
-            patches = self.patches()
-            patches.read(FETCH)
-            patches.pending[FETCH] = source
-            with patch("transfer_patches.SourcePatches", return_value=patches), patch.object(patches, "write") as write:
-                with self.assertRaises(ValueError):
-                    apply_transfer_patches(patches.root)
-                write.assert_not_called()
-            self.assertEqual((patches.root / FETCH).read_text(encoding="utf-8"), base.original[FETCH])
+        original = self.original_fetch(base.original[FETCH])
+        for before, after, _ in self.download_hooks(original):
+            for source in (original.replace(before, "", 1), original + before, original.replace(before, after, 1), base.pending[FETCH] + before):
+                patches = self.patches()
+                patches.read(FETCH)
+                patches.pending[FETCH] = source
+                with patch("transfer_patches.SourcePatches", return_value=patches), patch.object(patches, "write") as write:
+                    with self.assertRaises(ValueError):
+                        apply_transfer_patches(patches.root)
+                    write.assert_not_called()
+                self.assertEqual((patches.root / FETCH).read_text(encoding="utf-8"), base.original[FETCH])
 
     def test_missing_upload_anchor_cannot_partially_install_download_edits(self):
         patches = self.patches()

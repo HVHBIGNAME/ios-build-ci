@@ -50,9 +50,7 @@ build_path.write_text(text)
 
 versions_path = root / "versions.json"
 versions = json.loads(versions_path.read_text())
-versions["app"] = "12.9.4"
-versions_path.write_text(json.dumps(versions, indent=4) + "\n")
 
 install_primary_icon(root)
 
-print(f"Configured {app_name} build identity {build_bundle_id} on Telegram 12.9.4")
+print(f"Configured {app_name} build identity {build_bundle_id} on Telegram {versions['app']}")

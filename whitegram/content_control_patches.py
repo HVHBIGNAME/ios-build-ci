@@ -82,6 +82,9 @@ def receipt_patches(patches: SourcePatches) -> None:
         "if WhitegramGhost.suppressReadReceipts {", "if WhitegramGhost.suppressReadReceipts(for: peerId) {", count=4)
     tracker = CORE + "State/AccountViewTracker.swift"
     anchor = "    public func updateSeenLiveLocationForMessageIds(messageIds: Set<MessageId>) {\n        self.queue.async {\n"
+    captured = anchor.replace("self.queue.async {\n", "self.queue.async { [self] in\n")
+    if captured in patches.read(tracker):
+        anchor = captured
     replace(patches, "perChatGhost", tracker, anchor,
         anchor + "            let messageIds = Set(messageIds.filter { !WhitegramGhost.suppressReadReceipts(for: $0.peerId) })\n")
     consumed = CORE + "TelegramEngine/Messages/MarkMessageContentAsConsumedInteractively.swift"

@@ -87,7 +87,7 @@ def screenshot(device, destination):
             raise RuntimeError("Simulator screenshot is missing or invalid")
 
 
-def smoke(app, output, revision, build, seconds):
+def smoke(app, output, revision, build, seconds, login=False):
     output.mkdir(parents=True, exist_ok=False)
     report = {"status": "failed", "phase": "prepare", "source_revision": revision, "configuration": "release_sim_arm64",
               "observation_seconds_per_launch": seconds, "launches": [], "cleanup_errors": [],
@@ -158,6 +158,12 @@ def smoke(app, output, revision, build, seconds):
             if "log_error" in launch:
                 raise RuntimeError(launch["log_error"])
             launch["status"] = "passed"
+        if login:
+            from login_check import check_login
+            report["phase"] = "login-connectivity"
+            report["login"] = check_login(device, output / "login")
+            if report["login"]["status"] != "passed":
+                raise RuntimeError(report["login"].get("error", "Login connectivity check failed"))
         report["phase"] = "complete"
         report["status"] = "passed"
     except (OSError, ValueError, KeyError, RuntimeError, subprocess.SubprocessError) as error:
@@ -182,12 +188,13 @@ def main():
     parser.add_argument("--revision", required=True)
     parser.add_argument("--build", required=True)
     parser.add_argument("--seconds", type=int, default=30)
+    parser.add_argument("--login", action="store_true", help="Run the phone-entry UI and require a real Telegram response")
     args = parser.parse_args()
     if not 5 <= args.seconds <= 120:
         parser.error("--seconds must be between 5 and 120")
     if not re.fullmatch(r"[a-f0-9]{40}", args.revision) or not args.build.isdecimal():
         parser.error("--revision must be a commit SHA and --build must be numeric")
-    report = smoke(args.app.resolve(), args.output.resolve(), args.revision, args.build, args.seconds)
+    report = smoke(args.app.resolve(), args.output.resolve(), args.revision, args.build, args.seconds, login=args.login)
     print(json.dumps(report, indent=2))
     return 0 if report["status"] == "passed" else 1
 

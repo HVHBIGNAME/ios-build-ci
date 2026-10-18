@@ -47,6 +47,14 @@ class SideloadConfigurationTests(unittest.TestCase):
             self.assertEqual(configured[key], self.configuration[key])
         self.assertEqual(self.configure(), configured)
 
+    def test_configuration_preserves_the_actual_upstream_application_version(self):
+        versions = {"app": "13.0", "xcode": "26.6", "bazel": "9.2.0:fixture"}
+        path = self.source / "versions.json"
+        original = json.dumps(versions).encode()
+        path.write_bytes(original)
+        self.configure()
+        self.assertEqual(path.read_bytes(), original)
+
     def test_original_icon_replaces_public_primary_and_preserves_all_appearances(self):
         catalog = self.source / "Telegram/Telegram-iOS/DefaultAppIcon.xcassets"
         previous = catalog / "AppIconLLC.appiconset"

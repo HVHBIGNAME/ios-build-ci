@@ -2,6 +2,9 @@ import Foundation
 import UIKit
 import AccountContext
 import Camera
+#if canImport(CameraLegacy)
+import CameraLegacy
+#endif
 import Display
 import ItemListUI
 import PresentationDataUtils

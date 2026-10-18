@@ -2,6 +2,11 @@ name: Build WhiteGram IPA
 
 on:
   workflow_dispatch:
+    inputs:
+      simulator_only:
+        description: "Build and test the simulator without a device IPA"
+        type: boolean
+        default: false
   push:
     branches:
       - main
@@ -12,16 +17,17 @@ permissions:
 
 jobs:
   build:
-    name: WhiteGram ${{ matrix.source_version }} → 12.9.4
+    name: WhiteGram ${{ matrix.source_version }}
     runs-on: macos-26
     timeout-minutes: 360
     strategy:
       fail-fast: false
       matrix:
         include:
-          - source_version: release-12.9.2
-            app_version: "12.9.4"
-            app_build: "34646"
+          - source_version: release-13.0.0
+            source_revision: f1dd7a2dbd02cbbf513e75d5695d8d36d1cf5838
+            app_version: "13.0"
+            app_build: "34648"
 
     steps:
       - name: Checkout build repository
@@ -38,7 +44,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: TelegramMessenger/Telegram-iOS
-          ref: ${{ matrix.source_version }}
+          ref: ${{ matrix.source_revision }}
           path: telegram-ios
           submodules: recursive
           fetch-depth: 0
@@ -57,6 +63,8 @@ jobs:
           rm -rf /Users/Shared/telegram-ios
           cp -R "$GITHUB_WORKSPACE/telegram-ios" /Users/Shared/telegram-ios
           git -C /Users/Shared/telegram-ios submodule update --init --recursive
+          test "$(git -C /Users/Shared/telegram-ios rev-parse HEAD)" = "${{ matrix.source_revision }}"
+          test "$(python3 -c 'import json; print(json.load(open("whitegram/upstream.json"))["source_sha"])')" = "${{ matrix.source_revision }}"
 
       - name: Применить публичный WhiteGram overlay
         run: |
@@ -66,7 +74,7 @@ jobs:
             /Users/Shared/telegram-ios \
             /Users/Shared/whitegram-public
 
-      - name: Применить совместимость исходников с 12.9.4
+      - name: Применить совместимость WhiteGram с Telegram
         run: |
           set -euxo pipefail
           python3 "$GITHUB_WORKSPACE/whitegram/compat-12.9.4.py" \
@@ -86,15 +94,12 @@ jobs:
           WHITEGRAM_VOICE_SOURCE: /Users/Shared/telegram-ios
           WHITEGRAM_VOICE_PUBLIC_SOURCE: /Users/Shared/whitegram-public
           WHITEGRAM_PLAYER_SOURCE: /Users/Shared/telegram-ios
-          WHITEGRAM_ALTICON_TOOL: ${{ runner.temp }}/whitegram-alticonstool.py
+          WHITEGRAM_ALTICON_TOOL: /Users/Shared/telegram-ios/build-system/bazel-rules/rules_apple/tools/alticonstool/alticonstool.py
         run: |
           set -euo pipefail
           python3 -m venv "$RUNNER_TEMP/whitegram-check-env"
           python="$RUNNER_TEMP/whitegram-check-env/bin/python"
           "$python" -m pip install -r whitegram/requirements-checks.txt
-          curl --fail --silent --show-error --location \
-            https://raw.githubusercontent.com/bazelbuild/rules_apple/1791d916de4083388f22e20248d8b010d23f0d6b/tools/alticonstool/alticonstool.py \
-            --output "$WHITEGRAM_ALTICON_TOOL"
           "$python" -B -m unittest discover -s whitegram/tests -p 'test_*.py' -v
           "$python" -B -m unittest discover -s whitegram/tests/voice -p 'test_*.py' -v
           "$python" -B -m unittest discover -s whitegram/tests/player -p 'test_*.py' -v
@@ -136,7 +141,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
-      - name: Настроить WhiteGram и версию 12.9.4
+      - name: Настроить WhiteGram и проверить версию Telegram
         run: |
           set -euxo pipefail
           python3 "$GITHUB_WORKSPACE/whitegram/configure.py" /Users/Shared/telegram-ios
@@ -154,6 +159,7 @@ jobs:
             bazel-${{ runner.os }}-${{ runner.arch }}-${{ matrix.source_version }}-${{ hashFiles('telegram-ios/versions.json') }}-
 
       - name: Собрать release IPA
+        if: ${{ !inputs.simulator_only }}
         env:
           WHITEGRAM_BACKEND_APPLICATION_KEY: ${{ secrets.WHITEGRAM_BACKEND_APPLICATION_KEY }}
           WHITEGRAM_DIAGNOSTICS_URL: ${{ secrets.WHITEGRAM_DIAGNOSTICS_URL }}
@@ -231,6 +237,7 @@ jobs:
           rm -rf "$staging_dir"
 
       - name: Загрузить IPA
+        if: ${{ !inputs.simulator_only }}
         uses: actions/upload-artifact@v4
         with:
           name: WhiteGram-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}-unsigned
@@ -241,6 +248,7 @@ jobs:
           retention-days: 30
 
       - name: Upload matching debug symbols
+        if: ${{ !inputs.simulator_only }}
         uses: actions/upload-artifact@v4
         with:
           name: WhiteGram-symbols-${{ github.sha }}
@@ -252,6 +260,7 @@ jobs:
         timeout-minutes: 150
         run: |
           set -euo pipefail
+          if ! command -v xcodegen >/dev/null; then brew install xcodegen; fi
           cd /Users/Shared/telegram-ios
           python3 -u build-system/Make/Make.py \
             --bazelUserRoot=/private/var/tmp/_bazel_containerhost \
@@ -270,7 +279,7 @@ jobs:
           python3 -B "$GITHUB_WORKSPACE/whitegram/simulator_smoke.py" \
             --app "$staging_dir/Payload/Telegram.app" \
             --output "$RUNNER_TEMP/whitegram-simulator-launch" \
-            --revision "$GITHUB_SHA" --build "${{ matrix.app_build }}" --seconds 30
+            --revision "$GITHUB_SHA" --build "${{ matrix.app_build }}" --seconds 30 --login
 
       - name: Upload simulator launch evidence
         if: always()

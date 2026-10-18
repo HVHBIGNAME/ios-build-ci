@@ -363,7 +363,7 @@ class LauncherCandidateTests(unittest.TestCase):
     @unittest.skipUnless(ALTICON_TOOL, "Set WHITEGRAM_ALTICON_TOOL to the pinned upstream Python tool")
     def test_real_pinned_alticon_tool_generates_resolving_phone_and_ipad_tables(self):
         tool = Path(ALTICON_TOOL)
-        self.assertEqual(hashlib.sha256(tool.read_bytes()).hexdigest(), TOOL_HASH)
+        self.assertEqual(hashlib.sha256(tool.read_bytes().replace(b"\r\n", b"\n")).hexdigest(), TOOL_HASH)
         insert = runpy.run_path(str(tool))["insert_alticons"]
         with tempfile.TemporaryDirectory() as directory:
             root = self.make_root(directory, original_assets=True)
@@ -394,6 +394,18 @@ class LauncherCandidateTests(unittest.TestCase):
             self.assertEqual(report["losslessly_reencoded"], [])
             self.assertEqual(report["families"], ["iphone", "ipad"])
             self.assertEqual(len(report["files"]), 66)
+            # actool's iPad primary images carry ~ipad after the scale suffix.
+            ipad = info["CFBundleIcons~ipad"]["CFBundlePrimaryIcon"]
+            ipad["CFBundleIconFiles"] = ["WGPrimary76x76"]
+            (app / "WGPrimary76x76@2x~ipad.png").write_bytes((app / "WGPrimaryLight.png").read_bytes())
+            (app / "Info.plist").write_bytes(plistlib.dumps(info))
+            icons.verify_launcher_icon_bundle(app)
+            (app / "WGPrimary76x76@2x~ipad.png").rename(app / "WGPrimary76x76@2x~iphone.png")
+            with self.assertRaisesRegex(ValueError, "Unresolved Bundle.main launcher file: WGPrimary76x76"):
+                icons.verify_launcher_icon_bundle(app)
+            (app / "WGPrimary76x76@2x~iphone.png").rename(app / "WGPrimary76x76@2x~ipad.png")
+            ipad["CFBundleIconFiles"] = ["WGPrimaryLight"]
+            (app / "Info.plist").write_bytes(plistlib.dumps(info))
             # Standard indexed PNG -> RGBA encoder changes bytes, not displayed pixels.
             from PIL import Image
             png = app / "BlueFilledIconIpad.png"

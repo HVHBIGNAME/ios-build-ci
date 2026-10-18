@@ -6,6 +6,7 @@ All patch writes go to MemoryRoot, never to either source worktree.
 
 import collections
 import difflib
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -24,7 +25,7 @@ from validate_port import errors
 
 
 SOURCE = os.environ.get("WHITEGRAM_ASSEMBLED_SOURCE")
-PIN = "6ad963e5b62d354da79040f388ae2b9132fb17b8"
+PIN = json.loads((OVERLAY / "upstream.json").read_text(encoding="utf-8"))["source_sha"]
 STATE = "submodules/TelegramCore/Sources/State/AccountStateManagementUtils.swift"
 DELETE = "submodules/TelegramCore/Sources/TelegramEngine/Messages/DeleteMessagesInteractively.swift"
 EDIT = "submodules/TelegramCore/Sources/PendingMessages/RequestEditMessage.swift"
@@ -318,7 +319,9 @@ class HistoryPatchTests(unittest.TestCase):
         root = MemoryRoot(self.pristine)
         apply_history_patches(root)
         entries = root.text(ENTRIES)
-        self.assertLess(entries.index("capture(entry.message"), entries.index("displayMessage(entry.message)"))
+        self.assertLess(entries.index("capture(entry.message"), entries.index("displayMessage(entry.message"))
+        if "withAppliedEphemeralReplacementMessage()" in self.pristine[ENTRIES]:
+            self.assertIn("displayMessage(entry.message.withAppliedEphemeralReplacementMessage())", entries)
         self.assertLess(entries.index("shouldDisplay(entry.message"), entries.index("if groupMessages || reverseGroupedMessages"))
         self.assertIn("whitegramHistorySettingsSignal()", root.text(LIST))
         self.assertIn("didSet {", root.text(ITEM))

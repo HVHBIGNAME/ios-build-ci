@@ -173,14 +173,19 @@ def _native_retention_patches(patches: SourcePatches):
 
 
 def _chat_presentation_patches(patches: SourcePatches):
-    anchor = "    loop: for entry in view.entries {\n        var message = entry.message\n"
-    patches.replace("historyInlinePresentation", ENTRIES, anchor, '''    loop: for entry in view.entries {
+    message = "entry.message"
+    if "withAppliedEphemeralReplacementMessage()" in patches.read(ENTRIES):
+        message += ".withAppliedEphemeralReplacementMessage()"
+    anchor = "    loop: for entry in view.entries {\n        var message = " + message + "\n"
+    replacement = '''    loop: for entry in view.entries {
         if WhitegramPreferences.bool("saveChatHistory") {
             WhitegramHistoryStore.capture(entry.message, event: .received, accountPeerId: context.account.peerId, mediaBoxPath: context.account.postbox.mediaBox.basePath)
         }
         if !WhitegramHistoryRuntime.shouldDisplay(entry.message, accountPeerId: context.account.peerId) { continue }
         var message = WhitegramHistoryRuntime.displayMessage(entry.message)
-''')
+'''
+    patches.replace("historyInlinePresentation", ENTRIES, anchor,
+        replacement.replace("WhitegramHistoryRuntime.displayMessage(entry.message)", "WhitegramHistoryRuntime.displayMessage(" + message + ")"))
     anchor = "        let promises = combineLatest(\n            self.historyAppearsClearedPromise.get(),\n"
     patches.replace("historyLivePreferences", LIST, anchor, '''        let whitegramHistoryReload = combineLatest(self.historyAppearsClearedPromise.get(), whitegramHistorySettingsSignal())
         |> map { value, _ in value }

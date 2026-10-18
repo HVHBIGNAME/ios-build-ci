@@ -135,7 +135,7 @@ def main() -> None:
     parser.add_argument("ipa", type=Path)
     parser.add_argument("--repository", type=Path, required=True)
     parser.add_argument("--revision", required=True)
-    parser.add_argument("--version", default="12.9.4")
+    parser.add_argument("--version", required=True)
     parser.add_argument("--build", default="34639")
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--require-diagnostics", action="store_true")

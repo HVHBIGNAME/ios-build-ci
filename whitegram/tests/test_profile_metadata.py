@@ -15,11 +15,11 @@ import appearance_parity_patches as appearance
 import profile_appearance_patches as profile
 import profile_metadata_patches as metadata
 from source_patches import SourcePatches
-from test_appearance_extensions import MemoryRoot, syntax_errors
+from test_appearance_extensions import MemoryRoot, UPSTREAM, syntax_errors
 
 
 SOURCE = os.environ.get("WHITEGRAM_PROFILE_METADATA_SOURCE") or os.environ.get("WHITEGRAM_ASSEMBLED_SOURCE")
-PINNED_UPSTREAM = "6ad963e5b62d354da79040f388ae2b9132fb17b8"
+PINNED_UPSTREAM = UPSTREAM
 TARGETS = (metadata.ITEMS, metadata.SCREEN)
 COMPOSITION_PATHS = tuple(dict.fromkeys((*TARGETS, profile.HEADER, profile.DATA, profile.PANES, metadata.PEER + "PeerInfoSettingsItems.swift")))
 

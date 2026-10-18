@@ -337,7 +337,8 @@ def verify_launcher_icon_bundle(app: Path, resources: Path = RESOURCES, *, basel
             if not stems:
                 raise ValueError(f"Missing launcher file references: {family}/{name}")
             for stem in stems:
-                if Path(stem).name != stem or not any((app / (stem + suffix + ".png")).is_file() for suffix in ("", "@2x", "@3x")):
+                idioms = ("", "~ipad") if family == "CFBundleIcons~ipad" else ("", "~iphone")
+                if Path(stem).name != stem or not any((app / (stem + scale + idiom + ".png")).is_file() for scale in ("", "@2x", "@3x") for idiom in idioms):
                     raise ValueError(f"Unresolved Bundle.main launcher file: {stem}")
     reencoded = []
     for name, data in images.items():

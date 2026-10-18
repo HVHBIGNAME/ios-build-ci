@@ -65,9 +65,11 @@ def _settings_images(patches):
     pattern = re.compile(r"^    public static let (\w+) = (render(?:SettingsIcon|AttachAppIcon)\([^\n]+\))$", re.M)
     matches = list(pattern.finditer(value))
     applied = value.count("WhitegramIconPackPresentationCache.image(")
-    if matches and (len(matches) != 89 or applied):
+    telegram13 = " gramEarnings" in value and " welcome" in value
+    expected = 91 if telegram13 else 89
+    if matches and (len(matches) != expected or applied):
         raise ValueError(f"icon-packs: settings icon inventory changed: {len(matches)} original, {applied} patched")
-    if not matches and applied != 92:
+    if not matches and applied != expected + (4 if telegram13 else 3):
         raise ValueError("icon-packs: missing computed settings icon anchors")
     for match in matches:
         name, expression = match.groups()
@@ -87,6 +89,10 @@ def _settings_images(patches):
         before = value[left:right]
         after = before.replace(start, done, 1) + " } }"
         replace(patches, "icon-packs-settings-refresh", SETTINGS, before, after)
+    if telegram13:
+        replace(patches, "icon-packs-settings-refresh", SETTINGS,
+                '    public static let money = UIImage(bundleImageName: "Settings/Gram")',
+                '    public static var money: UIImage? { return WhitegramIconPackPresentationCache.image("money") { UIImage(bundleImageName: "Settings/Gram") } }')
 
 
 def apply_appearance_icon_pack_patches(root: Path) -> dict[str, list[str]]:

@@ -117,10 +117,24 @@ private func whitegramPluginEnqueueAcceptedMessages(account: Account, peerId: Pe
         _replace(patches, "pluginRequestInterception", network, anchor, anchor + f'''        return WhitegramPluginNativeInterception.request(network: self, description: data.0)
         |> mapToSignal {{ _ -> Signal<{result}, MTRpcError> in
 ''')
-    anchor = "                requestService?.removeRequest(byInternalId: internalId)\n            }\n        }\n    }\n"
-    _replace(patches, "pluginRequestInterception", network, anchor, anchor.replace("\n        }\n    }\n", "\n        }\n        }\n    }\n"), count=2)
-    anchor = "            request.completed = { (boxedResponse, timestamp, error) -> () in\n"
-    _replace(patches, "pluginRequestEvents", network, anchor, anchor + '''                WhitegramPluginNativeInterception.response(network: self, description: data.0, error: error)
+    if "let request = NetworkEngineRequest(" in patches.read(network):
+        anchor = "            return requestService.add(request)\n        }\n    }\n"
+        _replace(patches, "pluginRequestInterception", network, anchor, anchor.replace("\n        }\n    }\n", "\n        }\n        }\n    }\n"), count=2)
+        anchor = "                completed: { result in\n                    switch result {\n"
+        _replace(patches, "pluginRequestEvents", network, anchor, '''                completed: { result in
+                    let whitegramError: MTRpcError?
+                    switch result {
+                    case .success: whitegramError = nil
+                    case let .failure(failure): whitegramError = failure.error
+                    }
+                    WhitegramPluginNativeInterception.response(network: self, description: data.0, error: whitegramError)
+                    switch result {
+''', count=2)
+    else:
+        anchor = "                requestService?.removeRequest(byInternalId: internalId)\n            }\n        }\n    }\n"
+        _replace(patches, "pluginRequestInterception", network, anchor, anchor.replace("\n        }\n    }\n", "\n        }\n        }\n    }\n"), count=2)
+        anchor = "            request.completed = { (boxedResponse, timestamp, error) -> () in\n"
+        _replace(patches, "pluginRequestEvents", network, anchor, anchor + '''                WhitegramPluginNativeInterception.response(network: self, description: data.0, error: error)
 ''', count=2)
 
     root_controller = "submodules/TelegramUI/Sources/TelegramRootController.swift"

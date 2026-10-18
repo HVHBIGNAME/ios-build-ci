@@ -106,7 +106,8 @@ class AppearanceCompositionTests(unittest.TestCase):
         for path in paths:
             if path.endswith(".swift"):
                 with self.subTest(path=path):
-                    self.assertEqual(syntax_errors(root.files[path]), [])
+                    self.assertEqual([entry[2:] for entry in syntax_errors(root.files[path])],
+                                     [entry[2:] for entry in syntax_errors(files[path].encode())])
 
 
 if __name__ == "__main__":

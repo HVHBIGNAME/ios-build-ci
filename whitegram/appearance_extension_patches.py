@@ -207,9 +207,14 @@ def _metadata_patches(patches: SourcePatches):
 
 
 def _chat_refresh_patches(patches: SourcePatches):
-    before = "        } else if !chatPresentationInterfaceState.peerIsBlocked && !inhibitTitlePanelDisplay, let contactStatus = chatPresentationInterfaceState.contactStatus, contactStatus.managingBot != nil {\n"
-    _replace(patches, "hideBusinessBotPanel", PANELS, before,
-             before.replace("else if !chat", "else if !WhitegramAppearanceSettings.current.isEnabled(.hideBusinessBotPanel), !chat"))
+    if "func managingBotTitlePanelForChatPresentationInterfaceState(" in patches.read(PANELS):
+        before = "    guard let contactStatus = chatPresentationInterfaceState.contactStatus, contactStatus.managingBot != nil else {\n"
+        _replace(patches, "hideBusinessBotPanel", PANELS, before,
+                 before.replace("guard let", "guard !WhitegramAppearanceSettings.current.isEnabled(.hideBusinessBotPanel), let"))
+    else:
+        before = "        } else if !chatPresentationInterfaceState.peerIsBlocked && !inhibitTitlePanelDisplay, let contactStatus = chatPresentationInterfaceState.contactStatus, contactStatus.managingBot != nil {\n"
+        _replace(patches, "hideBusinessBotPanel", PANELS, before,
+                 before.replace("else if !chat", "else if !WhitegramAppearanceSettings.current.isEnabled(.hideBusinessBotPanel), !chat"))
     before = "    private func beginPresentationDataManagement(updated: Signal<PresentationData, NoError>) {\n"
     _replace(patches, "appearance-live-refresh", HISTORY, before, """    func refreshWhitegramAppearance() {
         let current = self.currentPresentationData

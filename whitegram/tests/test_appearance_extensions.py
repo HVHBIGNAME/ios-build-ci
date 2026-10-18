@@ -5,6 +5,7 @@ pinned upstream commit. No fixture, bytecode or patched source is written there.
 """
 
 import ast
+import json
 import os
 from pathlib import Path
 import re
@@ -24,7 +25,7 @@ import appearance_extension_patches as extensions
 
 
 SOURCE = os.environ.get("WHITEGRAM_APPEARANCE_SOURCE")
-UPSTREAM = "6ad963e5b62d354da79040f388ae2b9132fb17b8"
+UPSTREAM = json.loads((WHITEGRAM / "upstream.json").read_text(encoding="utf-8"))["source_sha"]
 TARGETS = (
     "submodules/ChatMessageBackground/Sources/ChatMessageBackground.swift",
     "submodules/TelegramPresentationData/Sources/PresentationThemeEssentialGraphics.swift",

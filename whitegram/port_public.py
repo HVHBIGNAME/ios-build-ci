@@ -11,6 +11,7 @@ import tempfile
 from pathlib import Path
 
 from public_resolutions import resolve
+from public_resolutions_13 import REVISION as TELEGRAM_13_REVISION, resolve_13
 
 PUBLIC_REF = "db18308774f863074278feedc4df4507b0fb174e"
 BASE_REF = "release-12.6.2"
@@ -128,6 +129,7 @@ def conflict_review(relative: str, merged: str) -> str:
 
 
 def port(source: Path, public: Path, report: Path, resolutions: Path, apply: bool) -> int:
+    resolver = resolve_13 if git(source, "rev-parse", "HEAD").decode().strip() == TELEGRAM_13_REVISION else resolve
     changed = git(public, "diff", "--name-only", "-z", BASE_REF, PUBLIC_REF).decode().split("\0")
     entries = []
     pending: dict[Path, bytes | None] = {}
@@ -178,9 +180,13 @@ def port(source: Path, public: Path, report: Path, resolutions: Path, apply: boo
                     merged, clean = merge(ours, old, normalize_indentation(old, new))
                 if not clean:
                     review.append(conflict_review(relative, merged))
-                    merged = resolve(relative, merged)
-                    clean = True
-                    entry["status"] = "reviewed-resolution"
+                    try:
+                        merged = resolver(relative, merged)
+                    except ValueError as error:
+                        entry["reason"] = str(error)
+                    else:
+                        clean = True
+                        entry["status"] = "reviewed-resolution"
                 if clean:
                     pending[path] = merged.encode("utf-8")
                     entry.setdefault("status", "merged")

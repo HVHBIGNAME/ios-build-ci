@@ -47,6 +47,7 @@ from settings_icon_patches import SETTINGS_ICON_RUNTIME_FILES, apply_settings_ic
 from launcher_icon_patches import apply_launcher_icon_patches, install_launcher_icon_resources
 from swift_syntax_patches import apply_swift_syntax_patches
 from build_patches import add_dep, apply_build_patches
+from network_patches import NETWORK_RUNTIME_FILES, apply_network_patches
 
 source_root = Path(sys.argv[1]).resolve()
 public_root = Path(sys.argv[2]).resolve()
@@ -189,7 +190,7 @@ for manifest in (
     APPEARANCE_GLASS_RUNTIME_FILES, HISTORY_RUNTIME_FILES, ONLINE_HISTORY_RUNTIME_FILES, ACCOUNTS_RUNTIME_FILES,
     PRIVACY_RUNTIME_FILES, TRANSFER_RUNTIME_FILES, PLAYER_RUNTIME_FILES, BACKEND_RUNTIME_FILES, TRAFFIC_RUNTIME_FILES,
     SYSTEM_RUNTIME_FILES, STICKER_RUNTIME_FILES, ONLINE_INDICATOR_RUNTIME_FILES, TEXT_PROCESSING_RUNTIME_FILES, FORMATTING_TOOLBAR_RUNTIME_FILES, MEDIA_ACCENT_RUNTIME_FILES, DIAGNOSTICS_RUNTIME_FILES,
-    PROFILE_APPEARANCE_RUNTIME_FILES, PROFILE_METADATA_RUNTIME_FILES, SETTINGS_ICON_RUNTIME_FILES,
+    PROFILE_APPEARANCE_RUNTIME_FILES, PROFILE_METADATA_RUNTIME_FILES, SETTINGS_ICON_RUNTIME_FILES, NETWORK_RUNTIME_FILES,
 ):
     cleanroom_files.update({"cleanroom/" + name: destination for name, destination in manifest.items()})
 for name in (
@@ -217,6 +218,9 @@ for name in SERVICES_RUNTIME_FILES:
 missing = [name for name in cleanroom_files if not (source_base / name).is_file()]
 if missing:
     raise SystemExit("Missing clean-room sources: " + ", ".join(sorted(missing)))
+
+if (source_root / "submodules/Camera/CameraLegacy/BUILD").is_file():
+    cleanroom_files["cleanroom/WhitegramCameraConfiguration.swift"] = "submodules/Camera/CameraLegacy/Sources/WhitegramCameraConfiguration.swift"
 
 # The CI filesystem is case-insensitive, so a target name that differs from an
 # existing file only by case silently overwrites it. That once destroyed the
@@ -279,7 +283,7 @@ for patcher in (
     apply_chat_list_visibility_patches, apply_online_indicator_patches, apply_text_processing_patches, apply_formatting_toolbar_patches,
     apply_return_key_patches, apply_contact_visibility_patches, apply_media_accent_patches, apply_diagnostics_patches,
     apply_profile_appearance_patches, apply_appearance_details_patches, apply_profile_metadata_patches, apply_feedback_patches,
-    apply_settings_icon_patches, apply_launcher_icon_patches,
+    apply_settings_icon_patches, apply_launcher_icon_patches, apply_network_patches,
 ):
     report = patcher(source_root)
     if isinstance(report, dict):
