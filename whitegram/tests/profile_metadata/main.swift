@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 
 func check(_ condition: @autoclosure () -> Bool, _ message: String) {
     if !condition() { fatalError(message) }
@@ -21,7 +22,13 @@ checkSettings(WhitegramPeerMetadataSettings(values: Dictionary(uniqueKeysWithVal
 for invalid in [1, 0, "true", "false", NSNull(), [true]] as [Any] {
     checkSettings(WhitegramPeerMetadataSettings(values: Dictionary(uniqueKeysWithValues: keys.map { ($0, invalid) }), legacyDefaults: legacy), false)
 }
-for key in keys { legacy.set(1, forKey: "wg_" + key) }
+for key in keys {
+    // Replace the value's type as well as its numeric equality to the old Bool.
+    legacy.removeObject(forKey: "wg_" + key)
+    legacy.set(1, forKey: "wg_" + key)
+    let number = legacy.object(forKey: "wg_" + key) as! NSNumber
+    check(CFGetTypeID(number) != CFBooleanGetTypeID(), "numeric legacy fixture type")
+}
 checkSettings(WhitegramPeerMetadataSettings(values: [:], legacyDefaults: legacy), false)
 checkSettings(WhitegramPeerMetadataSettings(values: Dictionary(uniqueKeysWithValues: keys.map { ($0, true) }), legacyDefaults: legacy), true)
 

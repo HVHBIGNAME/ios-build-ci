@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 import XCTest
 @testable import TelegramCore
 @testable import SettingsUI
@@ -27,7 +28,11 @@ final class WhitegramIconSettingsTests: XCTestCase {
             XCTAssertFalse(settings.customSettingsIcons)
             XCTAssertFalse(settings.showOriginalTelegramIcons)
         }
+        // CFPreferences may retain an existing Bool when an equal NSNumber is set.
+        defaults.removeObject(forKey: "wg_customSettingsIcons")
         defaults.set(1, forKey: "wg_customSettingsIcons")
+        let number = try XCTUnwrap(defaults.object(forKey: "wg_customSettingsIcons") as? NSNumber)
+        XCTAssertNotEqual(CFGetTypeID(number), CFBooleanGetTypeID())
         defaults.set("true", forKey: "wg_showOriginalTelegramIcons")
         XCTAssertEqual(WhitegramIconSettings(values: [:], legacyDefaults: defaults), WhitegramIconSettings(values: [:]))
     }
