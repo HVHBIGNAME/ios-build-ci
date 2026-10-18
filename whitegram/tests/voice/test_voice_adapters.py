@@ -92,6 +92,7 @@ class VoiceAdapterPatchTests(unittest.TestCase):
 
     def test_actual_camera_transform_and_video_audio_processing_compose(self):
         outputs = []
+        output_path = "submodules/Camera/CameraLegacy/Sources/CameraOutput.swift" if (self.source / "submodules/Camera/CameraLegacy/BUILD").is_file() else camera.OUTPUT
         for order in ((camera.media_camera_patches, voice.voice_patches), (voice.voice_patches, camera.media_camera_patches)):
             staged = SourcePatches(self.source)
             for transform in order:
@@ -103,7 +104,7 @@ class VoiceAdapterPatchTests(unittest.TestCase):
             video = staged.pending[voice.VIDEO]
             self.assertIn("WhitegramVoiceVideo.process(urls: videoPaths.map", video)
             self.assertIn("allowLiveUpload && !self.whitegramVoiceSettings.requiresVideoProcessing", video)
-            self.assertIn("WhitegramMediaSettings.current.roundVideoBitrateValue", staged.pending[camera.OUTPUT])
+            self.assertIn("WhitegramMediaSettings.current.roundVideoBitrateValue", staged.pending[output_path])
             for path, original in staged.original.items():
                 self.assertEqual((self.source / path).read_text(encoding="utf-8"), original)
             outputs.append(staged.pending)
