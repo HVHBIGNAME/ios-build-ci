@@ -1,0 +1,25 @@
+{
+  "source_ipa_sha256": "5cf287812de7707dd21256281e645c29a9a5c0da3f66910746254842fce5ffbf",
+  "version": "Whitegram Beta 3.2 (13.0)",
+  "conversion": "none; original PNG and CgBI bytes retained",
+  "images": [
+    {
+      "file": "telegram_sphere@2x.png",
+      "source_member": "Payload/Telegram.app/telegram_sphere@2x.png",
+      "sha256": "381aba0fa7ff1404da7e4070e1fc9594c5ce655deb43f4888af0c0b01cfc2e82",
+      "bytes": 6537
+    },
+    {
+      "file": "telegram_sphere@3x.png",
+      "source_member": "Payload/Telegram.app/telegram_sphere@3x.png",
+      "sha256": "fcf14937842b38a7af8f50ff5588e5f44758f2f7caf8ad665e6c17101a7080b5",
+      "bytes": 10405
+    },
+    {
+      "file": "telegram_plane1@2x.png",
+      "source_member": "Payload/Telegram.app/telegram_plane1@2x.png",
+      "sha256": "18c656511c8c5afdb1d6fce72f35fc8ca2a34ccf239e92af9b940b810b88d6d4",
+      "bytes": 78
+    }
+  ]
+}

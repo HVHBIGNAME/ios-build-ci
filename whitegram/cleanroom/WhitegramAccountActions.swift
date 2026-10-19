@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import UniformTypeIdentifiers
 import Display
 import Postbox
 import SwiftSignalKit
@@ -270,7 +271,9 @@ final class WhitegramAccountActions: NSObject, UIDocumentPickerDelegate {
             guard let self, let controller = self.controller else { return }
             self.exportDirectory = directory
             self.busy = true
-            let picker = UIDocumentPickerViewController(urls: [zip], in: .exportToService)
+            let picker: UIDocumentPickerViewController
+            if #available(iOS 14.0, *) { picker = UIDocumentPickerViewController(forExporting: [zip], asCopy: true) }
+            else { picker = UIDocumentPickerViewController(urls: [zip], in: .exportToService) }
             picker.delegate = self
             controller.present(picker, animated: true)
             self.changed()
@@ -278,7 +281,12 @@ final class WhitegramAccountActions: NSObject, UIDocumentPickerDelegate {
     }
 
     private func pick(folder: Bool) {
-        let picker = UIDocumentPickerViewController(documentTypes: folder ? ["public.folder"] : ["public.data", "public.json", "public.zip-archive"], in: .open)
+        let picker: UIDocumentPickerViewController
+        if #available(iOS 14.0, *) {
+            picker = UIDocumentPickerViewController(forOpeningContentTypes: folder ? [.folder] : [.data, .json, .zip], asCopy: false)
+        } else {
+            picker = UIDocumentPickerViewController(documentTypes: folder ? ["public.folder"] : ["public.data", "public.json", "public.zip-archive"], in: .open)
+        }
         picker.allowsMultipleSelection = !folder
         picker.delegate = self
         controller?.present(picker, animated: true)

@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import UniformTypeIdentifiers
 import Display
 import SwiftSignalKit
 import TelegramCore
@@ -265,7 +266,9 @@ private final class WhitegramHistoryCoordinator: NSObject, UIDocumentPickerDeleg
         case "clearEditedCache": self.nativeAction(.clearEditedCache)
         case "clearSavedChatHistory": self.nativeAction(.clearSavedChatHistory)
         case "import", "importDeletedBackup":
-            let picker = UIDocumentPickerViewController(documentTypes: ["public.json"], in: .import)
+            let picker: UIDocumentPickerViewController
+            if #available(iOS 14.0, *) { picker = UIDocumentPickerViewController(forOpeningContentTypes: [.json], asCopy: true) }
+            else { picker = UIDocumentPickerViewController(documentTypes: ["public.json"], in: .import) }
             picker.delegate = self
             controller.present(picker, animated: true)
         case "more": self.limit += 100; self.changed()

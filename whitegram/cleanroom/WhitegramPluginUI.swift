@@ -143,11 +143,25 @@ private final class WhitegramPluginTreeRenderer {
         case "text": view = self.label(String(describing: props["text"] ?? ""), props: props)
         case "button", "row":
             let button = UIButton(type: .system)
-            button.setTitle((props["title"] as? String) ?? "", for: .normal)
-            button.setTitleColor(self.color(props["color"] ?? "accent"), for: .normal)
+            if #available(iOS 15.0, *) {
+                var configuration = UIButton.Configuration.plain()
+                configuration.title = (props["title"] as? String) ?? ""
+                configuration.baseForegroundColor = self.color(props["color"] ?? "accent")
+                configuration.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 10, bottom: 10, trailing: 10)
+                configuration.titleLineBreakMode = .byWordWrapping
+                configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
+                    var attributes = attributes
+                    attributes.font = UIFont.systemFont(ofSize: 17, weight: .medium)
+                    return attributes
+                }
+                button.configuration = configuration
+            } else {
+                button.setTitle((props["title"] as? String) ?? "", for: .normal)
+                button.setTitleColor(self.color(props["color"] ?? "accent"), for: .normal)
+                button.titleLabel?.font = UIFont.systemFont(ofSize: 17, weight: .medium)
+                button.contentEdgeInsets = UIEdgeInsets(top: 10, left: 10, bottom: 10, right: 10)
+            }
             button.titleLabel?.numberOfLines = 0
-            button.titleLabel?.font = UIFont.systemFont(ofSize: 17, weight: .medium)
-            button.contentEdgeInsets = UIEdgeInsets(top: 10, left: 10, bottom: 10, right: 10)
             button.addTarget(self.target(props), action: #selector(WhitegramPluginControlTarget.tap), for: .touchUpInside)
             view = button
         case "toggle":

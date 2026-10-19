@@ -64,6 +64,7 @@ private final class WhitegramLocalizationCoordinator: NSObject, UIDocumentPicker
     private var operation: UUID?
     private var modal: UIViewController?
     private var exportDocument: WhitegramLocalizationExportDocument?
+    private weak var exportPicker: UIDocumentPickerViewController?
     private var statusKey: String?
     private let queue = DispatchQueue(label: "Whitegram.Localization.Documents", qos: .userInitiated)
 
@@ -167,6 +168,7 @@ private final class WhitegramLocalizationCoordinator: NSObject, UIDocumentPicker
             if #available(iOS 14.0, *) { picker = UIDocumentPickerViewController(forExporting: [document.url], asCopy: true) }
             else { picker = UIDocumentPickerViewController(url: document.url, in: .exportToService) }
             picker.delegate = self
+            self.exportPicker = picker
             if !self.present(picker) { self.cleanupExport() }
         }
     }
@@ -217,6 +219,7 @@ private final class WhitegramLocalizationCoordinator: NSObject, UIDocumentPicker
     }
 
     private func cleanupExport() {
+        exportPicker = nil
         guard let exportDocument else { return }
         do {
             try exportDocument.remove()
@@ -226,7 +229,7 @@ private final class WhitegramLocalizationCoordinator: NSObject, UIDocumentPicker
 
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
         guard modal === controller else { return }
-        let wasExport = controller.documentPickerMode == .exportToService
+        let wasExport = exportPicker === controller
         modal = nil
         controller.dismiss(animated: true) { [weak self] in
             guard let self else { return }

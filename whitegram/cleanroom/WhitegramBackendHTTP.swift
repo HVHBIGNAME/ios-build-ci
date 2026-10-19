@@ -121,8 +121,15 @@ struct WhitegramBackendPinnedHTTP: WhitegramBackendHTTP {
 
     static func accepts(_ trust: SecTrust) -> Bool {
         guard SecTrustEvaluateWithError(trust, nil) else { return false }
-        for index in 0..<SecTrustGetCertificateCount(trust) {
-            guard let certificate = SecTrustGetCertificateAtIndex(trust, index), let key = SecCertificateCopyKey(certificate),
+        let certificates: [SecCertificate]
+        if #available(iOS 15.0, macOS 12.0, *) {
+            guard let chain = SecTrustCopyCertificateChain(trust) as? [SecCertificate] else { return false }
+            certificates = chain
+        } else {
+            certificates = (0..<SecTrustGetCertificateCount(trust)).compactMap { SecTrustGetCertificateAtIndex(trust, $0) }
+        }
+        for certificate in certificates {
+            guard let key = SecCertificateCopyKey(certificate),
                   let bytes = SecKeyCopyExternalRepresentation(key, nil) as Data? else { continue }
             let digest = Data(SHA256.hash(data: subjectPublicKeyInfo(bytes))).base64EncodedString()
             if WhitegramBackendProtocol.spkiPins.contains(digest) { return true }

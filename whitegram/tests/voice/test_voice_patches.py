@@ -260,7 +260,7 @@ class VoiceUpstreamTests(unittest.TestCase):
                     build = (source / "submodules" / module / "BUILD").read_text(encoding="utf-8")
                     self.assertIn("Sources/**/*.swift", build)
                     imports = set(re.findall(r"^import (\w+)$", code, re.MULTILINE))
-                    for dependency in imports - {"Foundation", "CoreFoundation", "FoundationNetworking", "UIKit", "AVFoundation", "Speech", "Security"}:
+                    for dependency in imports - {"Foundation", "CoreFoundation", "FoundationNetworking", "UIKit", "UniformTypeIdentifiers", "AVFoundation", "Speech", "Security"}:
                         declared = "\n".join(voice.VOICE_REQUIRED_DEPENDENCIES.get(module, []))
                         self.assertRegex(build + declared, r'//[^"\n]*(?:/|:)' + re.escape(dependency) + r'(?:"|\n|$)')
 

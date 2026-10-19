@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import UniformTypeIdentifiers
 import ImageIO
 import AccountContext
 import Display
@@ -103,7 +104,9 @@ private final class WhitegramProfilePhotosCoordinator: NSObject, WhitegramServic
     private func choosePhoto(slot: Int?, publish: Bool = true) {
         selectedSlot = slot
         publishWall = publish
-        let picker = UIDocumentPickerViewController(documentTypes: ["public.image"], in: .import)
+        let picker: UIDocumentPickerViewController
+        if #available(iOS 14.0, *) { picker = UIDocumentPickerViewController(forOpeningContentTypes: [.image], asCopy: true) }
+        else { picker = UIDocumentPickerViewController(documentTypes: ["public.image"], in: .import) }
         picker.delegate = self
         picker.allowsMultipleSelection = false
         if !presenter.present(picker) { error = "The image picker could not be opened."; refresh() }

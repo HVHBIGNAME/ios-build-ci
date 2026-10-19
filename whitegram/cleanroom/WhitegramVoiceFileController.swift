@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import UniformTypeIdentifiers
 import AsyncDisplayKit
 import AccountContext
 import Display
@@ -86,14 +87,21 @@ public final class WhitegramVoiceFileController: ViewController, UIDocumentPicke
             self.showStatus("Enable a voice effect or word bleeping in Voice Effects first.")
             return
         }
-        let picker = UIDocumentPickerViewController(documentTypes: ["public.audio", "public.movie", "org.xiph.ogg-audio"], in: .import)
+        let picker: UIDocumentPickerViewController
+        if #available(iOS 14.0, *) {
+            var types: [UTType] = [.audio, .movie]
+            if let ogg = UTType("org.xiph.ogg-audio") { types.append(ogg) }
+            picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
+        } else {
+            picker = UIDocumentPickerViewController(documentTypes: ["public.audio", "public.movie", "org.xiph.ogg-audio"], in: .import)
+        }
         picker.allowsMultipleSelection = false
         picker.delegate = self
         self.present(picker, animated: true)
     }
 
     public func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-        guard controller.documentPickerMode == .import, let url = urls.first else { return }
+        guard let url = urls.first else { return }
         self.cancelProcessing()
         self.removeOutput()
         let task = WhitegramVoiceTask()
@@ -195,7 +203,9 @@ public final class WhitegramVoiceFileController: ViewController, UIDocumentPicke
 
     @objc private func exportFile() {
         guard let output else { return }
-        let picker = UIDocumentPickerViewController(url: output, in: .exportToService)
+        let picker: UIDocumentPickerViewController
+        if #available(iOS 14.0, *) { picker = UIDocumentPickerViewController(forExporting: [output], asCopy: true) }
+        else { picker = UIDocumentPickerViewController(url: output, in: .exportToService) }
         self.present(picker, animated: true)
     }
 

@@ -48,6 +48,8 @@ from launcher_icon_patches import apply_launcher_icon_patches, install_launcher_
 from swift_syntax_patches import apply_swift_syntax_patches
 from build_patches import add_dep, apply_build_patches
 from network_patches import NETWORK_RUNTIME_FILES, apply_network_patches
+from settings_api_patches import apply_settings_api_patches
+from branding_patches import apply_branding_patches, install_intro_logo
 
 source_root = Path(sys.argv[1]).resolve()
 public_root = Path(sys.argv[2]).resolve()
@@ -284,6 +286,8 @@ for patcher in (
     apply_return_key_patches, apply_contact_visibility_patches, apply_media_accent_patches, apply_diagnostics_patches,
     apply_profile_appearance_patches, apply_appearance_details_patches, apply_profile_metadata_patches, apply_feedback_patches,
     apply_settings_icon_patches, apply_launcher_icon_patches, apply_network_patches,
+    apply_settings_api_patches,
+    apply_branding_patches,
 ):
     report = patcher(source_root)
     if isinstance(report, dict):
@@ -313,6 +317,7 @@ for module, dependencies in VOICE_REQUIRED_DEPENDENCIES.items():
 install_plugin_resources(source_root, source_base)
 install_settings_icon_resources(source_root)
 install_launcher_icon_resources(source_root)
+install_intro_logo(source_root)
 patch_file(
     "submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/PeerInfoScreenSettingsActions.swift",
     "whiteGramSettingsController(context:",
