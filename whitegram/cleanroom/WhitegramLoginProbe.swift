@@ -17,15 +17,27 @@ public func whitegramObserveLoginConnection(network: Network, foreground: Signal
 }
 
 enum WhitegramLoginProbe {
-    static func authRequest() {
+    static func authRequest(network: Network) {
         #if targetEnvironment(simulator)
-        Queue.mainQueue().async { WhitegramSimulatorLoginProbe.current?.authRequest() }
+        Queue.mainQueue().async { [weak network] in
+            guard let network else { return }
+            WhitegramSimulatorLoginProbe.current?.authRequest(network: network)
+        }
         #endif
     }
 
-    static func authResponse(error: MTRpcError?) {
+    static func authResponse(network: Network, error: MTRpcError?) {
         #if targetEnvironment(simulator)
-        Queue.mainQueue().async { WhitegramSimulatorLoginProbe.current?.authResponse(error: error) }
+        let datacenterId = network.datacenterId
+        Queue.mainQueue().async { WhitegramSimulatorLoginProbe.current?.authResponse(datacenterId: datacenterId, error: error) }
+        #endif
+    }
+
+    static func authFlowError(_ error: AuthorizationCodeRequestError) {
+        #if targetEnvironment(simulator)
+        let status: String
+        if case .timeout = error { status = "timeout" } else { status = "error" }
+        Queue.mainQueue().async { WhitegramSimulatorLoginProbe.current?.authFlowError(status) }
         #endif
     }
 }
@@ -38,6 +50,8 @@ private final class WhitegramSimulatorLoginProbe {
     private let status = MetaDisposable()
     private let foreground = MetaDisposable()
     private let request = MetaDisposable()
+    private let authStatus = MetaDisposable()
+    private var authResponses: [[String: Any]] = []
     private var record: [String: Any]
     private var disposed = false
 
@@ -82,17 +96,48 @@ private final class WhitegramSimulatorLoginProbe {
         }))
     }
 
-    func authRequest() {
+    func authRequest(network: Network) {
         self.record["auth"] = "pending"
+        self.record["auth_code"] = nil
+        self.record["auth_error"] = nil
+        self.record["auth_flow"] = "pending"
+        self.record["auth_datacenter"] = network.datacenterId
+        let previousAttempts = self.record["auth_attempts"] as? Int
+        self.record["auth_attempts"] = (previousAttempts ?? 0) + 1
+        self.record["auth_connection"] = "unknown"
+        self.record["auth_keep_connection"] = nil
         self.write()
+        self.authStatus.set((combineLatest(network.connectionStatus, network.shouldKeepConnection.get())
+        |> deliverOnMainQueue).start(next: { [weak self] status, keepConnection in
+            guard let self, !self.disposed else { return }
+            switch status {
+            case .online: self.record["auth_connection"] = "online"
+            case .updating: self.record["auth_connection"] = "updating"
+            case .waitingForNetwork: self.record["auth_connection"] = "waiting-for-network"
+            case let .connecting(proxyAddress, _): self.record["auth_connection"] = proxyAddress == nil ? "connecting-direct" : "connecting-proxy"
+            }
+            self.record["auth_keep_connection"] = keepConnection
+            self.write()
+        }))
     }
 
-    func authResponse(error: MTRpcError?) {
+    func authResponse(datacenterId: Int, error: MTRpcError?) {
         self.record["auth"] = error == nil ? "success" : "rpc-error"
+        var response: [String: Any] = ["datacenter": datacenterId, "status": error == nil ? "success" : "rpc-error"]
         if let error {
             self.record["auth_code"] = error.errorCode
             self.record["auth_error"] = Self.errorName(error)
+            response["code"] = error.errorCode
+            response["error"] = Self.errorName(error)
         }
+        self.authResponses.append(response)
+        self.authResponses = Array(self.authResponses.suffix(8))
+        self.record["auth_responses"] = self.authResponses
+        self.write()
+    }
+
+    func authFlowError(_ status: String) {
+        self.record["auth_flow"] = status
         self.write()
     }
 
@@ -118,6 +163,7 @@ private final class WhitegramSimulatorLoginProbe {
         self.status.dispose()
         self.foreground.dispose()
         self.request.dispose()
+        self.authStatus.dispose()
     }
 }
 #endif

@@ -13,6 +13,8 @@ def evaluate(record, token):
         raise ValueError("Missing or stale simulator login evidence")
     if record.get("probe") != "success":
         raise ValueError(f"Telegram help.getNearestDc did not succeed: {record}")
+    if record.get("auth_flow") == "timeout":
+        raise ValueError(f"The login flow timed out: {record}")
     if record.get("auth") == "success":
         return "Telegram accepted auth.sendCode; delivery to a real account is not tested"
     if record.get("auth") == "rpc-error" and record.get("auth_error") in ("PHONE_NUMBER_INVALID", "PHONE_NUMBER_BANNED"):

@@ -8,7 +8,7 @@ import unittest
 
 OVERLAY = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(OVERLAY))
-from network_patches import APPLICATION, PROXIES, PROXY_UI, apply_network_patches
+from network_patches import APPLICATION, AUTHORIZATION, PROXIES, PROXY_UI, apply_network_patches
 from port_public import PUBLIC_REF
 from test_history_patches import MemoryRoot, parse_sources
 from login_check import evaluate
@@ -22,6 +22,9 @@ class LoginEvidenceTests(unittest.TestCase):
     def test_transport_timeout_api_rejection_and_missing_submission_cannot_pass(self):
         valid = {"schema": 1, "token": "a" * 32, "probe": "success", "auth": "success"}
         for invalid in ({"probe": "timeout"}, {"token": "b" * 32}, {"auth": "not-submitted"},
+                        {"auth": "pending", "auth_error": "PHONE_MIGRATE_1"},
+                        {"auth": "rpc-error", "auth_error": "PHONE_MIGRATE_1"},
+                        {"auth_flow": "timeout"},
                         {"auth": "rpc-error", "auth_error": "API_ID_INVALID"}, {"auth": "rpc-error", "auth_error": "TIMEOUT"}):
             with self.subTest(invalid=invalid), self.assertRaises(ValueError):
                 evaluate({**valid, **invalid}, "a" * 32)
@@ -35,7 +38,7 @@ class LoginEvidenceTests(unittest.TestCase):
 class NetworkPatchTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.original = {path: subprocess.check_output(["git", "-C", os.environ["WHITEGRAM_PUBLIC_SOURCE"], "show", f"{PUBLIC_REF}:{path}"]).decode("utf-8") for path in (APPLICATION, PROXIES, PROXY_UI)}
+        cls.original = {path: subprocess.check_output(["git", "-C", os.environ["WHITEGRAM_PUBLIC_SOURCE"], "show", f"{PUBLIC_REF}:{path}"]).decode("utf-8") for path in (APPLICATION, AUTHORIZATION, PROXIES, PROXY_UI)}
 
     def patched(self):
         root = MemoryRoot(self.original)
@@ -68,6 +71,15 @@ class NetworkPatchTests(unittest.TestCase):
         self.assertIn("server == settings.activeServer || !automaticSet.contains(server)", source)
         self.assertIn("existing: manualServers, fetched: fetchedServers, limit: max(automaticProxyStoredServerLimit, manualServers.count)", source)
         self.assertIn("fetchedServers.filter { !manualServers.contains($0) && settings.servers.contains($0) }", source)
+
+    def test_login_flow_observation_preserves_errors_migration_and_deadline(self):
+        source = self.patched().text(AUTHORIZATION)
+        observation = ("        |> mapError { error -> AuthorizationCodeRequestError in\n"
+                       "            WhitegramLoginProbe.authFlowError(error)\n"
+                       "            return error\n"
+                       "        }\n")
+        self.assertEqual(source.count(observation), 1)
+        self.assertEqual(source.replace(observation, ""), self.original[AUTHORIZATION])
 
     def test_live_and_waiting_networks_do_not_switch_on_ping_updates(self):
         root = self.patched()

@@ -31,7 +31,7 @@ public enum WhitegramPluginNativeInterception {
 
     static func request(network: Network, description: FunctionDescription) -> Signal<Bool, MTRpcError> {
         return Signal { subscriber in
-            if description.name == "auth.sendCode" { WhitegramLoginProbe.authRequest() }
+            if description.name == "auth.sendCode" { WhitegramLoginProbe.authRequest(network: network) }
             let hub = WhitegramPluginInterceptionHub.shared
             let observing = self.events.hasListeners(scope: network, names: ["tg.request"])
             let intercepting = hub.hasHandlers(scope: network, name: "tg.request")
@@ -52,7 +52,7 @@ public enum WhitegramPluginNativeInterception {
     }
 
     static func response(network: Network, description: FunctionDescription, error: MTRpcError?) {
-        if description.name == "auth.sendCode" { WhitegramLoginProbe.authResponse(error: error) }
+        if description.name == "auth.sendCode" { WhitegramLoginProbe.authResponse(network: network, error: error) }
         guard self.events.hasListeners(scope: network, names: self.eventNames) else { return }
         var payload = self.requestPayload(network: network, description: description, kind: "response")
         payload["ok"] = error == nil

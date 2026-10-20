@@ -91,3 +91,12 @@ data migration within the 240-second boot limit. Logs show SpringBoard waiting
 for migration and the screenshot retains Apple's progress bar; Whitegram was
 not installed. Boot now opens the Simulator display first and allows up to
 600 seconds for initial migration, retaining `bootstatus.log` on timeout too.
+
+Run 39431117074 passed both launches and XCUITest; the original logo is fully
+visible in both welcome screenshots. `help.getNearestDc` succeeded and
+`auth.sendCode` received `PHONE_MIGRATE_1`. The migrated request then hit the
+login flow's timeout, displaying the native connection error. This proves
+initial connectivity, not completed login. Diagnostics now observe the actual
+auth request's data center, connection and keep-alive demand, preserve bounded
+RPC response history, and record the outer authorization timeout without
+changing its existing 20-second deadline or retry behavior.

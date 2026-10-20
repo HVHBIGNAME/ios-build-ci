@@ -7,6 +7,7 @@ from source_patches import SourcePatches
 APPLICATION = "submodules/TelegramUI/Sources/ApplicationContext.swift"
 PROXIES = "submodules/TelegramCore/Sources/Network/AutomaticProxyBootstrap.swift"
 PROXY_UI = "submodules/SettingsUI/Sources/Data and Storage/ProxyListSettingsController.swift"
+AUTHORIZATION = "submodules/TelegramCore/Sources/Authorization.swift"
 NETWORK_RUNTIME_FILES = {
     "WhitegramLoginProbe.swift": "submodules/TelegramCore/Sources/WhitegramLoginProbe.swift",
 }
@@ -43,6 +44,14 @@ def apply_network_patches(root):
     anchor = "        self.serviceNotificationEventsDisposable?.dispose()\n"
     patches.replace("loginConnectivityProbe", APPLICATION, anchor,
                     anchor + "        self.whitegramLoginProbe?.dispose()\n")
+    patches.replace("loginConnectivityProbe", AUTHORIZATION,
+                    "        return codeAndAccount\n        |> mapToSignal { result, account -> Signal<SendAuthorizationCodeResult, AuthorizationCodeRequestError> in",
+                    "        return codeAndAccount\n"
+                    "        |> mapError { error -> AuthorizationCodeRequestError in\n"
+                    "            WhitegramLoginProbe.authFlowError(error)\n"
+                    "            return error\n"
+                    "        }\n"
+                    "        |> mapToSignal { result, account -> Signal<SendAuthorizationCodeResult, AuthorizationCodeRequestError> in")
 
     # A fetched public list must not evict or disable a user's working proxy.
     start = "    let automaticSet = Set(settings.automaticServers)\n"
