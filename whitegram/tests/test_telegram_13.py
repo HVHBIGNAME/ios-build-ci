@@ -10,10 +10,30 @@ OVERLAY = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(OVERLAY))
 from port_public import BASE_REF, PUBLIC_REF, merge, normalize_indentation, text
 from public_resolutions_13 import REVISION, resolve_13
+from telegram_13_api_patches import AUDIO_PROTOCOL, CHAT, PLAYER_SESSION, apply_telegram_13_api_patches
+from test_history_patches import MemoryRoot, parse_sources
 
 
 @unittest.skipUnless(os.environ.get("WHITEGRAM_ASSEMBLED_SOURCE") and os.environ.get("WHITEGRAM_PUBLIC_SOURCE"), "Set assembled and public sources")
 class Telegram13MergeTests(unittest.TestCase):
+    def test_navigation_decline_and_recording_state_follow_current_protocols(self):
+        source = Path(os.environ["WHITEGRAM_ASSEMBLED_SOURCE"])
+        root = MemoryRoot({path: (source / path).read_text(encoding="utf-8") for path in (CHAT, AUDIO_PROTOCOL, PLAYER_SESSION)})
+        report = apply_telegram_13_api_patches(root)
+        self.assertEqual(set(report), {"channel-swipe-declined-navigation", "player-recording-session-status"})
+        callback = root.text(CHAT).split("historyNode.openNextChannelToRead =", 1)[1].split("\n        }\n", 1)[0]
+        self.assertIn("guard WhiteGramChatSettings.current.channelSwipeToNext else {\n                return false\n", callback)
+        self.assertIn("return true", callback)
+        self.assertIn("func getIsRecordingActive() -> Bool { return self.base.getIsRecordingActive() }", root.text(PLAYER_SESSION))
+        for path, diagnostics in parse_sources({path: root.text(path) for path in (CHAT, PLAYER_SESSION)}).items():
+            with self.subTest(source=path):
+                self.assertEqual(diagnostics, [])
+        first = root.texts()
+        root.writes.clear()
+        self.assertEqual(apply_telegram_13_api_patches(root), report)
+        self.assertEqual(root.texts(), first)
+        self.assertEqual(root.writes, [])
+
     def merged(self, path):
         def read(root, ref):
             return text(subprocess.check_output(["git", "-C", root, "show", f"{ref}:{path}"]))

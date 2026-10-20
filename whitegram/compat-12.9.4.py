@@ -50,6 +50,7 @@ from build_patches import add_dep, apply_build_patches
 from network_patches import NETWORK_RUNTIME_FILES, apply_network_patches
 from settings_api_patches import apply_settings_api_patches
 from branding_patches import apply_branding_patches, install_intro_logo
+from telegram_13_api_patches import apply_telegram_13_api_patches
 
 source_root = Path(sys.argv[1]).resolve()
 public_root = Path(sys.argv[2]).resolve()
@@ -288,6 +289,7 @@ for patcher in (
     apply_settings_icon_patches, apply_launcher_icon_patches, apply_network_patches,
     apply_settings_api_patches,
     apply_branding_patches,
+    apply_telegram_13_api_patches,
 ):
     report = patcher(source_root)
     if isinstance(report, dict):
