@@ -63,6 +63,7 @@ def apply_branding_patches(root: Path) -> dict[str, list[str]]:
 
 
 def install_intro_logo(root: Path, resources: Path = RESOURCES) -> None:
+    root = Path(root).resolve(strict=True)
     payloads = {}
     for name, digest in LOGO_FILES.items():
         data = (resources / name).read_bytes()

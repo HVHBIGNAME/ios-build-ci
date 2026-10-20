@@ -44,6 +44,15 @@ class IntroResourceTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Original welcome artwork changed"):
                 install_intro_logo(self.root, resources)
 
+    @unittest.skipUnless(os.name == "posix", "POSIX root aliases such as macOS /var")
+    def test_root_alias_resolves_before_validating_destination_paths(self):
+        alias = self.root / "source-alias"
+        alias.symlink_to(self.root, target_is_directory=True)
+        install_intro_logo(alias)
+        for relative in DESTINATIONS:
+            for name, digest in LOGO_FILES.items():
+                self.assertEqual(hashlib.sha256((self.root / relative / name).read_bytes()).hexdigest(), digest)
+
     def test_invalid_second_destination_does_not_modify_first(self):
         shutil.rmtree(self.root / DESTINATIONS[1])
         with patch.object(Path, "write_bytes", side_effect=AssertionError("Partial destination installation")):
