@@ -8,6 +8,8 @@ APPLICATION = "submodules/TelegramUI/Sources/ApplicationContext.swift"
 PROXIES = "submodules/TelegramCore/Sources/Network/AutomaticProxyBootstrap.swift"
 PROXY_UI = "submodules/SettingsUI/Sources/Data and Storage/ProxyListSettingsController.swift"
 AUTHORIZATION = "submodules/TelegramCore/Sources/Authorization.swift"
+NETWORK = "submodules/TelegramCore/Sources/Network/Network.swift"
+APP_DELEGATE = "submodules/TelegramUI/Sources/AppDelegate.swift"
 NETWORK_RUNTIME_FILES = {
     "WhitegramLoginProbe.swift": "submodules/TelegramCore/Sources/WhitegramLoginProbe.swift",
 }
@@ -52,6 +54,22 @@ def apply_network_patches(root):
                     "            return error\n"
                     "        }\n"
                     "        |> mapToSignal { result, account -> Signal<SendAuthorizationCodeResult, AuthorizationCodeRequestError> in")
+    patches.replace("loginVerificationProbe", NETWORK,
+                    "                context.setExternalRequestVerification({ nonce in\n",
+                    "                context.setExternalRequestVerification({ nonce in\n"
+                    "                    whitegramRecordLoginVerification(event: \"apns-requested\")\n")
+    patches.replace("loginVerificationProbe", NETWORK,
+                    "                context.setExternalRecaptchaRequestVerification({ method, siteKey in\n",
+                    "                context.setExternalRecaptchaRequestVerification({ method, siteKey in\n"
+                    "                    whitegramRecordLoginVerification(event: \"recaptcha-requested\")\n")
+    patches.replace("loginVerificationProbe", APP_DELEGATE,
+                    "                        Recaptcha.fetchClient(withSiteKey: siteKey) { client, error in\n",
+                    "                        Recaptcha.fetchClient(withSiteKey: siteKey) { client, error in\n"
+                    "                            whitegramRecordLoginVerification(event: client == nil ? \"recaptcha-client-error\" : \"recaptcha-client-success\", code: (error as NSError?)?.code)\n")
+    patches.replace("loginVerificationProbe", APP_DELEGATE,
+                    "                            recaptchaClient.execute(withAction: recaptchaAction) { token, error in\n",
+                    "                            recaptchaClient.execute(withAction: recaptchaAction) { token, error in\n"
+                    "                                whitegramRecordLoginVerification(event: token == nil ? \"recaptcha-execute-error\" : \"recaptcha-execute-success\", code: (error as NSError?)?.code)\n")
 
     # A fetched public list must not evict or disable a user's working proxy.
     start = "    let automaticSet = Set(settings.automaticServers)\n"

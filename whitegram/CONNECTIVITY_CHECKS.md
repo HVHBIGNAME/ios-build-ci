@@ -100,3 +100,10 @@ initial connectivity, not completed login. Diagnostics now observe the actual
 auth request's data center, connection and keep-alive demand, preserve bounded
 RPC response history, and record the outer authorization timeout without
 changing its existing 20-second deadline or retry behavior.
+
+Run 39501174838 confirmed DC2-to-DC1 migration, active keep-alive and an online
+DC1 connection, but the migrated request still timed out. System logs show the
+reCAPTCHA SDK starting verification during this flow. Follow-up diagnostics
+record challenge/client/execution stages and numeric SDK error codes, plus
+relative event timing. They retain neither verification secrets nor SDK error
+messages and leave both verification providers and authorization timing intact.

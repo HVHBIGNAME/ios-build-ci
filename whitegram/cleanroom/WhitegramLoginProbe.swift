@@ -3,6 +3,12 @@ import SwiftSignalKit
 import TelegramApi
 import MtProtoKit
 
+public func whitegramRecordLoginVerification(event: String, code: Int? = nil) {
+    #if targetEnvironment(simulator)
+    Queue.mainQueue().async { WhitegramSimulatorLoginProbe.current?.verification(event: event, code: code) }
+    #endif
+}
+
 /// Simulator-only evidence from the same Network instance used by the login UI.
 public func whitegramObserveLoginConnection(network: Network, foreground: Signal<Bool, NoError>) -> Disposable {
     #if targetEnvironment(simulator)
@@ -52,6 +58,8 @@ private final class WhitegramSimulatorLoginProbe {
     private let request = MetaDisposable()
     private let authStatus = MetaDisposable()
     private var authResponses: [[String: Any]] = []
+    private var events: [[String: Any]] = []
+    private let startedAt = ProcessInfo.processInfo.systemUptime
     private var record: [String: Any]
     private var disposed = false
 
@@ -97,6 +105,7 @@ private final class WhitegramSimulatorLoginProbe {
     }
 
     func authRequest(network: Network) {
+        self.event("auth-request", datacenter: network.datacenterId)
         self.record["auth"] = "pending"
         self.record["auth_code"] = nil
         self.record["auth_error"] = nil
@@ -107,6 +116,7 @@ private final class WhitegramSimulatorLoginProbe {
         self.record["auth_connection"] = "unknown"
         self.record["auth_keep_connection"] = nil
         self.write()
+        let datacenterId = network.datacenterId
         self.authStatus.set((combineLatest(network.connectionStatus, network.shouldKeepConnection.get())
         |> deliverOnMainQueue).start(next: { [weak self] status, keepConnection in
             guard let self, !self.disposed else { return }
@@ -117,11 +127,13 @@ private final class WhitegramSimulatorLoginProbe {
             case let .connecting(proxyAddress, _): self.record["auth_connection"] = proxyAddress == nil ? "connecting-direct" : "connecting-proxy"
             }
             self.record["auth_keep_connection"] = keepConnection
+            self.event("auth-connection", datacenter: datacenterId, state: self.record["auth_connection"] as? String)
             self.write()
         }))
     }
 
     func authResponse(datacenterId: Int, error: MTRpcError?) {
+        self.event("auth-response", datacenter: datacenterId, state: error == nil ? "success" : Self.errorName(error))
         self.record["auth"] = error == nil ? "success" : "rpc-error"
         var response: [String: Any] = ["datacenter": datacenterId, "status": error == nil ? "success" : "rpc-error"]
         if let error {
@@ -138,7 +150,26 @@ private final class WhitegramSimulatorLoginProbe {
 
     func authFlowError(_ status: String) {
         self.record["auth_flow"] = status
+        self.event("auth-flow", state: status)
         self.write()
+    }
+
+    func verification(event: String, code: Int?) {
+        let allowed: Set<String> = ["apns-requested", "recaptcha-requested", "recaptcha-client-success",
+                                    "recaptcha-client-error", "recaptcha-execute-success", "recaptcha-execute-error"]
+        guard allowed.contains(event) else { return }
+        self.event(event, code: code)
+        self.write()
+    }
+
+    private func event(_ name: String, datacenter: Int? = nil, state: String? = nil, code: Int? = nil) {
+        var event: [String: Any] = ["name": name, "seconds": ProcessInfo.processInfo.systemUptime - self.startedAt]
+        event["datacenter"] = datacenter
+        event["state"] = state
+        event["code"] = code
+        self.events.append(event)
+        self.events = Array(self.events.suffix(32))
+        self.record["events"] = self.events
     }
 
     private static func errorName(_ error: MTRpcError) -> String {

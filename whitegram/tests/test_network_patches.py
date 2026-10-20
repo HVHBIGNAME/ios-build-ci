@@ -8,7 +8,7 @@ import unittest
 
 OVERLAY = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(OVERLAY))
-from network_patches import APPLICATION, AUTHORIZATION, PROXIES, PROXY_UI, apply_network_patches
+from network_patches import APPLICATION, APP_DELEGATE, AUTHORIZATION, NETWORK, PROXIES, PROXY_UI, apply_network_patches
 from port_public import PUBLIC_REF
 from test_history_patches import MemoryRoot, parse_sources
 from login_check import evaluate
@@ -38,7 +38,7 @@ class LoginEvidenceTests(unittest.TestCase):
 class NetworkPatchTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.original = {path: subprocess.check_output(["git", "-C", os.environ["WHITEGRAM_PUBLIC_SOURCE"], "show", f"{PUBLIC_REF}:{path}"]).decode("utf-8") for path in (APPLICATION, AUTHORIZATION, PROXIES, PROXY_UI)}
+        cls.original = {path: subprocess.check_output(["git", "-C", os.environ["WHITEGRAM_PUBLIC_SOURCE"], "show", f"{PUBLIC_REF}:{path}"]).decode("utf-8") for path in (APPLICATION, APP_DELEGATE, AUTHORIZATION, NETWORK, PROXIES, PROXY_UI)}
 
     def patched(self):
         root = MemoryRoot(self.original)
@@ -89,6 +89,19 @@ class NetworkPatchTests(unittest.TestCase):
         waiting = source.split("        case .waitingForNetwork, .updating:", 1)[1].split("    private func scheduleProxyActivation", 1)[0]
         self.assertNotIn("scheduleProxyActivation()", waiting)
         self.assertNotIn("current.activeServer = bestServer", root.text(PROXY_UI))
+
+    def test_verification_observation_preserves_providers_and_does_not_record_secrets(self):
+        root = self.patched()
+        for path in (APP_DELEGATE, NETWORK):
+            source = root.text(path)
+            lines = source.splitlines(keepends=True)
+            stripped = "".join(line for line in lines if "whitegramRecordLoginVerification(" not in line)
+            self.assertEqual(stripped, self.original[path])
+        self.assertIn('event: "recaptcha-requested"', root.text(NETWORK))
+        delegate = root.text(APP_DELEGATE)
+        self.assertIn('"recaptcha-client-error"', delegate)
+        self.assertIn('"recaptcha-execute-error"', delegate)
+        self.assertEqual(delegate.count('code: (error as NSError?)?.code'), 2)
 
     def test_drift_aborts_all_writes(self):
         files = dict(self.original)
