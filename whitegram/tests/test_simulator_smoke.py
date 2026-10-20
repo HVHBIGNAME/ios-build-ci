@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 import plistlib
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -87,7 +88,8 @@ class SimulatorSmokeTests(unittest.TestCase):
             self.assertEqual(json.loads((output / "launch-report.json").read_text()), report)
             run.assert_not_called()
 
-    def simulated_run(self, directory, *, failure=None, log_failure=False, cleanup_failure=False, display_failure=False):
+    def simulated_run(self, directory, *, failure=None, log_failure=False, cleanup_failure=False, display_failure=False,
+                      readiness_timeout=False):
         app = Path(directory) / "Telegram.app"
         app.mkdir()
         (app / "Info.plist").write_bytes(plistlib.dumps({
@@ -111,7 +113,11 @@ class SimulatorSmokeTests(unittest.TestCase):
             if action == "create":
                 return owned_device
             if action == "launch":
-                return "whitegram.telegra.Telegraph: 4123"
+                if args[-1] == "com.apple.Preferences":
+                    self.assertEqual(kwargs["timeout"], 180)
+                    if readiness_timeout:
+                        raise subprocess.TimeoutExpired(args, 180)
+                return f"{args[-1]}: 4123"
             if action == "io":
                 if display_failure:
                     raise RuntimeError("simulator display failed")
@@ -128,8 +134,17 @@ class SimulatorSmokeTests(unittest.TestCase):
             report = smoke.smoke(app, Path(directory) / "result", "a" * 40, "34644", 5)
         cleanup = [call.args for call in calls.call_args_list if call.args[:2] == ("xcrun", "simctl") and call.args[2] in ("shutdown", "delete")]
         self.assertEqual(cleanup, [("xcrun", "simctl", "shutdown", owned_device), ("xcrun", "simctl", "delete", owned_device)])
-        if display_failure:
+        if display_failure or readiness_timeout:
             self.assertFalse(any(call.args[:3] == ("xcrun", "simctl", "install") for call in calls.call_args_list))
+        if not (display_failure or readiness_timeout):
+            launches = [call.args[-1] for call in calls.call_args_list if call.args[:3] == ("xcrun", "simctl", "launch")]
+            self.assertEqual(launches[0], "com.apple.Preferences")
+            self.assertEqual(launches[1], "whitegram.telegra.Telegraph")
+        if report["status"] == "failed" and report["phase"] != "complete":
+            if not display_failure:
+                self.assertTrue((Path(directory) / "result/failure.png").is_file())
+            if not log_failure:
+                self.assertTrue((Path(directory) / "result/startup-system.log").is_file())
         return report
 
     def test_success_requires_both_launches_and_screenshots(self):
@@ -165,6 +180,20 @@ class SimulatorSmokeTests(unittest.TestCase):
         self.assertEqual(report["status"], "failed")
         self.assertEqual(report["phase"], "simulator-display")
         self.assertEqual(report["launches"], [])
+
+    def test_unresponsive_springboard_is_reported_before_installing_whitegram(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = self.simulated_run(directory, readiness_timeout=True)
+        self.assertEqual(report["status"], "failed")
+        self.assertEqual(report["phase"], "simulator-readiness")
+        self.assertIn("timed out after 180 seconds", report["error"])
+        self.assertEqual(report["launches"], [])
+
+    def test_failure_capture_errors_do_not_replace_the_original_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = self.simulated_run(directory, readiness_timeout=True, display_failure=True, log_failure=True)
+        self.assertIn("timed out after 180 seconds", report["error"])
+        self.assertEqual(report["startup_capture_errors"], ["simulator display failed", "log capture failed"])
 
 
 if __name__ == "__main__":

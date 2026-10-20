@@ -87,6 +87,22 @@ def screenshot(device, destination):
             raise RuntimeError("Simulator screenshot is missing or invalid")
 
 
+def capture_startup_failure(device, output, report):
+    errors = []
+    try:
+        screenshot(device, output / "failure.png")
+    except (OSError, RuntimeError, subprocess.SubprocessError) as error:
+        errors.append(str(error))
+    try:
+        logs = run("xcrun", "simctl", "spawn", device, "log", "show", "--style", "compact", "--last", "5m",
+                   "--predicate", 'process == "Telegram" OR process == "SpringBoard" OR process == "runningboardd"')
+        (output / "startup-system.log").write_text(logs, encoding="utf-8")
+    except (OSError, RuntimeError, subprocess.SubprocessError) as error:
+        errors.append(str(error))
+    if errors:
+        report["startup_capture_errors"] = errors
+
+
 def smoke(app, output, revision, build, seconds, login=False):
     output.mkdir(parents=True, exist_ok=False)
     report = {"status": "failed", "phase": "prepare", "source_revision": revision, "configuration": "release_sim_arm64",
@@ -119,9 +135,13 @@ def smoke(app, output, revision, build, seconds, login=False):
         report["phase"] = "boot"
         run("xcrun", "simctl", "boot", device)
         run("xcrun", "simctl", "bootstatus", device, "-b", timeout=240)
-        report["phase"] = "simulator-display"
         developer = Path(run("xcode-select", "-p"))
         run("open", "-a", str(developer / "Applications/Simulator.app"), "--args", "-CurrentDeviceUDID", device)
+        report["phase"] = "simulator-readiness"
+        readiness_bundle = "com.apple.Preferences"
+        launch_pid(run("xcrun", "simctl", "launch", "--terminate-running-process", device, readiness_bundle, timeout=180), readiness_bundle)
+        run("xcrun", "simctl", "terminate", device, readiness_bundle)
+        report["phase"] = "simulator-display"
         screenshot(device, output / "simulator-ready.png")
         report["phase"] = "install"
         run("xcrun", "simctl", "install", device, str(app), timeout=180)
@@ -170,6 +190,8 @@ def smoke(app, output, revision, build, seconds, login=False):
         report["error"] = str(error)
     finally:
         if device is not None:
+            if report["status"] != "passed":
+                capture_startup_failure(device, output, report)
             for action in ("shutdown", "delete"):
                 try:
                     run("xcrun", "simctl", action, device, timeout=60)

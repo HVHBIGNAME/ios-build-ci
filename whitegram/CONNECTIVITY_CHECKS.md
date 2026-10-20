@@ -78,3 +78,10 @@ The ARM simulator's upstream intro disables OpenGL entirely. That path now
 displays the original logo using a tinted, aspect-fit UIKit image, with the
 same layout and entrance/snapshot lifecycle. Simulator screenshots check this
 static rendering; the device's OpenGL intro still requires device verification.
+
+Run 39422633825 passed source/native checks and compilation, but the first
+`simctl launch` timed out before returning a PID. Its pre-install screenshot
+still showed the Apple boot screen. The runner now confirms that SpringBoard
+can launch and terminate Settings before installing Whitegram, with a bounded
+180-second startup timeout. Early failures also retain a screenshot and
+SpringBoard/runningboardd/Telegram logs before the owned simulator is deleted.
