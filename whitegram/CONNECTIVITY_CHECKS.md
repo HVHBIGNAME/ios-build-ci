@@ -67,3 +67,14 @@ reported moved media eligibility state and changed Speak/ManagedAnimationNode
 signatures. The follow-up retains unsupported-media guards, makes the history
 render buffer mutable, updates speech calls, and supplies an explicit renderer
 for the restored context-free playback icon. Login has not yet executed.
+
+Run 39355192106 compiled the app and passed both 30-second launch checks on
+iOS 26.5. XCUITest stopped before execution because the runner lowercased the
+simulator UUID; Xcode listed the same device under its uppercase identifier.
+The runners now normalize UUIDs to uppercase and preserve the Xcode failure
+when native evidence is absent. A new run must still confirm the login RPCs.
+
+The ARM simulator's upstream intro disables OpenGL entirely. That path now
+displays the original logo using a tinted, aspect-fit UIKit image, with the
+same layout and entrance/snapshot lifecycle. Simulator screenshots check this
+static rendering; the device's OpenGL intro still requires device verification.

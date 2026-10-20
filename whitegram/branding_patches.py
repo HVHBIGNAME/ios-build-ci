@@ -22,8 +22,64 @@ LOGO_FILES = {
 }
 
 
+def patch_simulator_intro(patches: SourcePatches) -> None:
+    feature = "welcome-logo-simulator"
+    patches.replace(feature, INTRO, '    UIView *_wrapperView;',
+                    '    UIView *_simulatorLogoView;\n    UIView *_wrapperView;')
+    patches.replace(
+        feature, INTRO,
+        '#if TARGET_OS_SIMULATOR && defined(__aarch64__)\n    return;\n#endif',
+        '#if TARGET_OS_SIMULATOR && defined(__aarch64__)\n'
+        '    if (_simulatorLogoView == nil) {\n'
+        '        CGFloat size = ([UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPad) ? 240.0 : 200.0;\n'
+        '        _simulatorLogoView = [[UIView alloc] initWithFrame:CGRectMake((self.view.bounds.size.width - size) / 2.0, 50.0, size, size)];\n'
+        '        _simulatorLogoView.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin;\n'
+        '        _simulatorLogoView.userInteractionEnabled = false;\n'
+        '        UIImage *image = [[UIImage imageNamed:@"telegram_sphere.png"] imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];\n'
+        '        UIImageView *imageView = [[UIImageView alloc] initWithImage:image];\n'
+        '        CGFloat padding = size * (26.0 / 200.0);\n'
+        '        imageView.frame = CGRectInset(_simulatorLogoView.bounds, padding, padding);\n'
+        '        imageView.contentMode = UIViewContentModeScaleAspectFit;\n'
+        '        imageView.tintColor = _primaryColor;\n'
+        '        [_simulatorLogoView addSubview:imageView];\n'
+        '        [self.view insertSubview:_simulatorLogoView atIndex:0];\n'
+        '    }\n'
+        '    return;\n#endif',
+    )
+    patches.replace(feature, INTRO, '- (void)animateIn {',
+                    '- (void)animateIn {\n    UIView *logoView = _simulatorLogoView ?: _glkView;')
+    for property_name, count in (("center", 3), ("transform", 2), ("alpha", 2)):
+        patches.replace(feature, INTRO, f"_glkView.{property_name}", f"logoView.{property_name}", count=count)
+    patches.replace(
+        feature, INTRO,
+        '    _glkView.frame = CGRectChangedOriginY(_glkView.frame, glViewY - statusBarHeight);',
+        '    UIView *logoView = _simulatorLogoView ?: _glkView;\n'
+        '    logoView.frame = CGRectChangedOriginY(logoView.frame, glViewY - statusBarHeight);',
+    )
+    patches.replace(
+        feature, INTRO,
+        '- (UIView *)createAnimationSnapshot {\n    UIImage *image = _glkView.snapshot;',
+        '- (UIView *)createAnimationSnapshot {\n'
+        '    if (_simulatorLogoView != nil) {\n'
+        '        UIView *snapshot = [_simulatorLogoView snapshotViewAfterScreenUpdates:false];\n'
+        '        snapshot.frame = _simulatorLogoView.frame;\n'
+        '        return snapshot;\n'
+        '    }\n'
+        '    UIImage *image = _glkView.snapshot;',
+    )
+    patches.replace(
+        feature, INTRO,
+        '- (void)freeGL\n{\n    if (!_isOpenGLLoaded)',
+        '- (void)freeGL\n{\n'
+        '    [_simulatorLogoView removeFromSuperview];\n'
+        '    _simulatorLogoView = nil;\n'
+        '    if (!_isOpenGLLoaded)',
+    )
+
+
 def apply_branding_patches(root: Path) -> dict[str, list[str]]:
     patches = SourcePatches(root)
+    patch_simulator_intro(patches)
     patches.replace(
         "welcome-logo-color", INTRO,
         'set_telegram_textures(setup_texture(@"telegram_sphere.png", color),',

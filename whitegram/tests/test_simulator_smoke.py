@@ -94,7 +94,7 @@ class SimulatorSmokeTests(unittest.TestCase):
             "CFBundleIdentifier": "whitegram.telegra.Telegraph", "CFBundleExecutable": "Telegram",
             "CFBundleVersion": "34644", "CFBundleShortVersionString": "12.9.4", "WhitegramSourceRevision": "a" * 40,
         }))
-        owned_device = "a5f8dd15-d6c9-4d22-beb7-18cc802b38ef"
+        owned_device = "A5F8DD15-D6C9-4D22-BEB7-18CC802B38EF"
 
         def command(*args, **kwargs):
             if args[0] == "xcode-select":
@@ -136,6 +136,7 @@ class SimulatorSmokeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             report = self.simulated_run(directory)
         self.assertEqual(report["status"], "passed")
+        self.assertEqual(report["simulator_udid"], "A5F8DD15-D6C9-4D22-BEB7-18CC802B38EF")
         self.assertEqual([item["name"] for item in report["launches"]], ["fresh-install", "relaunch"])
         self.assertTrue(all(item["status"] == "passed" and item["screenshot"] for item in report["launches"]))
 

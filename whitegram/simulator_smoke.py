@@ -114,7 +114,7 @@ def smoke(app, output, revision, build, seconds, login=False):
         report.update(selected)
         report.update({"bundle_id": bundle, "app_version": info["CFBundleShortVersionString"], "app_build": build})
         device = str(uuid.UUID(run("xcrun", "simctl", "create", "WhiteGram-Smoke-" + uuid.uuid4().hex[:8],
-                                  selected["device_type"], selected["runtime"])))
+                                  selected["device_type"], selected["runtime"]))).upper()
         report["simulator_udid"] = device
         report["phase"] = "boot"
         run("xcrun", "simctl", "boot", device)

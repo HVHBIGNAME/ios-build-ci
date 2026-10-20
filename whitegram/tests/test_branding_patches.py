@@ -73,10 +73,9 @@ class BrandingIntegrationTests(unittest.TestCase):
         report = apply_branding_patches(root)
         self.assertEqual({path for paths in report.values() for path in paths}, {INTRO, TEXTURE, ANIMATION, SETTINGS})
         self.assertIn('setup_texture(@"telegram_sphere.png", _primaryColor)', root.text(INTRO))
-        self.assertEqual(root.text(INTRO).replace('setup_texture(@"telegram_sphere.png", _primaryColor)',
-                                               'setup_texture(@"telegram_sphere.png", color)'),
-                         before[INTRO].replace('setup_texture(@"telegram_sphere.png", _primaryColor)',
-                                               'setup_texture(@"telegram_sphere.png", color)'))
+        def device_renderer(text):
+            return text.split('- (void)loadGL', 1)[1].split('- (void)freeGL', 1)[0].split('#endif', 1)[1]
+        self.assertEqual(device_renderer(root.text(INTRO)), device_renderer(before[INTRO]))
         self.assertIn('CGContextClipToMask(spriteContext, CGRectMake(0, 0, width, height), spriteImage)', root.text(TEXTURE))
         self.assertIn('} else {\n        CGContextDrawImage(spriteContext, CGRectMake(0, 0, width, height), spriteImage);', root.text(TEXTURE))
         details = root.text(ANIMATION).split('// LAYER4 - DETAILS', 1)[1].split('else if (current_page==1)', 1)[0]
@@ -89,6 +88,23 @@ class BrandingIntegrationTests(unittest.TestCase):
         self.assertEqual(apply_branding_patches(root), report)
         self.assertEqual(root.writes, [])
         self.assertEqual(root.texts(), first)
+
+    def test_arm_simulator_uses_original_theme_aware_artwork_and_view_lifecycle(self):
+        root = self.root()
+        apply_branding_patches(root)
+        intro = root.text(INTRO)
+        simulator = intro.split('#if TARGET_OS_SIMULATOR && defined(__aarch64__)', 1)[1].split('#endif', 1)[0]
+        self.assertIn('if (_simulatorLogoView == nil)', simulator)
+        self.assertIn('imageNamed:@"telegram_sphere.png"', simulator)
+        self.assertIn('UIImageRenderingModeAlwaysTemplate', simulator)
+        self.assertIn('imageView.tintColor = _primaryColor;', simulator)
+        self.assertIn('imageView.contentMode = UIViewContentModeScaleAspectFit;', simulator)
+        self.assertIn('[self.view insertSubview:_simulatorLogoView atIndex:0];', simulator)
+        self.assertEqual(intro.count('UIView *logoView = _simulatorLogoView ?: _glkView;'), 2)
+        self.assertIn('snapshot.frame = _simulatorLogoView.frame;', intro)
+        cleanup = intro.split('- (void)freeGL', 1)[1].split('- (void)loadView', 1)[0]
+        self.assertLess(cleanup.index('[_simulatorLogoView removeFromSuperview];'), cleanup.index('if (!_isOpenGLLoaded)'))
+        self.assertIn('_simulatorLogoView = nil;', cleanup)
 
     def test_missing_last_anchor_does_not_partially_patch_the_intro(self):
         root = self.root()

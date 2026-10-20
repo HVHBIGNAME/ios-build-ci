@@ -26,6 +26,7 @@ def check_login(device, output):
     report = {"status": "failed", "token": token, "number": "+12025550147", "server": "production", "ui_test": "not-started"}
     fixture = Path(__file__).parent / "tests/login"
     try:
+        device = str(uuid.UUID(device)).upper()
         with tempfile.TemporaryDirectory(prefix="whitegram-login-ui-") as directory:
             project = Path(directory)
             shutil.copytree(fixture, project, dirs_exist_ok=True)
@@ -41,6 +42,8 @@ def check_login(device, output):
                 ], stdout=log, stderr=subprocess.STDOUT, timeout=420, check=False)
             report["ui_test"] = "passed" if result.returncode == 0 else "failed"
             report["xcodebuild_exit"] = result.returncode
+            if result.returncode != 0:
+                report["error"] = f"xcodebuild test failed (exit {result.returncode}); see xcodebuild.log"
         container = subprocess.run(["xcrun", "simctl", "get_app_container", device, "whitegram.telegra.Telegraph", "data"],
                                    capture_output=True, text=True, check=True, timeout=30).stdout.strip()
         record = json.loads((Path(container) / "Documents" / f"whitegram-login-{token}.json").read_text(encoding="utf-8"))
@@ -50,7 +53,10 @@ def check_login(device, output):
             raise ValueError("The UI test did not complete successfully")
         report["status"] = "passed"
     except (OSError, ValueError, subprocess.SubprocessError) as error:
-        report["error"] = str(error)
+        if "error" in report:
+            report["evidence_error"] = str(error)
+        else:
+            report["error"] = str(error)
     finally:
         try:
             subprocess.run(["xcrun", "simctl", "io", device, "screenshot", str(output / "login-result.png")], check=True, timeout=30)
