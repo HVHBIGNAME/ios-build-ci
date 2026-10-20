@@ -85,3 +85,9 @@ still showed the Apple boot screen. The runner now confirms that SpringBoard
 can launch and terminate Settings before installing Whitegram, with a bounded
 180-second startup timeout. Early failures also retain a screenshot and
 SpringBoard/runningboardd/Telegram logs before the owned simulator is deleted.
+
+Run 39426484990 stopped even earlier: the fresh iOS runtime had not completed
+data migration within the 240-second boot limit. Logs show SpringBoard waiting
+for migration and the screenshot retains Apple's progress bar; Whitegram was
+not installed. Boot now opens the Simulator display first and allows up to
+600 seconds for initial migration, retaining `bootstatus.log` on timeout too.

@@ -103,6 +103,19 @@ def capture_startup_failure(device, output, report):
         report["startup_capture_errors"] = errors
 
 
+def wait_for_boot(device, output):
+    log = ""
+    try:
+        log = run("xcrun", "simctl", "bootstatus", device, "-b", timeout=600)
+    except subprocess.TimeoutExpired as error:
+        log = error.stdout or ""
+        if isinstance(log, bytes):
+            log = log.decode("utf-8", errors="replace")
+        raise
+    finally:
+        (output / "bootstatus.log").write_text(log, encoding="utf-8")
+
+
 def smoke(app, output, revision, build, seconds, login=False):
     output.mkdir(parents=True, exist_ok=False)
     report = {"status": "failed", "phase": "prepare", "source_revision": revision, "configuration": "release_sim_arm64",
@@ -134,9 +147,9 @@ def smoke(app, output, revision, build, seconds, login=False):
         report["simulator_udid"] = device
         report["phase"] = "boot"
         run("xcrun", "simctl", "boot", device)
-        run("xcrun", "simctl", "bootstatus", device, "-b", timeout=240)
         developer = Path(run("xcode-select", "-p"))
         run("open", "-a", str(developer / "Applications/Simulator.app"), "--args", "-CurrentDeviceUDID", device)
+        wait_for_boot(device, output)
         report["phase"] = "simulator-readiness"
         readiness_bundle = "com.apple.Preferences"
         launch_pid(run("xcrun", "simctl", "launch", "--terminate-running-process", device, readiness_bundle, timeout=180), readiness_bundle)

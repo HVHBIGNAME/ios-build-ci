@@ -189,6 +189,20 @@ class SimulatorSmokeTests(unittest.TestCase):
         self.assertIn("timed out after 180 seconds", report["error"])
         self.assertEqual(report["launches"], [])
 
+    def test_boot_progress_is_retained_on_success_and_timeout(self):
+        for timeout in (False, True):
+            with self.subTest(timeout=timeout), tempfile.TemporaryDirectory() as directory:
+                progress = "Waiting on Data Migration"
+                error = subprocess.TimeoutExpired("simctl", 600, output=progress.encode("utf-8")) if timeout else None
+                with patch.object(smoke, "run", return_value=progress, side_effect=error) as command:
+                    if timeout:
+                        with self.assertRaises(subprocess.TimeoutExpired):
+                            smoke.wait_for_boot("DEVICE", Path(directory))
+                    else:
+                        smoke.wait_for_boot("DEVICE", Path(directory))
+                    command.assert_called_once_with("xcrun", "simctl", "bootstatus", "DEVICE", "-b", timeout=600)
+                self.assertEqual((Path(directory) / "bootstatus.log").read_text(encoding="utf-8"), progress)
+
     def test_failure_capture_errors_do_not_replace_the_original_failure(self):
         with tempfile.TemporaryDirectory() as directory:
             report = self.simulated_run(directory, readiness_timeout=True, display_failure=True, log_failure=True)
