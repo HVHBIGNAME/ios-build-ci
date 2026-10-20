@@ -133,7 +133,7 @@ private final class WhitegramSimulatorLoginProbe {
     }
 
     func authResponse(datacenterId: Int, error: MTRpcError?) {
-        self.event("auth-response", datacenter: datacenterId, state: error == nil ? "success" : Self.errorName(error))
+        self.event("auth-response", datacenter: datacenterId, state: error.map(Self.errorName) ?? "success")
         self.record["auth"] = error == nil ? "success" : "rpc-error"
         var response: [String: Any] = ["datacenter": datacenterId, "status": error == nil ? "success" : "rpc-error"]
         if let error {
