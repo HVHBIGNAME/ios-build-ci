@@ -287,12 +287,12 @@ jobs:
           trap 'rm -rf "$staging_dir"' EXIT
           unzip -q bazel-bin/Telegram/Telegram.ipa -d "$staging_dir"
           python3 "$GITHUB_WORKSPACE/whitegram/postprocess.py" "$staging_dir"
-          login_args=()
-          if [[ "$WHITEGRAM_RUN_LOGIN_CHECK" == "true" ]]; then login_args+=(--login); fi
+          set --
+          if [[ "$WHITEGRAM_RUN_LOGIN_CHECK" == "true" ]]; then set -- --login; fi
           python3 -B "$GITHUB_WORKSPACE/whitegram/simulator_smoke.py" \
             --app "$staging_dir/Payload/Telegram.app" \
             --output "$RUNNER_TEMP/whitegram-simulator-launch" \
-            --revision "$GITHUB_SHA" --build "${{ matrix.app_build }}" --seconds 30 "${login_args[@]}"
+            --revision "$GITHUB_SHA" --build "${{ matrix.app_build }}" --seconds 30 "$@"
 
       - name: Upload simulator launch evidence
         if: always()
