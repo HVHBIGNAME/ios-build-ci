@@ -54,8 +54,8 @@ public struct WhitegramMenuSection: Hashable {
         return WhitegramLocalization.string(localizationKeys.description, baseLanguage: baseLanguage, fallback: russian ? ruDescription : enDescription)
     }
 
-    public func image() -> UIImage? {
-        return UIImage(systemName: icon)
+    public func image(tintColor: UIColor) -> UIImage? {
+        return UIImage(systemName: icon)?.withTintColor(tintColor, renderingMode: .alwaysOriginal)
     }
 }
 

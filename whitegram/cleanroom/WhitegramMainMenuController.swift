@@ -71,7 +71,7 @@ private enum WhitegramMainMenuEntry: ItemListNodeEntry {
             return ItemListDisclosureItem(
                 presentationData: presentationData,
                 systemStyle: .glass,
-                icon: section.image(),
+                icon: section.image(tintColor: presentationData.theme.list.itemPrimaryTextColor),
                 title: title,
                 label: "",
                 additionalDetailLabel: subtitle.isEmpty ? nil : subtitle,
@@ -225,7 +225,7 @@ private func whitegramAboutController(context: AccountContext, section: Whitegra
         title: section.title(baseLanguage: baseLanguage),
         lines: [
             "Whitegram", "\(version) (\(build))",
-            russian ? "База исходников: Telegram 12.9.2" : "Source baseline: Telegram 12.9.2",
+            russian ? "На базе Telegram \(version)" : "Based on Telegram \(version)",
             russian ? "Частичный перенос функций Whitegram. Полное соответствие оригиналу не подтверждено." : "Partial Whitegram feature port. Full parity with the original has not been verified."
         ],
         links: ["whitegramChannelButton", "whitegramBetaButton", "developerButton", "openlockVPN"]

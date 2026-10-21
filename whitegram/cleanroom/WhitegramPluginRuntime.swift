@@ -432,7 +432,7 @@ final class WhitegramPluginRuntime {
 
     private func capabilities() -> [String: Any] {
         return ["runtime": "JavaScriptCore", "version": "whitegram-native-2", "ios": self.iosVersion,
-                "subsystems": ["javascript": "1", "ui": "1", "storage": "1", "http": "1", "tg": "12.9.2"],
+                "subsystems": ["javascript": "1", "ui": "1", "storage": "1", "http": "1", "tg": (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "unknown"],
                 "functions": WhitegramPluginAPI.entries.filter { $0.exposed }.map { $0.path },
                 "events": WhitegramPluginHooks.eventNames + WhitegramPluginNativeInterception.eventNames, "eventSemantics": "observational-postbox",
                 "interceptors": ["message.beforeSend": ["cancel", "modify", "modifyFinal", "replace"], "tg.request": ["cancel"]],

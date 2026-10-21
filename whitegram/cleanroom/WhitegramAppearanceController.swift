@@ -125,9 +125,10 @@ private func whitegramAppearanceEntries(presentationData: PresentationData, sett
         : "The counter has its own row above your draft. Near a text limit, Telegram's remaining-character warning takes priority. Hiding the business bot panel does not change the bot's access to the chat."))
 
     add("reset", 4, .reset)
+    let telegramVersion = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "—"
     add("portInfo", 4, .info(russian
-        ? "Открытые чаты обновляются при изменении этих настроек. Визуальные детали восстановлены для Telegram 12.9.2; точное совпадение с оригинальным Whitegram не подтверждено."
-        : "Open chats refresh when these settings change. Visual details are reconstructed for Telegram 12.9.2; exact visual parity with the original Whitegram is unverified."))
+        ? "Открытые чаты обновляются при изменении этих настроек. На базе Telegram \(telegramVersion); точное совпадение с оригинальным Whitegram не подтверждено."
+        : "Open chats refresh when these settings change. Based on Telegram \(telegramVersion); exact visual parity with the original Whitegram is unverified."))
     return entries
 }
 
