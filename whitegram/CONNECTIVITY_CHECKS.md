@@ -232,3 +232,12 @@ device-only UIKit setup as unreachable after the ARM simulator's early return.
 That setup is now conditionally compiled only on its device/Intel path.
 No simulator launches ran in this build, and its physical-device login result
 still awaits the user's test/journal.
+
+Follow-up run [39635114733](https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/39635114733)
+passed source/native checks, ARM simulator compilation and both 30-second
+launches on `4247a5852307ca07aea52a2156d48632b26a6338` (build 34649).
+The retained iPhone Air / iOS 26.5 report has no cleanup errors. Both welcome
+screenshots show the complete template logo without the device's extra layers.
+This run disabled phone-entry/authentication checks and produced no device IPA.
+The device IPA linked above includes the same device-side changes; the follow-up
+only excludes that setup from ARM simulator compilation.
