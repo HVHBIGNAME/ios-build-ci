@@ -144,6 +144,9 @@ jobs:
           retention-days: 30
 
       - name: Настроить WhiteGram и проверить версию Telegram
+        env:
+          WHITEGRAM_TELEGRAM_API_ID: ${{ secrets.WHITEGRAM_TELEGRAM_API_ID }}
+          WHITEGRAM_TELEGRAM_API_HASH: ${{ secrets.WHITEGRAM_TELEGRAM_API_HASH }}
         run: |
           set -euxo pipefail
           python3 "$GITHUB_WORKSPACE/whitegram/configure.py" /Users/Shared/telegram-ios

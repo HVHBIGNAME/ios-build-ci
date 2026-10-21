@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -12,6 +13,15 @@ app_name = "WhiteGram"
 
 config_path = root / "build-system" / "appstore-configuration.json"
 config = json.loads(config_path.read_text())
+api_id = os.environ.get("WHITEGRAM_TELEGRAM_API_ID", "")
+api_hash = os.environ.get("WHITEGRAM_TELEGRAM_API_HASH", "")
+if api_id or api_hash:
+    if not re.fullmatch(r"[1-9][0-9]{0,9}", api_id) or int(api_id) > 2147483647:
+        raise SystemExit("WHITEGRAM_TELEGRAM_API_ID must be a positive 32-bit integer; configure both Telegram API secrets")
+    if not re.fullmatch(r"[a-fA-F0-9]{32}", api_hash):
+        raise SystemExit("WHITEGRAM_TELEGRAM_API_HASH must contain 32 hexadecimal characters; configure both Telegram API secrets")
+    config["api_id"] = api_id
+    config["api_hash"] = api_hash
 config["bundle_id"] = build_bundle_id
 config["app_specific_url_scheme"] = url_scheme
 # The unsigned distribution has no provisioned Telegram iCloud container.

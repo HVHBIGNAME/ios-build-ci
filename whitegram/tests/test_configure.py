@@ -35,10 +35,34 @@ class SideloadConfigurationTests(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(value, encoding="utf-8")
 
-    def configure(self):
-        result = subprocess.run([sys.executable, "-B", str(ROOT / "configure.py"), str(self.source)], capture_output=True, text=True)
+    def command(self, environment=None):
+        env = dict(os.environ, WHITEGRAM_TELEGRAM_API_ID="", WHITEGRAM_TELEGRAM_API_HASH="")
+        env.update(environment or {})
+        return subprocess.run([sys.executable, "-B", str(ROOT / "configure.py"), str(self.source)], capture_output=True, text=True, env=env)
+
+    def configure(self, environment=None):
+        result = self.command(environment)
         self.assertEqual(result.returncode, 0, result.stderr)
         return json.loads((self.source / "build-system/appstore-configuration.json").read_text())
+
+    def test_project_owned_credentials_reach_build_configuration_without_logging_hash(self):
+        environment = {"WHITEGRAM_TELEGRAM_API_ID": "123456", "WHITEGRAM_TELEGRAM_API_HASH": "ab" * 16}
+        result = self.command(environment)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        configured = json.loads((self.source / "build-system/appstore-configuration.json").read_text())
+        self.assertEqual(configured["api_id"], "123456")
+        self.assertEqual(configured["api_hash"], "ab" * 16)
+        self.assertNotIn("ab" * 16, result.stdout + result.stderr)
+        self.assertEqual(self.configure(environment), configured)
+
+    def test_invalid_or_partial_credentials_fail_before_modifying_sources(self):
+        original = {path: path.read_bytes() for path in self.source.rglob("*") if path.is_file()}
+        for api_id, api_hash in (("123", ""), ("", "ab" * 16), ("-1", "ab" * 16),
+                                 ("2147483648", "ab" * 16), ("123", "not-a-hash")):
+            with self.subTest(api_id=api_id):
+                result = self.command({"WHITEGRAM_TELEGRAM_API_ID": api_id, "WHITEGRAM_TELEGRAM_API_HASH": api_hash})
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual({path: path.read_bytes() for path in self.source.rglob("*") if path.is_file()}, original)
 
     def test_sideload_build_disables_unprovisioned_cloudkit_and_is_replayable(self):
         configured = self.configure()

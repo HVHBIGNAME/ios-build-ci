@@ -13,6 +13,12 @@ def evaluate(record, token):
         raise ValueError("Missing or stale simulator login evidence")
     if record.get("probe") != "success":
         raise ValueError(f"Telegram help.getNearestDc did not succeed: {record}")
+    if record.get("auth") == "pending":
+        verification = [event for event in record.get("events", []) if isinstance(event, dict)
+                        and event.get("name") in ("recaptcha-execute-error", "recaptcha-execute-success")]
+        if verification and verification[-1].get("name") == "recaptcha-execute-error" and verification[-1].get("code") == 4:
+            raise ValueError("reCAPTCHA rejected the app's package name (errorInvalidPackageName, code 4); "
+                             "configure project-owned WHITEGRAM_TELEGRAM_API_ID and WHITEGRAM_TELEGRAM_API_HASH, then verify login again")
     if record.get("auth_flow") == "timeout":
         raise ValueError(f"The login flow timed out: {record}")
     if record.get("auth") == "success":

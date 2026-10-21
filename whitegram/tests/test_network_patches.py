@@ -33,6 +33,17 @@ class LoginEvidenceTests(unittest.TestCase):
         paths = [OVERLAY / "cleanroom/WhitegramLoginProbe.swift", *sorted((OVERLAY / "tests/login").rglob("*.swift"))]
         self.assertTrue(all(not diagnostics for diagnostics in parse_sources({str(path): path.read_text(encoding="utf-8") for path in paths}).values()))
 
+    def test_verified_package_rejection_explains_pending_login_failure(self):
+        record = {"schema": 1, "token": "a" * 32, "probe": "success", "auth": "pending", "auth_flow": "timeout",
+                  "events": [{"name": "recaptcha-execute-error", "code": 4}]}
+        with self.assertRaisesRegex(ValueError, "errorInvalidPackageName"):
+            evaluate(record, "a" * 32)
+        with self.assertRaisesRegex(ValueError, "timed out"):
+            evaluate({**record, "events": [{"name": "recaptcha-execute-error", "code": 1}]}, "a" * 32)
+        with self.assertRaisesRegex(ValueError, "timed out"):
+            evaluate({**record, "events": record["events"] + [{"name": "recaptcha-execute-success"}]}, "a" * 32)
+        self.assertIn("accepted", evaluate({**record, "auth": "success", "auth_flow": "pending"}, "a" * 32))
+
 
 @unittest.skipUnless(os.environ.get("WHITEGRAM_PUBLIC_SOURCE"), "Set WHITEGRAM_PUBLIC_SOURCE")
 class NetworkPatchTests(unittest.TestCase):

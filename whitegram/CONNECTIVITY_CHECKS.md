@@ -114,3 +114,29 @@ check now requires a live Settings PID and leaves Settings running; launching
 Whitegram brings the tested app to the foreground normally. This run also
 exposed a native backend cancellation-order test failure, retained by the
 workflow's final gate. Neither failure supplies new login evidence.
+
+## Confirmed package-verification blocker
+
+Run [39521822835](https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/39521822835)
+passed compilation, both launches and XCUITest. DC1 became online roughly
+0.2 seconds after the redirected request started. The reCAPTCHA client loaded,
+then execution failed with SDK code **4**, which the shipped SDK declares as
+`errorInvalidPackageName`. The remaining login flow expired at its 20-second
+deadline. This is a package-verification rejection, not evidence of an offline
+Telegram connection. The report now names that confirmed cause explicitly.
+
+The current build inherits upstream `api_id=8`, while its installed bundle is
+`whitegram.telegra.Telegraph`. The repository has no project-owned Telegram
+API credentials configured. `configure.py` now accepts the pair
+`WHITEGRAM_TELEGRAM_API_ID` / `WHITEGRAM_TELEGRAM_API_HASH` from environment
+variables, validates both before writing, and the workflow reads these from
+GitHub Secrets in its configuration step. With no pair supplied, the existing
+upstream configuration is retained; this does not resolve the observed blocker.
+
+Obtain the project's pair through [Telegram API development tools](https://my.telegram.org/apps),
+then add both as repository Actions secrets and rerun `simulator_only=true`.
+Telegram's [API setup documentation](https://core.telegram.org/api/obtaining_api_id)
+requires a third-party application to obtain its own API ID. Whether the new
+credentials resolve this package rejection must be verified by a fresh run.
+The observed server-provided reCAPTCHA key cannot be registered or changed by
+this build. Real-account code delivery and physical-device login remain unverified.
