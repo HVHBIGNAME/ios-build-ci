@@ -7,6 +7,10 @@ on:
         description: "Build and test the simulator without a device IPA"
         type: boolean
         default: false
+      login_check:
+        description: "Request login connectivity verification (disable during Telegram FLOOD_WAIT)"
+        type: boolean
+        default: true
   push:
     branches:
       - main
@@ -263,6 +267,8 @@ jobs:
 
       - name: Build and smoke-test simulator launches
         timeout-minutes: 150
+        env:
+          WHITEGRAM_RUN_LOGIN_CHECK: ${{ github.event_name != 'workflow_dispatch' || inputs.login_check }}
         run: |
           set -euo pipefail
           if ! command -v xcodegen >/dev/null; then brew install xcodegen; fi
@@ -281,10 +287,12 @@ jobs:
           trap 'rm -rf "$staging_dir"' EXIT
           unzip -q bazel-bin/Telegram/Telegram.ipa -d "$staging_dir"
           python3 "$GITHUB_WORKSPACE/whitegram/postprocess.py" "$staging_dir"
+          login_args=()
+          if [[ "$WHITEGRAM_RUN_LOGIN_CHECK" == "true" ]]; then login_args+=(--login); fi
           python3 -B "$GITHUB_WORKSPACE/whitegram/simulator_smoke.py" \
             --app "$staging_dir/Payload/Telegram.app" \
             --output "$RUNNER_TEMP/whitegram-simulator-launch" \
-            --revision "$GITHUB_SHA" --build "${{ matrix.app_build }}" --seconds 30 --login
+            --revision "$GITHUB_SHA" --build "${{ matrix.app_build }}" --seconds 30 "${login_args[@]}"
 
       - name: Upload simulator launch evidence
         if: always()
