@@ -110,7 +110,7 @@ class BrandingIntegrationTests(unittest.TestCase):
         root = self.root()
         apply_branding_patches(root)
         intro = root.text(INTRO)
-        device = intro.split('- (void)loadGL', 1)[1].split('#endif', 1)[1].split('- (void)freeGL', 1)[0]
+        device = intro.split('#if !(TARGET_OS_SIMULATOR && defined(__aarch64__))', 1)[1].split('- (void)freeGL', 1)[0]
         self.assertIn('UIImageRenderingModeAlwaysTemplate', device)
         self.assertIn('imageView.tintColor = _primaryColor;', device)
         self.assertIn('_glkView.hidden = _currentPage == 0;', device)

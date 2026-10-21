@@ -219,3 +219,16 @@ for the later intro pages. Device appearance still needs a fresh screenshot.
 Local validation passed 430 Python tests (45 environment/original-archive skips),
 including full installer composition and repeat application. Native execution
 of the new candidate is pending.
+
+Run [39622301956](https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/39622301956)
+passed source validation, native suites (including the persisted/bounded session
+journal test), device compilation and IPA verification on
+`620bed1d2dff271f740753fad454cec0a667120a`. The
+[build-34649 IPA](https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/39622301956/artifacts/12357878728)
+is 82,394,257 bytes; the downloaded SHA-256 matches the report:
+`d7ac7f2ca0caaa4104959a2145d26efc925b4da7266e5189071991e46f44b16c`.
+The overall run failed later because the simulator compiler rejected the
+device-only UIKit setup as unreachable after the ARM simulator's early return.
+That setup is now conditionally compiled only on its device/Intel path.
+No simulator launches ran in this build, and its physical-device login result
+still awaits the user's test/journal.

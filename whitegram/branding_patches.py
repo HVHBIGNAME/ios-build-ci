@@ -80,7 +80,8 @@ def patch_simulator_intro(patches: SourcePatches) -> None:
 def patch_device_intro(patches: SourcePatches) -> None:
     feature = "welcome-logo-device"
     anchor = '    if (/*[[UIApplication sharedApplication] applicationState] != UIApplicationStateBackground*/true && !_isOpenGLLoaded)'
-    patches.replace(feature, INTRO, anchor, '''    if (_simulatorLogoView == nil) {
+    patches.replace(feature, INTRO, anchor, '''#if !(TARGET_OS_SIMULATOR && defined(__aarch64__))
+    if (_simulatorLogoView == nil) {
         CGFloat size = ([UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPad) ? 240.0 : 200.0;
         _simulatorLogoView = [[UIView alloc] initWithFrame:CGRectMake((self.view.bounds.size.width - size) / 2.0, 50.0, size, size)];
         _simulatorLogoView.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin;
@@ -94,6 +95,7 @@ def patch_device_intro(patches: SourcePatches) -> None:
         [self.view insertSubview:_simulatorLogoView atIndex:0];
     }
     _simulatorLogoView.hidden = _currentPage != 0;
+#endif
 ''' + anchor)
     patches.replace(feature, INTRO, '        [self.view addSubview:_glkView];',
                     '        [self.view addSubview:_glkView];\n        _glkView.hidden = _currentPage == 0;')
