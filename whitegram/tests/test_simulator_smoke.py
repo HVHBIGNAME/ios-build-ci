@@ -115,6 +115,7 @@ class SimulatorSmokeTests(unittest.TestCase):
             if action == "launch":
                 if args[-1] == "com.apple.Preferences":
                     self.assertEqual(kwargs["timeout"], 180)
+                    self.assertNotIn("--terminate-running-process", args)
                     if readiness_timeout:
                         raise subprocess.TimeoutExpired(args, 180)
                 return f"{args[-1]}: 4123"
@@ -134,6 +135,7 @@ class SimulatorSmokeTests(unittest.TestCase):
             report = smoke.smoke(app, Path(directory) / "result", "a" * 40, "34644", 5)
         cleanup = [call.args for call in calls.call_args_list if call.args[:2] == ("xcrun", "simctl") and call.args[2] in ("shutdown", "delete")]
         self.assertEqual(cleanup, [("xcrun", "simctl", "shutdown", owned_device), ("xcrun", "simctl", "delete", owned_device)])
+        self.assertFalse(any(call.args[:3] == ("xcrun", "simctl", "terminate") and call.args[-1] == "com.apple.Preferences" for call in calls.call_args_list))
         if display_failure or readiness_timeout:
             self.assertFalse(any(call.args[:3] == ("xcrun", "simctl", "install") for call in calls.call_args_list))
         if not (display_failure or readiness_timeout):

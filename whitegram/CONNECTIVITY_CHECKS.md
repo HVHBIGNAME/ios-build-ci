@@ -107,3 +107,10 @@ reCAPTCHA SDK starting verification during this flow. Follow-up diagnostics
 record challenge/client/execution stages and numeric SDK error codes, plus
 relative event timing. They retain neither verification secrets nor SDK error
 messages and leave both verification providers and authorization timing intact.
+
+Run 39513169757 compiled the verification diagnostics, but stopped before app
+installation when the auxiliary Settings termination timed out. The readiness
+check now requires a live Settings PID and leaves Settings running; launching
+Whitegram brings the tested app to the foreground normally. This run also
+exposed a native backend cancellation-order test failure, retained by the
+workflow's final gate. Neither failure supplies new login evidence.

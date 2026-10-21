@@ -152,8 +152,10 @@ def smoke(app, output, revision, build, seconds, login=False):
         wait_for_boot(device, output)
         report["phase"] = "simulator-readiness"
         readiness_bundle = "com.apple.Preferences"
-        launch_pid(run("xcrun", "simctl", "launch", "--terminate-running-process", device, readiness_bundle, timeout=180), readiness_bundle)
-        run("xcrun", "simctl", "terminate", device, readiness_bundle)
+        readiness_pid = launch_pid(run("xcrun", "simctl", "launch", device, readiness_bundle, timeout=180), readiness_bundle)
+        if process_identity(readiness_pid) is None:
+            raise RuntimeError("Simulator Settings exited during the readiness check")
+        report["readiness_pid"] = readiness_pid
         report["phase"] = "simulator-display"
         screenshot(device, output / "simulator-ready.png")
         report["phase"] = "install"
