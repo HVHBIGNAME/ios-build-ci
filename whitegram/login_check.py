@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
@@ -21,6 +22,15 @@ def evaluate(record, token):
                              "configure project-owned WHITEGRAM_TELEGRAM_API_ID and WHITEGRAM_TELEGRAM_API_HASH, then verify login again")
     if record.get("auth_flow") == "timeout":
         raise ValueError(f"The login flow timed out: {record}")
+    if record.get("auth") == "rpc-error":
+        flood_wait = re.fullmatch(r"FLOOD_WAIT_([1-9][0-9]{0,9})", str(record.get("auth_error", "")))
+        if flood_wait:
+            seconds = int(flood_wait.group(1))
+            hours, remainder = divmod(seconds, 3600)
+            minutes, remainder = divmod(remainder, 60)
+            raise ValueError(f"Telegram rate-limited auth.sendCode ({record['auth_error']}); "
+                             f"wait {hours}h {minutes}m {remainder}s from the server response before another attempt. "
+                             "Connectivity is confirmed, but login and package verification remain unverified")
     if record.get("auth") == "success":
         return "Telegram accepted auth.sendCode; delivery to a real account is not tested"
     if record.get("auth") == "rpc-error" and record.get("auth_error") in ("PHONE_NUMBER_INVALID", "PHONE_NUMBER_BANNED"):

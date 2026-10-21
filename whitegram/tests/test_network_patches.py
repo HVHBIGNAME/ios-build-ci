@@ -44,6 +44,17 @@ class LoginEvidenceTests(unittest.TestCase):
             evaluate({**record, "events": record["events"] + [{"name": "recaptcha-execute-success"}]}, "a" * 32)
         self.assertIn("accepted", evaluate({**record, "auth": "success", "auth_flow": "pending"}, "a" * 32))
 
+    def test_flood_wait_reports_server_cooldown_without_passing_login(self):
+        record = {"schema": 1, "token": "a" * 32, "probe": "success", "auth": "rpc-error",
+                  "auth_code": 420, "auth_flow": "error", "auth_error": "FLOOD_WAIT_33385"}
+        with self.assertRaisesRegex(ValueError, "wait 9h 16m 25s"):
+            evaluate(record, "a" * 32)
+        for name in ("FLOOD_WAIT_", "FLOOD_WAIT_33385_EXTRA", "FLOOD_WAIT_-1"):
+            with self.subTest(name=name), self.assertRaisesRegex(ValueError, "expected Telegram response"):
+                evaluate({**record, "auth_error": name}, "a" * 32)
+        with self.assertRaisesRegex(ValueError, "help.getNearestDc"):
+            evaluate({**record, "probe": "timeout"}, "a" * 32)
+
 
 @unittest.skipUnless(os.environ.get("WHITEGRAM_PUBLIC_SOURCE"), "Set WHITEGRAM_PUBLIC_SOURCE")
 class NetworkPatchTests(unittest.TestCase):

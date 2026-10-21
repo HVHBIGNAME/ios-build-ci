@@ -125,9 +125,9 @@ then execution failed with SDK code **4**, which the shipped SDK declares as
 deadline. This is a package-verification rejection, not evidence of an offline
 Telegram connection. The report now names that confirmed cause explicitly.
 
-The current build inherits upstream `api_id=8`, while its installed bundle is
-`whitegram.telegra.Telegraph`. The repository has no project-owned Telegram
-API credentials configured. `configure.py` now accepts the pair
+The affected run inherited upstream `api_id=8`, while its installed bundle was
+`whitegram.telegra.Telegraph`. At that point the repository had no project-owned
+Telegram API credentials configured. `configure.py` now accepts the pair
 `WHITEGRAM_TELEGRAM_API_ID` / `WHITEGRAM_TELEGRAM_API_HASH` from environment
 variables, validates both before writing, and the workflow reads these from
 GitHub Secrets in its configuration step. With no pair supplied, the existing
@@ -140,3 +140,28 @@ requires a third-party application to obtain its own API ID. Whether the new
 credentials resolve this package rejection must be verified by a fresh run.
 The observed server-provided reCAPTCHA key cannot be registered or changed by
 this build. Real-account code delivery and physical-device login remain unverified.
+
+## Project-owned API verification — 2026-10-21
+
+Both Telegram API secrets were added on 2026-10-21. Run
+[39529151012, attempt 2](https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/39529151012/attempts/2)
+used the new configuration and passed source checks, native suites,
+compilation, both 30-second launches and XCUITest. Attempt 1 had stopped before
+Whitegram installation on a simulator Settings startup timeout.
+
+With the project credentials, `help.getNearestDc` succeeded and the redirected
+DC1 request returned **`420 FLOOD_WAIT_33385`** instead of hanging: Telegram
+requires **9 hours 16 minutes 25 seconds** from that response before another
+attempt. The UI displayed the native "Too many attempts" alert. No reCAPTCHA
+challenge was observed in this run, but a rate limit can precede verification;
+this does **not** establish that package verification has been resolved.
+The login gate stays failed, and no further auth request is being made during
+the cooldown. The runner now reports this server cooldown explicitly.
+
+The MTProto server addresses on the developer portal already match the client
+seeds (`149.154.167.50:443` production, `149.154.167.40:443` test). No manual
+address or RSA public-key installation is needed. The check uses production;
+test accounts and keys belong to a separate environment. FCM credentials are
+for Firebase messaging, WNS package SID for Windows notifications; neither
+is required for this iOS simulator login check or fixes the package rejection.
+Physical-device notifications require separate APNs/signing verification.
