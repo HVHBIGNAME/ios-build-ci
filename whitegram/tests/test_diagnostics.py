@@ -99,7 +99,9 @@ class DiagnosticSourceTests(unittest.TestCase):
 
     def test_production_and_native_sources_parse(self):
         paths = [ROOT / "cleanroom" / name for name in DIAGNOSTICS_RUNTIME_FILES]
+        paths.append(ROOT / "cleanroom/WhitegramSessionDiagnostics.swift")
         paths.append(ROOT / "tests/diagnostics/DiagnosticsTests.swift")
+        paths.append(ROOT / "tests/diagnostics/SessionDiagnosticsTests.swift")
         for name, errors in parse_sources({str(path): path.read_text(encoding="utf-8") for path in paths}).items():
             self.assertEqual(errors, [], name)
 

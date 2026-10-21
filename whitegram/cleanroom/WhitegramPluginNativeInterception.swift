@@ -52,6 +52,11 @@ public enum WhitegramPluginNativeInterception {
     }
 
     static func response(network: Network, description: FunctionDescription, error: MTRpcError?) {
+        if description.name == "auth.signIn" {
+            WhitegramSessionDiagnostics.shared.record(.signInResponse, datacenter: network.datacenterId, code: error.map { Int($0.errorCode) } ?? 0)
+        } else if description.name == "auth.checkPassword" {
+            WhitegramSessionDiagnostics.shared.record(.passwordResponse, datacenter: network.datacenterId, code: error.map { Int($0.errorCode) } ?? 0)
+        }
         if description.name == "auth.sendCode" { WhitegramLoginProbe.authResponse(network: network, error: error) }
         guard self.events.hasListeners(scope: network, names: self.eventNames) else { return }
         var payload = self.requestPayload(network: network, description: description, kind: "response")

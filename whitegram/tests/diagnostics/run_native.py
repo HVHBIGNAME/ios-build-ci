@@ -24,9 +24,10 @@ let package = Package(name: "Diagnostics", platforms: [.macOS(.v12)], targets: [
     .target(name: "Diagnostics"), .testTarget(name: "DiagnosticsTests", dependencies: ["Diagnostics"])
 ])
 ''', encoding="utf-8")
-        for name in ("WhitegramErrorReport", "WhitegramDiagnosticsUpload", "WhitegramErrorReporter", "WhitegramPreferences"):
+        for name in ("WhitegramErrorReport", "WhitegramDiagnosticsUpload", "WhitegramErrorReporter", "WhitegramPreferences", "WhitegramSessionDiagnostics"):
             shutil.copyfile(SOURCE / (name + ".swift"), source / (name + ".swift"))
         shutil.copyfile(HERE / "DiagnosticsTests.swift", tests / "DiagnosticsTests.swift")
+        shutil.copyfile(HERE / "SessionDiagnosticsTests.swift", tests / "SessionDiagnosticsTests.swift")
         return subprocess.run(["swift", "test", "--package-path", str(root)], check=False).returncode
 
 

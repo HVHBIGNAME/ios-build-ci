@@ -73,9 +73,9 @@ class BrandingIntegrationTests(unittest.TestCase):
         report = apply_branding_patches(root)
         self.assertEqual({path for paths in report.values() for path in paths}, {INTRO, TEXTURE, ANIMATION, SETTINGS})
         self.assertIn('setup_texture(@"telegram_sphere.png", _primaryColor)', root.text(INTRO))
-        def device_renderer(text):
-            return text.split('- (void)loadGL', 1)[1].split('- (void)freeGL', 1)[0].split('#endif', 1)[1]
-        self.assertEqual(device_renderer(root.text(INTRO)), device_renderer(before[INTRO]))
+        self.assertIn('_glkView.hidden = _currentPage == 0;', root.text(INTRO))
+        self.assertIn('_simulatorLogoView.hidden = _currentPage != 0;', root.text(INTRO))
+        self.assertIn('set_ic_textures(', root.text(INTRO))
         self.assertIn('CGContextClipToMask(spriteContext, CGRectMake(0, 0, width, height), spriteImage)', root.text(TEXTURE))
         self.assertIn('} else {\n        CGContextDrawImage(spriteContext, CGRectMake(0, 0, width, height), spriteImage);', root.text(TEXTURE))
         details = root.text(ANIMATION).split('// LAYER4 - DETAILS', 1)[1].split('else if (current_page==1)', 1)[0]
@@ -105,6 +105,18 @@ class BrandingIntegrationTests(unittest.TestCase):
         cleanup = intro.split('- (void)freeGL', 1)[1].split('- (void)loadView', 1)[0]
         self.assertLess(cleanup.index('[_simulatorLogoView removeFromSuperview];'), cleanup.index('if (!_isOpenGLLoaded)'))
         self.assertIn('_simulatorLogoView = nil;', cleanup)
+
+    def test_device_first_page_uses_uikit_without_gl_layers_and_keeps_other_pages(self):
+        root = self.root()
+        apply_branding_patches(root)
+        intro = root.text(INTRO)
+        device = intro.split('- (void)loadGL', 1)[1].split('#endif', 1)[1].split('- (void)freeGL', 1)[0]
+        self.assertIn('UIImageRenderingModeAlwaysTemplate', device)
+        self.assertIn('imageView.tintColor = _primaryColor;', device)
+        self.assertIn('_glkView.hidden = _currentPage == 0;', device)
+        self.assertIn('if (_glkView != nil)', intro.split('- (void)scrollViewDidScroll:', 1)[1])
+        self.assertIn('(_glkView == nil || _currentPage == 0)', intro)
+        self.assertIn('postNotificationName:@"WhitegramLoginDiagnostics.export"', intro)
 
     def test_missing_last_anchor_does_not_partially_patch_the_intro(self):
         root = self.root()

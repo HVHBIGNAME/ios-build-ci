@@ -48,6 +48,7 @@ from launcher_icon_patches import apply_launcher_icon_patches, install_launcher_
 from swift_syntax_patches import apply_swift_syntax_patches
 from build_patches import add_dep, apply_build_patches
 from network_patches import NETWORK_RUNTIME_FILES, apply_network_patches
+from session_patches import RUNTIME_FILES as SESSION_RUNTIME_FILES, apply_session_patches
 from settings_api_patches import apply_settings_api_patches
 from branding_patches import apply_branding_patches, install_intro_logo
 from telegram_13_api_patches import apply_telegram_13_api_patches
@@ -193,7 +194,7 @@ for manifest in (
     APPEARANCE_GLASS_RUNTIME_FILES, HISTORY_RUNTIME_FILES, ONLINE_HISTORY_RUNTIME_FILES, ACCOUNTS_RUNTIME_FILES,
     PRIVACY_RUNTIME_FILES, TRANSFER_RUNTIME_FILES, PLAYER_RUNTIME_FILES, BACKEND_RUNTIME_FILES, TRAFFIC_RUNTIME_FILES,
     SYSTEM_RUNTIME_FILES, STICKER_RUNTIME_FILES, ONLINE_INDICATOR_RUNTIME_FILES, TEXT_PROCESSING_RUNTIME_FILES, FORMATTING_TOOLBAR_RUNTIME_FILES, MEDIA_ACCENT_RUNTIME_FILES, DIAGNOSTICS_RUNTIME_FILES,
-    PROFILE_APPEARANCE_RUNTIME_FILES, PROFILE_METADATA_RUNTIME_FILES, SETTINGS_ICON_RUNTIME_FILES, NETWORK_RUNTIME_FILES,
+    PROFILE_APPEARANCE_RUNTIME_FILES, PROFILE_METADATA_RUNTIME_FILES, SETTINGS_ICON_RUNTIME_FILES, NETWORK_RUNTIME_FILES, SESSION_RUNTIME_FILES,
 ):
     cleanroom_files.update({"cleanroom/" + name: destination for name, destination in manifest.items()})
 for name in (
@@ -288,7 +289,7 @@ for patcher in (
     apply_profile_appearance_patches, apply_appearance_details_patches, apply_profile_metadata_patches, apply_feedback_patches,
     apply_settings_icon_patches, apply_launcher_icon_patches, apply_network_patches,
     apply_settings_api_patches,
-    apply_branding_patches,
+    apply_branding_patches, apply_session_patches,
     apply_telegram_13_api_patches,
 ):
     report = patcher(source_root)

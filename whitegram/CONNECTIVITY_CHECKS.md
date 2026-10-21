@@ -165,3 +165,57 @@ test accounts and keys belong to a separate environment. FCM credentials are
 for Firebase messaging, WNS package SID for Windows notifications; neither
 is required for this iOS simulator login check or fixes the package rejection.
 Physical-device notifications require separate APNs/signing verification.
+
+## Device IPA and launch-only verification — 2026-10-21
+
+Run [39539144691](https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/39539144691)
+passed source validation, native suites, device compilation and IPA verification
+on revision `81ff17b5340dd7c656b930a94d990fc775728fb9`. The published
+[WhiteGram-13.0-34648-unsigned artifact](https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/39539144691/artifacts/12321669148)
+contains `WhiteGram-13.0-34648.ipa` and `WhiteGram-verification.json`.
+The downloaded IPA's size (82,386,629 bytes) and SHA-256
+`b071dccaf15e343a44dd7d24e1d087552c056dc353803eac0b433b1fc60c156d`
+match the report. The app is arm64, version 13.0, build 34648, with bundle ID
+`whitegram.telegra.Telegraph`. Installation requires signing. The subsequent
+physical-device result is recorded below.
+
+Although Actions marked that run successful, its simulator launch invocation
+stopped on macOS Bash's `login_args[@]: unbound variable` with `login_check=false`.
+There is no launch report or screenshot for that run. Revision
+`44ba0ecadbdd6a20b3050fa4c7d933eac580a87d` replaces the optional empty array
+with positional arguments, checked locally with login enabled and disabled.
+The workflow's `login_check` input defaults to true; disabling it omits the
+phone-entry/authentication check while retaining both launch observations.
+
+Run [39602054471](https://github.com/HVHBIGNAME/ios-build-ci/actions/runs/39602054471)
+passed source/native checks, compilation and both 30-second launches on `44ba0ec`
+with `login_check=false`. The retained report identifies iPhone Air / iOS 26.5,
+both processes survived the observation and screenshot windows, and cleanup
+completed without errors. The UIKit welcome logo is visible in the screenshots.
+
+## Physical-device return to login — build 34648
+
+The user installed the IPA through ESign/Feather and reported that confirming
+login immediately returned to the welcome screen without terminating the app.
+Telegram sent a new-device login notification at 2026-10-21 12:54:42 UTC, and
+the WhiteGram session remained listed in the official client's Devices screen.
+This establishes a server-created session from the user's observation; the
+client's local account transition is still failing. No device journal for that
+attempt is available, so the precise cause is not yet confirmed.
+
+The build-34649 candidate protects `TelegramEngineUnauthorized.Auth.setState`
+against overwriting an `AuthorizedAccountState` with a late login-screen write.
+It also retains a bounded, local technical journal of sign-in response codes,
+account-state loading, account publication, network logout and UI readiness.
+Hold the welcome screen for two seconds to export that journal if login returns
+there again. The export contains no phone numbers, codes, account IDs or keys,
+and is not automatically uploaded. It follows the existing diagnostics opt-out.
+This defensive guard is not yet evidence that the user's failure is fixed.
+
+The device screenshot also showed OpenGL layers underneath the logo. The
+candidate renders the first welcome page with the original template UIImage,
+the same 148/200 inset and theme tint as the simulator. OpenGL remains visible
+for the later intro pages. Device appearance still needs a fresh screenshot.
+Local validation passed 430 Python tests (45 environment/original-archive skips),
+including full installer composition and repeat application. Native execution
+of the new candidate is pending.

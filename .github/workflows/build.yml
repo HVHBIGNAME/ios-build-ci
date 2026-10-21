@@ -31,7 +31,7 @@ jobs:
           - source_version: release-13.0.0
             source_revision: f1dd7a2dbd02cbbf513e75d5695d8d36d1cf5838
             app_version: "13.0"
-            app_build: "34648"
+            app_build: "34649"
 
     steps:
       - name: Checkout build repository

@@ -60,7 +60,7 @@ def patch_simulator_intro(patches: SourcePatches) -> None:
         feature, INTRO,
         '- (UIView *)createAnimationSnapshot {\n    UIImage *image = _glkView.snapshot;',
         '- (UIView *)createAnimationSnapshot {\n'
-        '    if (_simulatorLogoView != nil) {\n'
+        '    if (_simulatorLogoView != nil && (_glkView == nil || _currentPage == 0)) {\n'
         '        UIView *snapshot = [_simulatorLogoView snapshotViewAfterScreenUpdates:false];\n'
         '        snapshot.frame = _simulatorLogoView.frame;\n'
         '        return snapshot;\n'
@@ -77,9 +77,50 @@ def patch_simulator_intro(patches: SourcePatches) -> None:
     )
 
 
+def patch_device_intro(patches: SourcePatches) -> None:
+    feature = "welcome-logo-device"
+    anchor = '    if (/*[[UIApplication sharedApplication] applicationState] != UIApplicationStateBackground*/true && !_isOpenGLLoaded)'
+    patches.replace(feature, INTRO, anchor, '''    if (_simulatorLogoView == nil) {
+        CGFloat size = ([UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPad) ? 240.0 : 200.0;
+        _simulatorLogoView = [[UIView alloc] initWithFrame:CGRectMake((self.view.bounds.size.width - size) / 2.0, 50.0, size, size)];
+        _simulatorLogoView.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin;
+        _simulatorLogoView.userInteractionEnabled = false;
+        UIImageView *imageView = [[UIImageView alloc] initWithImage:[[UIImage imageNamed:@"telegram_sphere.png"] imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]];
+        CGFloat padding = size * (26.0 / 200.0);
+        imageView.frame = CGRectInset(_simulatorLogoView.bounds, padding, padding);
+        imageView.contentMode = UIViewContentModeScaleAspectFit;
+        imageView.tintColor = _primaryColor;
+        [_simulatorLogoView addSubview:imageView];
+        [self.view insertSubview:_simulatorLogoView atIndex:0];
+    }
+    _simulatorLogoView.hidden = _currentPage != 0;
+''' + anchor)
+    patches.replace(feature, INTRO, '        [self.view addSubview:_glkView];',
+                    '        [self.view addSubview:_glkView];\n        _glkView.hidden = _currentPage == 0;')
+    anchor = '    logoView.frame = CGRectChangedOriginY(logoView.frame, glViewY - statusBarHeight);'
+    patches.replace(feature, INTRO, anchor, anchor + '\n    if (_glkView != nil && _simulatorLogoView != nil) {\n        _glkView.frame = _simulatorLogoView.frame;\n    }')
+    anchor = '    [_pageControl setCurrentPage:_currentPage];'
+    patches.replace(feature, INTRO, anchor, anchor + '\n    if (_glkView != nil) {\n        _glkView.hidden = _currentPage == 0;\n        _simulatorLogoView.hidden = _currentPage != 0;\n    }')
+    anchor = '- (void)startButtonPress\n{'
+    patches.replace(feature, INTRO, anchor, '''- (void)exportWhitegramLoginDiagnostics:(UILongPressGestureRecognizer *)recognizer {
+    if (recognizer.state == UIGestureRecognizerStateBegan) {
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"WhitegramLoginDiagnostics.export" object:nil];
+    }
+}
+
+''' + anchor)
+    anchor = '    self.view.backgroundColor = _backgroundColor;'
+    patches.replace(feature, INTRO, anchor, anchor + '''
+    UILongPressGestureRecognizer *diagnosticsGesture = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(exportWhitegramLoginDiagnostics:)];
+    diagnosticsGesture.minimumPressDuration = 2.0;
+    diagnosticsGesture.cancelsTouchesInView = false;
+    [self.view addGestureRecognizer:diagnosticsGesture];''')
+
+
 def apply_branding_patches(root: Path) -> dict[str, list[str]]:
     patches = SourcePatches(root)
     patch_simulator_intro(patches)
+    patch_device_intro(patches)
     patches.replace(
         "welcome-logo-color", INTRO,
         'set_telegram_textures(setup_texture(@"telegram_sphere.png", color),',
