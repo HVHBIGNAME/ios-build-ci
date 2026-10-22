@@ -67,7 +67,7 @@ class SystemSourceTests(unittest.TestCase):
             self.assertIn(f'"{row}": "{key}"', capabilities)
         self.assertIn('"persistentNotificationsInfo": "info.persistentNotifications"', capabilities)
         menu = (OVERLAY / "cleanroom/WhitegramMainMenuController.swift").read_text(encoding="utf-8")
-        self.assertIn('"notifications": [11]', menu)
+        self.assertIn('"notifications": [28]', menu)
         state = (OVERLAY / "generated/WhitegramSettingsState.swift").read_text(encoding="utf-8")
         self.assertIn("public var backgroundKeepAlive: Bool = true", state)
 

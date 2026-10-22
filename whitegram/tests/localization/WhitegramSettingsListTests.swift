@@ -58,5 +58,6 @@ final class WhitegramSettingsListTests: XCTestCase {
         XCTAssertEqual(layout.first { $0.id == "exportSettings" }?.section, 7)
         XCTAssertEqual(layout.first { $0.id == "hidePhoneNumber" }?.section, 6)
         XCTAssertEqual(layout.first { $0.id == "hideWallet" }?.section, 8)
+        XCTAssertEqual(layout.filter { $0.section == 28 }.map { $0.id }, ["notificationsHeader", "whitegramNotifications", "persistentNotifications", "backgroundKeepAlive", "persistentNotificationsInfo"])
     }
 }
