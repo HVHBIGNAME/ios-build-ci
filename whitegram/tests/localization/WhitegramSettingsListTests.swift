@@ -36,4 +36,27 @@ final class WhitegramSettingsListTests: XCTestCase {
         XCTAssertEqual(filtered(hideDescriptions: true), ["firstHeader", "firstSwitch"])
         XCTAssertTrue(filtered(query: "help", hideDescriptions: true).isEmpty)
     }
+
+    func testOriginalPrivacyAndGhostCategoriesAreDistinctAndContainTheirControls() {
+        let layout = WhitegramSettingsLayout.rows(WhitegramSettingsCatalog.rows)
+        let privacy = layout.filter { $0.section == 5 }.map { $0.id }
+        XCTAssertEqual(privacy, ["privacyHeader", "saveProtectedContent", "scammerProtection", "bypassContentRestrictions", "privacyInfo", "warnBeforeCall", "removeSpoilers"])
+        let ghost = layout.filter { $0.section == 4 }.map { $0.id }
+        XCTAssertTrue(ghost.contains("onlineHistoryView"))
+        XCTAssertTrue(ghost.contains("fakeLocationPicker"))
+        XCTAssertFalse(ghost.contains("saveProtectedContent"))
+        XCTAssertFalse(privacy.contains("ghostMode"))
+    }
+
+    func testLayoutPreservesEveryCatalogIdentityAndAddsTheExistingReturnControlOnce() {
+        let original = WhitegramSettingsCatalog.rows
+        let layout = WhitegramSettingsLayout.rows(original)
+        XCTAssertEqual(Set(layout.map { $0.id }), Set(original.map { $0.id }).union(["sendOnReturnKey"]))
+        XCTAssertEqual(layout.count, original.count + 1)
+        XCTAssertEqual(layout.map { $0.order }, Array(0..<layout.count))
+        XCTAssertEqual(layout.first { $0.id == "sendOnReturnKey" }?.section, 1)
+        XCTAssertEqual(layout.first { $0.id == "exportSettings" }?.section, 7)
+        XCTAssertEqual(layout.first { $0.id == "hidePhoneNumber" }?.section, 6)
+        XCTAssertEqual(layout.first { $0.id == "hideWallet" }?.section, 8)
+    }
 }

@@ -171,7 +171,7 @@ private struct WhitegramSettingsRow: ItemListNodeEntry {
                 action: { arguments.selectCamera(self.descriptor.id) })
         }
         if let value {
-            return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: self.title, value: value, sectionId: self.section, style: .blocks, updated: { arguments.update(self.descriptor.id, value: $0) })
+            return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: self.title, value: value, maximumNumberOfLines: 0, sectionId: self.section, style: .blocks, updated: { arguments.update(self.descriptor.id, value: $0) })
         }
         if WhitegramPortCapabilities.links[self.descriptor.id] != nil {
             return ItemListActionItem(presentationData: presentationData, systemStyle: .glass, title: self.title,
@@ -193,7 +193,7 @@ public func whitegramGeneratedSettingsController(context: AccountContext, sectio
     |> map { presentationData, revision -> (ItemListControllerState, (ItemListNodeState, Any)) in
         let russian = WhitegramLocalization.selectedLanguage(baseLanguage: presentationData.strings.baseLanguageCode) == "ru"
         let hideDescriptions = WhitegramPreferences.bool("hideSettingsDescriptions", default: UserDefaults.standard.bool(forKey: "wg_hideSettingsDescriptions"))
-        let descriptors = WhitegramSettingsList.filtered(WhitegramSettingsCatalog.rows, sections: sections, query: coordinator.query,
+        let descriptors = WhitegramSettingsList.filtered(WhitegramSettingsLayout.rows(WhitegramSettingsCatalog.rows), sections: sections, query: coordinator.query,
             availableOnly: availableOnly, hideDescriptions: hideDescriptions, informationIds: Set(WhitegramPortCapabilities.informationKeys.keys),
             supported: { WhitegramPortCapabilities.supports($0) || WhitegramSettingsNumber(rawValue: $0) != nil || $0 == "messagePreview" },
             title: { WhitegramPortCapabilities.title($0, baseLanguage: presentationData.strings.baseLanguageCode) })

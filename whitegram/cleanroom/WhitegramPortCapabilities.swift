@@ -61,6 +61,7 @@ enum WhitegramPortCapabilities {
         "zalgoFilter": "zalgoFilterEnabled",
         "formattingToolbar": "formattingToolbarEnabled",
         "inAppVibration": "inAppVibrationEnabled",
+        "sendOnReturnKey": "sendOnReturnKey",
         "neutralMediaAccent": "neutralMediaAccent",
         "hideGifts": "hideGifts", "visualUsernameEnabled": "visualUsernameEnabled",
         "highlightMentions": "highlightMentions", "roundProfileActionButtons": "roundProfileActionButtons",
@@ -115,6 +116,8 @@ enum WhitegramPortCapabilities {
         "crossfadeEnabled": "player.crossfadeEnabled", "crossfadeSlider": "player.crossfade", "equalizerOpen": "player.equalizerOpen",
         "showDeletedMessages": "s.showDeleted", "showCharCountTyping": "s.charCountTyping", "showCharCountMessages": "s.charCountMsgs",
         "localStarsEnabled": "s.localStars", "localStarsCountSlider": "s.starsCount",
+        "saveProtectedContent": "s.protectedContent", "bypassContentRestrictions": "s.bypassContentRestrictions",
+        "removeSpoilers": "s.removeSpoilers", "readOnAction": "s.readOnAction", "warnBeforeCall": "s.warnBeforeCall",
         "alwaysSendHD": "s.alwaysHD", "rememberLastCamera": "s.rememberCamera", "sendAcceleration": "s.sendAccel",
         "liquidGlassBubbles": "s.liquidGlass", "voiceBleepEnabled": "s.voiceBleep"
     ]
@@ -212,6 +215,8 @@ enum WhitegramPortCapabilities {
         guard let key = booleans[id] else { return nil }
         if key == "roundProfileActionButtons" { return WhitegramAppearancePolicy.current.isEnabled(key) }
         if key == "inAppVibrationEnabled" { return WhitegramTextSettings.current.inAppVibrationEnabled }
+        if key == "sendOnReturnKey" { return WhitegramTextSettings.current.sendOnReturnKey }
+        if WhitegramContentSettings.originalDefaults[key] != nil { return WhitegramContentSettings.bool(key) }
         if key == "showOriginalTelegramIcons" || key == "customSettingsIcons" {
             let settings = WhitegramIconSettings.current
             return key == "showOriginalTelegramIcons" ? settings.showOriginalTelegramIcons : settings.customSettingsIcons

@@ -37,7 +37,7 @@ final class WhitegramLocalizationTests: XCTestCase {
     }
 
     func testRecoveredTableAndLanguageNormalization() {
-        XCTAssertEqual(WhitegramLocalizationStrings.values.count, 1597)
+        XCTAssertEqual(WhitegramLocalizationStrings.values.count, 1639)
         XCTAssertEqual(WhitegramLocalization.builtInString("desc.camera", language: "ru"), "Зум, HD-отправка, кружки")
         XCTAssertEqual(WhitegramLocalization.builtInString("section.ghost", language: "uk"), "Режим привида")
         XCTAssertEqual(WhitegramLocalization.builtInString("section.camera", language: "en"), "Camera")
@@ -94,7 +94,7 @@ final class WhitegramLocalizationTests: XCTestCase {
         XCTAssertEqual(WhitegramLocalization.string("missing.key", fallback: "Fallback", store: store), "Fallback")
         XCTAssertEqual(WhitegramLocalization.format("test.format", ["first", "%1", "3", "4", "5", "6", "7", "8", "9", "tenth"], store: store), "tenth / first / %1 / %99")
         let exported = try WhitegramLocalization.exportPack(baseLanguage: "en", store: store)
-        XCTAssertEqual(exported.entries.count, 1597)
+        XCTAssertEqual(exported.entries.count, 1639)
         XCTAssertEqual(exported.entries["section.camera"], "📷 Custom camera")
         XCTAssertEqual(exported.name, "My translation")
         XCTAssertEqual(exported.author, "Translator")
@@ -113,7 +113,7 @@ final class WhitegramLocalizationTests: XCTestCase {
         let store = WhitegramLocalizationStore(fileURL: url, defaults: defaults)
         XCTAssertThrowsError(try WhitegramLocalization.exportPack(baseLanguage: "en", store: store))
         try store.remove()
-        XCTAssertEqual(try WhitegramLocalization.exportPack(baseLanguage: "en", store: store).entries.count, 1597)
+        XCTAssertEqual(try WhitegramLocalization.exportPack(baseLanguage: "en", store: store).entries.count, 1639)
     }
 
     func testGeneratedControlsUseOriginalDefaultsAndCanonicalAliases() {

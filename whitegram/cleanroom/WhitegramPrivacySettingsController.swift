@@ -28,7 +28,7 @@ private struct WhitegramPrivacyEntry: ItemListNodeEntry {
         case let .header(title):
             return ItemListSectionHeaderItem(presentationData: presentationData, text: title, sectionId: section)
         case let .toggle(title, value):
-            return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: title, value: value, sectionId: section, style: .blocks, updated: { coordinator.set($0, for: self.stableId) })
+            return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: title, value: value, maximumNumberOfLines: 0, sectionId: section, style: .blocks, updated: { coordinator.set($0, for: self.stableId) })
         case let .text(text):
             return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: section, style: .blocks)
         case let .retainedMedia(title):

@@ -25,6 +25,7 @@ PRIVACY_RUNTIME_FILES = {
     "WhitegramReadActionUI.swift": UI + "WhitegramReadActionUI.swift",
     "WhitegramPrivacySettings.swift": "submodules/TelegramUIPreferences/Sources/WhitegramPrivacySettings.swift",
     "WhitegramPrivacySettingsController.swift": "submodules/SettingsUI/Sources/WhitegramPrivacySettingsController.swift",
+    "WhitegramSettingsLayout.swift": "submodules/SettingsUI/Sources/WhitegramSettingsLayout.swift",
     "WhitegramContentMediaController.swift": "submodules/SettingsUI/Sources/WhitegramContentMediaController.swift",
     "WhitegramContentPhotoExporter.swift": "submodules/SettingsUI/Sources/WhitegramContentPhotoExporter.swift",
     "WhitegramContentStoryPrompt.swift": "submodules/ChatListUI/Sources/WhitegramContentStoryPrompt.swift",

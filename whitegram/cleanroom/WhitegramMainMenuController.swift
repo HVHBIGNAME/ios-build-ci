@@ -139,10 +139,12 @@ public func whitegramMainMenuController(context: AccountContext) -> ViewControll
             pushController?(whitegramAPIStatusController(context: context))
         case "donate":
             context.sharedContext.applicationBindings.openUrl("https://t.me/heypaindonationbot")
-        case "ghost", "privacy":
-            pushController?(whitegramPrivacySettingsController(context: context))
+        case "ghost":
+            pushController?(whitegramGeneratedSettingsController(context: context, sections: [4], title: section.title(baseLanguage: baseLanguage), availableOnly: true))
+        case "privacy":
+            pushController?(whitegramGeneratedSettingsController(context: context, sections: [5], title: section.title(baseLanguage: baseLanguage), availableOnly: true))
         case "messages":
-            pushController?(whitegramHistoryController(context: context))
+            pushController?(whitegramGeneratedSettingsController(context: context, sections: [1, 2], title: section.title(baseLanguage: baseLanguage), availableOnly: true))
         case "fonts":
             pushController?(whitegramFontsController(context: context))
         case "icons":
@@ -166,7 +168,7 @@ public func whitegramMainMenuController(context: AccountContext) -> ViewControll
         case "virusTotal":
             pushController?(whitegramVirusTotalController(context: context))
         case "tabs":
-            pushController?(whiteGramTabsSettingsController(context: context))
+            pushController?(whitegramGeneratedSettingsController(context: context, sections: [9], title: section.title(baseLanguage: baseLanguage), availableOnly: true))
         case "camera":
             pushController?(whitegramMediaSettingsController(context: context))
         case "translation":
@@ -182,7 +184,7 @@ public func whitegramMainMenuController(context: AccountContext) -> ViewControll
         case "publicSettings":
             pushController?(whiteGramSettingsController(context: context))
         default:
-            let sections: [String: Set<Int>] = ["appearance": [3, 9], "interface": [5], "info": [6], "misc": [8], "notifications": [11]]
+            let sections: [String: Set<Int>] = ["appearance": [0], "interface": [8], "info": [6], "misc": [7], "notifications": [28]]
             if let sections = sections[section.id] {
                 pushController?(whitegramGeneratedSettingsController(context: context, sections: sections, title: section.title(baseLanguage: baseLanguage), availableOnly: true))
             }

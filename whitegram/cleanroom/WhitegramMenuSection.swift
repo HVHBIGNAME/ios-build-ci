@@ -37,7 +37,7 @@ public struct WhitegramMenuSection: Hashable {
         case "donate": return ("donate.title", "donate.description")
         case "radio": return ("radio.menuTitle", "radio.menuDescription")
         case "features": return ("h.features", "desc.features")
-        case "plugins": return ("plugins.title", "di.plugins")
+        case "plugins": return ("h.plugins", "di.plugins")
         case "search": return ("auto.WhitegramSettingsController.c64fa265c6", "auto.WhitegramSettingsController.4502a19525")
         case "allSettings": return ("section.all", "desc.all")
         default: return ("section." + id, "desc." + id)
@@ -66,7 +66,7 @@ public enum WhitegramMenuCatalog {
         WhitegramMenuSection(id: "publicSettings", icon: "slider.horizontal.3", ruTitle: "Чаты, папки и истории", ruDescription: "Все настройки открытого WhiteGram", enTitle: "Chats, folders and stories", enDescription: "Complete public WhiteGram settings"),
         WhitegramMenuSection(
             id: "about",
-            icon: "person.crop.circle",
+            icon: "person.fill",
             ruTitle: "О Whitegram",
             ruDescription: "Версия, канал, разработчик",
             enTitle: "About Whitegram",
@@ -98,7 +98,7 @@ public enum WhitegramMenuCatalog {
         ),
         WhitegramMenuSection(
             id: "appearance",
-            icon: "paintbrush.pointed.fill",
+            icon: "paintbrush.fill",
             ruTitle: "Внешний вид",
             ruDescription: "Аватарки, пузыри сообщений, эффекты",
             enTitle: "Appearance",
@@ -170,7 +170,7 @@ public enum WhitegramMenuCatalog {
         ),
         WhitegramMenuSection(
             id: "interface",
-            icon: "eye.fill",
+            icon: "eye.trianglebadge.exclamationmark.fill",
             ruTitle: "Разделы меню",
             ruDescription: "Что показывать в меню Telegram",
             enTitle: "Menu sections",
@@ -178,7 +178,7 @@ public enum WhitegramMenuCatalog {
         ),
         WhitegramMenuSection(
             id: "tabs",
-            icon: "rectangle.grid.2x2.fill",
+            icon: "rectangle.3.group.fill",
             ruTitle: "Вкладки",
             ruDescription: "Нижняя панель и её вкладки",
             enTitle: "Tabs",
@@ -202,7 +202,7 @@ public enum WhitegramMenuCatalog {
         ),
         WhitegramMenuSection(
             id: "translation",
-            icon: "globe.europe.africa.fill",
+            icon: "globe",
             ruTitle: "Перевод",
             ruDescription: "Перевод входящих и исходящих",
             enTitle: "Translation",
@@ -210,7 +210,7 @@ public enum WhitegramMenuCatalog {
         ),
         WhitegramMenuSection(
             id: "traffic",
-            icon: "globe.badge.chevron.backward",
+            icon: "network.badge.shield.half.filled",
             ruTitle: "Улучшенный трафик",
             ruDescription: "Маскировка трафика Telegram",
             enTitle: "Improved traffic",
@@ -226,7 +226,7 @@ public enum WhitegramMenuCatalog {
         ),
         WhitegramMenuSection(
             id: "voiceChanger",
-            icon: "waveform",
+            icon: "waveform.badge.mic",
             ruTitle: "Смена голоса",
             ruDescription: "Изменение своего голоса в записях",
             enTitle: "Voice changer",
@@ -242,7 +242,7 @@ public enum WhitegramMenuCatalog {
         ),
         WhitegramMenuSection(
             id: "radio",
-            icon: "antenna.radiowaves.left.and.right",
+            icon: "dot.radiowaves.left.and.right",
             ruTitle: "Радио",
             ruDescription: "Сейчас никто не слушает",
             enTitle: "Radio",
@@ -274,7 +274,7 @@ public enum WhitegramMenuCatalog {
         ),
         WhitegramMenuSection(
             id: "localization",
-            icon: "character.bubble.fill",
+            icon: "character.bubble",
             ruTitle: "Локализация",
             ruDescription: "Свой перевод меню Whitegram: экспорт и импорт",
             enTitle: "Localization",

@@ -39,8 +39,8 @@ class LocalizationIntegrationTests(unittest.TestCase):
         table = (ROOT / "generated/WhitegramLocalizationStrings.swift").read_text(encoding="utf-8")
         pairs = re.findall(r'^\s*("(?:[^"\\]|\\.)+"):\s*(\[.*\]),$', table, re.MULTILINE)
         entries = {json.loads(key): json.loads(values) for key, values in pairs}
-        self.assertEqual(len(pairs), 1597)
-        self.assertEqual(len(entries), 1597)
+        self.assertEqual(len(pairs), 1639)
+        self.assertEqual(len(entries), 1639)
         self.assertTrue(all(len(values) == 3 and all(isinstance(value, str) for value in values) for values in entries.values()))
         self.assertEqual(entries["section.ghost"], ["Режим призрака", "Режим привида", "Ghost Mode"])
         self.assertEqual(entries["desc.camera"][0], "Зум, HD-отправка, кружки")
