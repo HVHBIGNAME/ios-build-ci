@@ -4,7 +4,7 @@
 
 ## Скачать
 
-[IPA — build 34650](https://github.com/HVHBIGNAME/iostg/actions/runs/39650634893/artifacts/12370913708) · [Сборки](https://github.com/HVHBIGNAME/iostg/actions/workflows/build.yml)
+[IPA — build 34651](https://github.com/HVHBIGNAME/iostg/actions/runs/39761413246/artifacts/12424308231) · [Сборки](https://github.com/HVHBIGNAME/iostg/actions/workflows/build.yml)
 
 Скачайте ZIP, извлеките `.ipa` и подпишите через ESign, Feather, AltStore или Sideloadly.
 
